@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Privacy Policy / Politika privatnosti for My Farmer (com.myfarmer.network).">
+  <title>My Farmer — Privacy Policy / Politika privatnosti</title>
+  <style>
+    :root {
+      --green-900: #1b5e20;
+      --green-700: #2e7d32;
+      --green-50: #e8f5e9;
+      --text: #1a1a1a;
+      --muted: #555;
+      --border: #cfe8cf;
+      --bg: #f6faf6;
+      --card: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--green-900), var(--green-700));
+      color: #fff;
+      padding: 2rem 1.25rem 1.75rem;
+    }
+
+    header .wrap { max-width: 880px; margin: 0 auto; }
+
+    header h1 {
+      margin: 0 0 0.35rem;
+      font-size: clamp(1.55rem, 4vw, 2rem);
+      font-weight: 700;
+    }
+
+    header p { margin: 0.2rem 0; opacity: 0.95; }
+
+    .meta { margin-top: 0.75rem; font-size: 0.88rem; opacity: 0.92; }
+
+    nav.lang {
+      max-width: 880px;
+      margin: -1rem auto 0;
+      padding: 0 1.25rem;
+      position: relative;
+      z-index: 2;
+    }
+
+    .lang-inner {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.35rem;
+      width: fit-content;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+    }
+
+    .lang button {
+      border: 0;
+      background: transparent;
+      padding: 0.45rem 1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .lang button.active {
+      background: var(--green-700);
+      color: #fff;
+    }
+
+    main {
+      max-width: 880px;
+      margin: 1.5rem auto 3rem;
+      padding: 0 1.25rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.35rem 1.4rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+
+    .notice {
+      background: var(--green-50);
+      border-left: 4px solid var(--green-700);
+    }
+
+    h2 {
+      margin: 0 0 0.65rem;
+      font-size: 1.15rem;
+      color: var(--green-900);
+    }
+
+    h3 {
+      margin: 1rem 0 0.4rem;
+      font-size: 1rem;
+      color: #33691e;
+    }
+
+    p, li { font-size: 0.96rem; }
+    ul { padding-left: 1.2rem; margin: 0.4rem 0 0.8rem; }
+    li { margin-bottom: 0.35rem; }
+
+    a { color: var(--green-700); }
+
+    footer {
+      max-width: 880px;
+      margin: 0 auto 2.5rem;
+      padding: 0 1.25rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .lang-panel { display: none; }
+    .lang-panel.active { display: block; }
+
+    code {
+      background: #eef3ee;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.88em;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #ececec;
+        --muted: #b8b8b8;
+        --border: #2e4a2e;
+        --bg: #101510;
+        --card: #162016;
+        --green-50: #1a2e1a;
+      }
+      code { background: #243024; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>My Farmer</h1>
+      <p><strong>Privacy Policy</strong> · <strong>Politika privatnosti</strong></p>
+      <p class="meta">Android package: <code>com.myfarmer.network</code> · Firebase: <code>my-farmer-552a3</code></p>
+      <p class="meta" id="updated-line">Last updated: 28 July 2026</p>
+    </div>
+  </header>
+
+  <nav class="lang" aria-label="Language selection">
+    <div class="lang-inner">
+      <button type="button" id="btn-en" class="active" onclick="setLang('en')">English</button>
+      <button type="button" id="btn-hr" onclick="setLang('hr')">Hrvatski</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- ENGLISH -->
+    <article id="panel-en" class="lang-panel active" lang="en">
+      <section class="card notice">
+        <h2>Introduction</h2>
+        <p>
+          This Privacy Policy describes how <strong>My Farmer</strong> (“we”, “us”) processes personal data when you use our
+          mobile application <strong>My Farmer</strong> (Android package <code>com.myfarmer.network</code>).
+        </p>
+        <p>
+          My Farmer is an agricultural marketplace. Product payments between buyers and sellers are <strong>peer-to-peer</strong>
+          (cash, direct PayPal, bank transfer) — we do not process marketplace payments.
+          Optional Premium features are billed via <strong>Google Play</strong> and managed with <strong>RevenueCat</strong>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>1. Data controller</h2>
+        <p>Operator of the My Farmer app is the data controller under the EU GDPR.</p>
+        <ul>
+          <li><strong>App:</strong> My Farmer (<code>com.myfarmer.network</code>)</li>
+          <li><strong>Contact:</strong> <a href="mailto:support@myfarmer.app">support@myfarmer.app</a></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>2. Data we collect</h2>
+        <ul>
+          <li><strong>Account:</strong> name, email, phone, address, role, farm/business details</li>
+          <li><strong>Usage:</strong> products, orders, chat, animal records, land parcels, scan history</li>
+          <li><strong>Payment profiles:</strong> PayPal email, masked card digits, IBAN (voluntary, for seller profiles)</li>
+          <li><strong>Device:</strong> FCM push token, device ID for trial limits</li>
+          <li><strong>Media:</strong> photos you upload; camera input for the plant scanner</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>3. Location data &amp; OpenWeather API</h2>
+        <p>
+          With your permission, we access <strong>GPS location</strong> to show nearby marketplace listings,
+          apply correct currency/pricing for your region, and save farm coordinates you choose to share.
+        </p>
+        <p>
+          For farmer weather alerts and widgets, we may send your coordinates (latitude/longitude) to
+          <strong>OpenWeather</strong> and/or <strong>Open-Meteo</strong> to retrieve forecast data.
+          We do not sell location data. You may deny location permission; some features will be limited.
+        </p>
+        <p>
+          Legal basis: consent (Android location permission) and/or contract performance for features you request (GDPR Art. 6(1)(a)/(b)).
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>4. Plant scanner — camera usage</h2>
+        <p>
+          The AI plant scanner requires <strong>camera access</strong> (or gallery photos you select).
+          Images are sent to our backend (Firebase Cloud Functions) and to <strong>Plant.id</strong> for identification.
+          Images are used only to provide scan results and are not used for advertising.
+        </p>
+        <p>Legal basis: consent when you open the scanner or pick a photo (Art. 6(1)(a)).</p>
+      </section>
+
+      <section class="card">
+        <h2>5. Firebase (Google)</h2>
+        <p>We use <strong>Google Firebase</strong> (project <code>my-farmer-552a3</code>):</p>
+        <ul>
+          <li>Authentication, Firestore database, Cloud Storage, Cloud Messaging (push)</li>
+          <li>Cloud Functions (account deletion, plant ID proxy, weather alerts, satellite data)</li>
+        </ul>
+        <p>
+          See <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase Privacy</a> and
+          <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>6. Premium subscriptions — RevenueCat &amp; Google Play</h2>
+        <p>
+          Premium subscriptions and licences are purchased through <strong>Google Play Billing</strong>.
+          We use <strong>RevenueCat, Inc.</strong> to validate entitlements and sync subscription status to Firestore.
+        </p>
+        <ul>
+          <li>Processed: purchase tokens, subscription active/expiry, billing country, app user ID</li>
+          <li>Stored by us: <code>premiumActive</code>, <code>subscriptionTier</code>, <code>subscriptionExpiresAt</code></li>
+        </ul>
+        <p>
+          Marketplace product payments are <strong>not</strong> handled by RevenueCat.
+          Cancel renewals in Google Play → Subscriptions. Refunds follow Google Play terms.
+        </p>
+        <p>RevenueCat: <a href="https://www.revenuecat.com/privacy/" target="_blank" rel="noopener">revenuecat.com/privacy</a></p>
+      </section>
+
+      <section class="card">
+        <h2>7. Account deletion</h2>
+        <p>You may delete your account in the app: <strong>Profile → Delete account</strong>, or email
+          <a href="mailto:support@myfarmer.app">support@myfarmer.app</a>.</p>
+        <h3>Without active subscription</h3>
+        <p>Account and personal data are deleted promptly (Firebase Auth, profile, payment methods, hidden listings).</p>
+        <h3>With active Premium subscription</h3>
+        <p>
+          Deletion is scheduled for the <strong>end of the current billing period</strong> (Google Play / RevenueCat expiry).
+          Until then you may use Premium you paid for; your public profile is hidden. After expiry, data is permanently removed.
+        </p>
+        <p><strong>Note:</strong> Deleting your account does not auto-cancel Google Play billing — cancel separately in Play Store.</p>
+      </section>
+
+      <section class="card">
+        <h2>8. Other third parties</h2>
+        <ul>
+          <li>Google Maps — maps and geocoding</li>
+          <li>Sentinel Hub / Copernicus — satellite NIRS/NDVI (via our servers)</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>9. Your rights (GDPR)</h2>
+        <p>Access, rectification, erasure, restriction, portability, objection, and complaint to a supervisory authority.</p>
+        <p>Contact: <a href="mailto:support@myfarmer.app">support@myfarmer.app</a></p>
+      </section>
+
+      <section class="card">
+        <h2>10. Security &amp; retention</h2>
+        <p>HTTPS encryption, Firebase security rules. Data kept while account is active; removed or anonymized after deletion unless law requires longer retention.</p>
+      </section>
+
+      <section class="card">
+        <h2>11. Children</h2>
+        <p>Not directed at children under 16. Contact us if a child submitted data.</p>
+      </section>
+
+      <section class="card">
+        <h2>12. Changes</h2>
+        <p>We may update this policy. Material changes will be reflected here and in the app where appropriate.</p>
+      </section>
+    </article>
+
+    <!-- CROATIAN -->
+    <article id="panel-hr" class="lang-panel" lang="hr">
+      <section class="card notice">
+        <h2>Uvod</h2>
+        <p>
+          Ova Politika privatnosti objašnjava kako <strong>My Farmer</strong> („mi“, „nas“) obrađuje osobne podatke kada koristite
+          mobilnu aplikaciju <strong>My Farmer</strong> (Android paket <code>com.myfarmer.network</code>).
+        </p>
+        <p>
+          My Farmer je poljoprivredna tržnica. Plaćanja za proizvode između kupaca i prodavača su <strong>peer-to-peer</strong>
+          (gotovina, direktan PayPal, bankovni transfer) — mi ne procesiramo plaćanja na tržnici.
+          Premium funkcije se naplaćuju putem <strong>Google Playa</strong> i upravljaju se putem <strong>RevenueCata</strong>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>1. Voditelj obrade</h2>
+        <p>Operater aplikacije My Farmer je voditelj obrade u smislu EU GDPR-a.</p>
+        <ul>
+          <li><strong>Aplikacija:</strong> My Farmer (<code>com.myfarmer.network</code>)</li>
+          <li><strong>Kontakt:</strong> <a href="mailto:support@myfarmer.app">support@myfarmer.app</a></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>2. Podaci koje prikupljamo</h2>
+        <ul>
+          <li><strong>Račun:</strong> ime, email, telefon, adresa, uloga, podaci o gospodarstvu/firmi</li>
+          <li><strong>Korištenje:</strong> proizvodi, narudžbe, chat, kartoni životinja, parcele, povijest skeniranja</li>
+          <li><strong>Načini plaćanja:</strong> PayPal email, maskirane znamenke kartice, IBAN (dobrovoljno, za profil prodavača)</li>
+          <li><strong>Uređaj:</strong> FCM token za push, ID uređaja za limite probnih skenova</li>
+          <li><strong>Mediji:</strong> fotografije koje uploadate; kamera za AI skener biljaka</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>3. Lokacija i OpenWeather API</h2>
+        <p>
+          Uz vašu dozvolu pristupamo <strong>GPS lokaciji</strong> za prikaz obližnjih proizvoda na tržnici,
+          ispravnu valutu/cijene za vašu regiju i koordinate farme koje sami odaberete.
+        </p>
+        <p>
+          Za vremenske alarme i widget farmera možemo poslati vaše koordinate (geografska širina/dužina) servisima
+          <strong>OpenWeather</strong> i/ili <strong>Open-Meteo</strong> radi dohvaćanja prognoze.
+          Lokacijske podatke ne prodajemo. Možete odbiti dozvolu za lokaciju; neke funkcije tada neće raditi.
+        </p>
+        <p>
+          Pravna osnova: privola (Android dozvola za lokaciju) i/ili izvršenje ugovora za tražene funkcije (GDPR čl. 6(1)(a)/(b)).
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>4. AI skener biljaka — korištenje kamere</h2>
+        <p>
+          AI skener biljaka zahtijeva pristup <strong>kameri</strong> (ili fotografijama koje odaberete iz galerije).
+          Slike se šalju na naš backend (Firebase Cloud Functions) i servisu <strong>Plant.id</strong> radi identifikacije.
+          Slike služe isključivo za rezultat skeniranja i ne koriste se za oglašavanje.
+        </p>
+        <p>Pravna osnova: privola kada otvorite skener ili odaberete fotografiju (čl. 6(1)(a)).</p>
+      </section>
+
+      <section class="card">
+        <h2>5. Firebase (Google)</h2>
+        <p>Koristimo <strong>Google Firebase</strong> (projekt <code>my-farmer-552a3</code>):</p>
+        <ul>
+          <li>Autentifikacija, Firestore baza, Cloud Storage, Cloud Messaging (push)</li>
+          <li>Cloud Functions (brisanje računa, Plant.id proxy, vremenski alarmi, satelitski podaci)</li>
+        </ul>
+        <p>
+          Više: <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase privatnost</a> i
+          <a href="https://policies.google.com/privacy?hl=hr" target="_blank" rel="noopener">Google politika privatnosti</a>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>6. Premium pretplate — RevenueCat i Google Play</h2>
+        <p>
+          Premium pretplate i licence kupuju se putem <strong>Google Play Billinga</strong>.
+          Koristimo <strong>RevenueCat, Inc.</strong> za provjeru prava i sinkronizaciju statusa pretplate u Firestore.
+        </p>
+        <ul>
+          <li>Obrađuje se: tokeni kupnje, status pretplate/isteka, država naplate, ID korisnika u appu</li>
+          <li>Mi pohranjujemo: <code>premiumActive</code>, <code>subscriptionTier</code>, <code>subscriptionExpiresAt</code></li>
+        </ul>
+        <p>
+          Plaćanja za proizvode na tržnici <strong>ne</strong> idu kroz RevenueCat.
+          Obnovu otkazujte u Google Play → Pretplate. Povrat sredstava prema pravilima Google Playa.
+        </p>
+        <p>RevenueCat: <a href="https://www.revenuecat.com/privacy/" target="_blank" rel="noopener">revenuecat.com/privacy</a></p>
+      </section>
+
+      <section class="card">
+        <h2>7. Brisanje računa</h2>
+        <p>Račun možete obrisati u aplikaciji: <strong>Profil → Obriši račun</strong>, ili emailom
+          <a href="mailto:support@myfarmer.app">support@myfarmer.app</a>.</p>
+        <h3>Bez aktivne pretplate</h3>
+        <p>Račun i osobni podaci brišu se odmah (Firebase Auth, profil, načini plaćanja, skriveni oglasi).</p>
+        <h3>S aktivnom Premium pretplatom</h3>
+        <p>
+          Brisanje se <strong>zakazuje za kraj tekućeg obračunskog razdoblja</strong> (istek iz Google Playa / RevenueCata).
+          Do tada možete koristiti Premium za koji ste platili; javni profil je skriven. Nakon isteka podaci se trajno uklanjaju.
+        </p>
+        <p><strong>Napomena:</strong> Brisanje računa ne otkazuje automatski Google Play pretplatu — otkaz obnove radite zasebno u Play Storeu.</p>
+      </section>
+
+      <section class="card">
+        <h2>8. Ostale treće strane</h2>
+        <ul>
+          <li>Google Maps — karte i geokodiranje</li>
+          <li>Sentinel Hub / Copernicus — satelitski NIRS/NDVI (preko naših servera)</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>9. Vaša prava (GDPR)</h2>
+        <p>Pristup, ispravak, brisanje, ograničenje, prenosivost, prigovor i pritužba nadležnom tijelu.</p>
+        <p>Kontakt: <a href="mailto:support@myfarmer.app">support@myfarmer.app</a></p>
+      </section>
+
+      <section class="card">
+        <h2>10. Sigurnost i pohrana</h2>
+        <p>HTTPS enkripcija, Firebase pravila pristupa. Podaci se čuvaju dok je račun aktivan; nakon brisanja uklanjaju se ili anonimiziraju, osim ako zakon zahtijeva duže čuvanje.</p>
+      </section>
+
+      <section class="card">
+        <h2>11. Djeca</h2>
+        <p>Aplikacija nije namijenjena djeci mlađoj od 16 godina. Kontaktirajte nas ako je dijete poslalo podatke.</p>
+      </section>
+
+      <section class="card">
+        <h2>12. Promjene</h2>
+        <p>Politiku možemo ažurirati. Bitne promjene bit će objavljene ovdje i u aplikaciji gdje je prikladno.</p>
+      </section>
+    </article>
+  </main>
+
+  <footer>
+    <p>© My Farmer · <code>com.myfarmer.network</code> · <a href="mailto:support@myfarmer.app">support@myfarmer.app</a></p>
+  </footer>
+
+  <script>
+    function setLang(lang) {
+      document.getElementById('panel-en').classList.toggle('active', lang === 'en');
+      document.getElementById('panel-hr').classList.toggle('active', lang === 'hr');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      document.getElementById('btn-hr').classList.toggle('active', lang === 'hr');
+      document.documentElement.lang = lang;
+      document.getElementById('updated-line').textContent =
+        lang === 'hr' ? 'Zadnje ažuriranje: 28. srpnja 2026.' : 'Last updated: 28 July 2026';
+      try { localStorage.setItem('myfarmer-privacy-lang', lang); } catch (e) {}
+    }
+
+    (function () {
+      try {
+        var saved = localStorage.getItem('myfarmer-privacy-lang');
+        if (saved === 'hr' || saved === 'en') setLang(saved);
+      } catch (e) {}
+    })();
+  </script>
+</body>
+</html>
