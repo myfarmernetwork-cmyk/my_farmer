@@ -1,0 +1,6 @@
+# Kopiraj u android/key.properties i zamijeni lozinke nakon generiranja keystorea.
+# Datoteka key.properties i *.jks su u .gitignore — ne commitaj ih.
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=upload
+storeFile=upload-keystore.jks

@@ -1,0 +1,126 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function callerDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && callerDoc().data != null
+        && (
+          callerDoc().data.get('role', '') == 'admin'
+          || callerDoc().data.get('isAdmin', false) == true
+        );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Klijent ne smije mijenjati ulogu nakon kreiranja dokumenta.
+    function roleUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    }
+
+    function validInitialRole() {
+      return request.resource.data.role is string
+        && request.resource.data.role.size() > 0
+        && request.resource.data.role.size() <= 64;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      // Pri registraciji korisnik jednom postavlja ulogu na vlastitom dokumentu.
+      allow create: if isOwner(userId) && validInitialRole();
+
+      // Vlasnik može ažurirati profil, ali NE polje role.
+      // Administrator i serverske funkcije (Admin SDK) mogu mijenjati ulogu.
+      allow update: if isSignedIn() && (isAdmin() || (isOwner(userId) && roleUnchanged()));
+
+      allow delete: if isAdmin();
+
+      match /weather_alert_state/{alertKey} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      match /payment_methods/{methodId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /products/{productId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /orders/{orderId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /animals/{animalId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /veterinary_requests/{requestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /vet_field_reports/{reportId} {
+      allow read: if isSignedIn()
+        && (isAdmin() || resource.data.vetId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && request.resource.data.vetId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.farmerName is string
+        && request.resource.data.farmerName.size() > 0;
+
+      allow update, delete: if isSignedIn()
+        && (isAdmin() || resource.data.vetId == request.auth.uid);
+    }
+
+    match /chat_rooms/{roomId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /scan_history/{scanId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /registered_devices/{deviceId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /land_parcels/{parcelId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /community_posts/{postId} {
+      allow read, write: if isSignedIn();
+    }
+
+    function isStockOnlyCatalogUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['stock', 'updatedAt']);
+    }
+
+    match /company_catalog/{sellerId}/items/{itemId} {
+      // Farmer upravlja katalogom; kupac smije samo sinkronizirati zalihe nakon narudžbe.
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == sellerId;
+      allow update: if isSignedIn() && (
+        request.auth.uid == sellerId
+        || isStockOnlyCatalogUpdate()
+      );
+    }
+  }
+}
