@@ -12,6 +12,6 @@ class LegalConfig {
 
   static const supportEmail = String.fromEnvironment(
     'SUPPORT_EMAIL',
-    defaultValue: 'support@myfarmer.app',
+    defaultValue: 'myfarmer.network@gmail.com',
   );
 }

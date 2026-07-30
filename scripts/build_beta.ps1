@@ -33,7 +33,7 @@ foreach ($prop in $secrets.PSObject.Properties) {
     continue
   }
 
-  # Beta build forsira ove flagove — ne ucitava iz secrets.
+  # Beta build forsira ove flagove - ne ucitava iz secrets.
   if ($name -in @(
       "REVENUECAT_SIMULATION",
       "BETA_FREE_PREMIUM",
@@ -63,7 +63,7 @@ $defines += "--dart-define=PLANT_SCANNER_USE_CLOUD=true"
 
 $privacyUrl = [string]$secrets.PRIVACY_POLICY_URL
 if ($privacyUrl.Trim().Length -eq 0) {
-  Write-Warning "PRIVACY_POLICY_URL nije postavljen — link Politika privatnosti u appu nece raditi u ovom buildu."
+  Write-Warning "PRIVACY_POLICY_URL nije postavljen - link Politika privatnosti u appu nece raditi u ovom buildu."
 }
 
 Push-Location $root
@@ -73,7 +73,7 @@ try {
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   Write-Host ""
   Write-Host "OK: build\app\outputs\bundle\release\app-release.aab"
-  Write-Host "Upload u Play Console, Testing, Closed testing"
+  Write-Host "Upload u Play Console -> Testing -> Internal testing"
 } finally {
   Pop-Location
 }
