@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/cart_item.dart';
 import '../../config/marketplace_payment_config.dart';
+import '../../config/payment_config.dart';
 import '../../models/payment_method.dart';
 import '../../models/premium_access.dart';
 import '../../models/product.dart';
@@ -233,17 +234,24 @@ CartPaymentMethod defaultPaymentMethodForCart(List<CartItem> items) {
   return CartPaymentMethod.cash;
 }
 
+bool isPlatformCardPaymentAvailable() => PaymentConfig.isStripeConfigured;
+
 bool isAllowedPaymentMethod({
   required List<CartItem> items,
   required String paymentMethod,
 }) {
   final method = CartPaymentMethod.fromValue(paymentMethod);
+  final platformCard = isPlatformCardPaymentAvailable() &&
+      (method == CartPaymentMethod.stripe ||
+          method == CartPaymentMethod.googlePay);
+
   if (MarketplacePaymentConfig.peerToPeerOnly) {
     if (cartRequiresDirectSellerPayment(items)) {
       return method == CartPaymentMethod.directPaypal ||
-          method == CartPaymentMethod.bankTransfer;
+          method == CartPaymentMethod.bankTransfer ||
+          platformCard;
     }
-    return method.isPeerToPeer;
+    return method.isPeerToPeer || platformCard;
   }
   if (cartRequiresDigitalPayment(items)) {
     return method.isDigital;

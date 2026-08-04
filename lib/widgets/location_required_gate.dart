@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,10 +81,11 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
       return;
     }
 
-    await _ensureGps(showErrors: false);
+    // Ne drži splash/checker dok GPS + geocoding traju (do ~25 s).
     if (mounted) {
       setState(() => _checking = false);
     }
+    unawaited(_ensureGps(showErrors: false));
   }
 
   void _showFeedback(String message, {bool isError = true}) {
@@ -138,7 +141,10 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
       }
 
       PaymentService.clearCountryCache();
-      final device = await PaymentService.resolveDeviceCountryForPricing();
+      final device = await PaymentService.resolveDeviceCountryForPricing().timeout(
+        const Duration(seconds: 25),
+        onTimeout: () => null,
+      );
       if (device == null) {
         const messageKey = 'location_install_gps_failed';
         if (mounted) {

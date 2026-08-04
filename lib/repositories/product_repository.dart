@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../features/buyer/storefront_seller_data.dart';
+import '../models/company_catalog_item.dart';
 import '../models/product.dart';
+import '../utils/firestore_error_helper.dart';
 import 'company_catalog_repository.dart';
 import '../services/notification_service.dart';
 
@@ -26,7 +29,32 @@ class ProductRepository {
         .collection('products')
         .where('sellerId', isEqualTo: sellerId)
         .snapshots()
+        .handleError(_rethrowNormalizedFirestoreError)
         .map((snap) => _mapAndSyncProducts(snap, buyerView: buyerView));
+  }
+
+  /// Company catalog for pharmacy / company storefronts (`company_catalog` collection).
+  Stream<List<CompanyCatalogItem>> getCompanyCatalogBySeller(String sellerId) {
+    return _firestore
+        .collection('company_catalog')
+        .doc(sellerId)
+        .collection('items')
+        .snapshots()
+        .handleError(_rethrowNormalizedFirestoreError)
+        .map((snap) {
+          final items = <CompanyCatalogItem>[];
+          for (final doc in snap.docs) {
+            try {
+              items.add(CompanyCatalogItem.fromFirestore(doc));
+            } catch (_) {
+              // Skip corrupt catalog rows — one bad record must not break a profile.
+            }
+          }
+          items.sort(
+            (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          );
+          return items;
+        });
   }
 
   // Dohvati PayPal email farmera
@@ -49,11 +77,54 @@ class ProductRepository {
     return methods.docs.first.data()['paypalEmail']?.toString();
   }
 
-  // Dohvati podatke o farmeru
+  // Dohvati podatke o farmeru (`users` collection).
   Future<Map<String, dynamic>?> getSellerData(String sellerId) async {
-    final doc =
-    await _firestore.collection('users').doc(sellerId).get();
-    return doc.exists ? doc.data() : null;
+    final id = sellerId.trim();
+    if (id.isEmpty) return null;
+
+    try {
+      final doc = await _firestore.collection('users').doc(id).get();
+      if (!doc.exists) return null;
+      final raw = doc.data();
+      if (raw == null) return null;
+      return StorefrontSellerData.normalizeSellerProfileMap(raw);
+    } on FirestoreNotSignedInException {
+      rethrow;
+    } on FirebaseException {
+      rethrow;
+    } catch (e) {
+      throw _normalizeFirestoreError(e);
+    }
+  }
+
+  Never _rethrowNormalizedFirestoreError(Object error, StackTrace stack) {
+    Error.throwWithStackTrace(_normalizeFirestoreError(error), stack);
+  }
+
+  FirebaseException _normalizeFirestoreError(Object error) {
+    if (error is FirebaseException) return error;
+
+    final raw = error.toString().toLowerCase();
+    if (raw.contains('permission-denied') || raw.contains('permission denied')) {
+      return FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'permission-denied',
+        message: error.toString(),
+      );
+    }
+    if (raw.contains('unauthenticated') || raw.contains('auth == null')) {
+      return FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'unauthenticated',
+        message: error.toString(),
+      );
+    }
+
+    return FirebaseException(
+      plugin: 'cloud_firestore',
+      code: 'load-failed',
+      message: error.toString(),
+    );
   }
 
   Future<void> updateSoldOut({
@@ -110,8 +181,14 @@ class ProductRepository {
     QuerySnapshot snap, {
     bool buyerView = false,
   }) {
-    final products =
-        snap.docs.map((doc) => Product.fromFirestore(doc)).toList();
+    final products = <Product>[];
+    for (final doc in snap.docs) {
+      try {
+        products.add(Product.fromFirestore(doc));
+      } catch (_) {
+        // Skip corrupt product docs — one bad record must not break a profile.
+      }
+    }
 
     for (final product in products) {
       if (product.needsHarvestTransition) {
@@ -139,7 +216,11 @@ class ProductRepository {
           .get();
 
       for (final doc in snapshot.docs) {
-        result[doc.id] = Product.fromFirestore(doc);
+        try {
+          result[doc.id] = Product.fromFirestore(doc);
+        } catch (_) {
+          // Skip corrupt product docs.
+        }
       }
     }
 
@@ -200,6 +281,7 @@ class ProductRepository {
           await NotificationService().showLowStockAlert(
             productName: productName,
             stock: nextStock,
+            productId: entry.productId,
           );
         }
       }

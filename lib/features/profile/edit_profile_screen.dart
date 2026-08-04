@@ -44,9 +44,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Uredi podatke")),
-      body: Form(
-        key: _formKey,
-        child: ListView(
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // Izbor uloge iz biznis plana
@@ -88,6 +90,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: const Text("SAČUVAJ IZMJENE"),
             ),
           ],
+        ),
         ),
       ),
     );

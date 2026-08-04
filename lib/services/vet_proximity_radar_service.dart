@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/app_user.dart';
 import '../models/farmer_shop_settings.dart';
 import '../models/subscription_tier.dart';
+import 'address_geocoding_service.dart';
 import 'delivery_service.dart';
 
 class VetProfile {
@@ -35,10 +37,14 @@ class VetProfile {
 }
 
 class VetProximityRadarService {
-  VetProximityRadarService({DeliveryService? deliveryService})
-      : _deliveryService = deliveryService ?? DeliveryService();
+  VetProximityRadarService({
+    DeliveryService? deliveryService,
+    AddressGeocodingService? geocodingService,
+  })  : _deliveryService = deliveryService ?? DeliveryService(),
+        _geocodingService = geocodingService ?? AddressGeocodingService();
 
   final DeliveryService _deliveryService;
+  final AddressGeocodingService _geocodingService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static const double defaultMaxKm = 80;
@@ -58,21 +64,126 @@ class VetProximityRadarService {
     });
   }
 
-  Future<List<VetProfile>> searchVetsByName(String query) async {
+  Future<List<VetProfile>> searchVetsByName(
+    String query, {
+    Position? buyerPosition,
+  }) async {
     final normalized = query.trim().toLowerCase();
-    if (normalized.length < 2) return [];
-
     final snapshot = await _firestore
         .collection('users')
-        .where('role', isEqualTo: 'veterinarian')
         .where('isVerified', isEqualTo: true)
         .get();
 
-    return snapshot.docs
-        .map((doc) => _mapVet(doc.id, doc.data()))
-        .where((vet) => vet.name.toLowerCase().contains(normalized))
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final mapped = <VetProfile>[];
+    for (final doc in snapshot.docs) {
+      if (!_isVeterinarianData(doc.data())) continue;
+      mapped.add(await _mapVet(doc.id, doc.data()));
+    }
+
+    final vets = mapped.map((vet) {
+      if (buyerPosition == null || !vet.hasLocation) return vet;
+      return VetProfile(
+        uid: vet.uid,
+        name: vet.name,
+        phone: vet.phone,
+        address: vet.address,
+        lat: vet.lat,
+        lng: vet.lng,
+        isPremium: vet.isPremium,
+        isVerified: vet.isVerified,
+        distanceKm: _deliveryService.distanceKm(
+          fromLat: buyerPosition.latitude,
+          fromLng: buyerPosition.longitude,
+          toLat: vet.lat!,
+          toLng: vet.lng!,
+        ),
+      );
+    }).where((vet) {
+      if (normalized.length < 2) return true;
+      return _matchesVetSearch(vet, normalized);
+    }).toList();
+
+    vets.sort((a, b) {
+      if (a.isPremium != b.isPremium) return a.isPremium ? -1 : 1;
+      final da = a.distanceKm ?? double.infinity;
+      final db = b.distanceKm ?? double.infinity;
+      if (da != db) return da.compareTo(db);
+      return a.name.compareTo(b.name);
+    });
+
+    return vets;
+  }
+
+  /// All verified vets within [maxKm]; premium vets first. Optionally includes
+  /// vets without GPS at the end (findable by name but not on map).
+  Future<List<VetProfile>> findVerifiedVetsNearby({
+    required Position buyerPosition,
+    double maxKm = defaultMaxKm,
+    String? favoriteVetId,
+    bool includeWithoutLocation = false,
+  }) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('isVerified', isEqualTo: true)
+        .get();
+
+    final withLocation = <VetProfile>[];
+    final withoutLocation = <VetProfile>[];
+
+    for (final doc in snapshot.docs) {
+      if (!_isVeterinarianData(doc.data())) continue;
+      final vet = await _mapVet(doc.id, doc.data());
+      if (!vet.isVerified) continue;
+
+      if (vet.hasLocation) {
+        final distance = _deliveryService.distanceKm(
+          fromLat: buyerPosition.latitude,
+          fromLng: buyerPosition.longitude,
+          toLat: vet.lat!,
+          toLng: vet.lng!,
+        );
+        if (distance > maxKm) continue;
+        withLocation.add(
+          VetProfile(
+            uid: vet.uid,
+            name: vet.name,
+            phone: vet.phone,
+            address: vet.address,
+            lat: vet.lat,
+            lng: vet.lng,
+            isPremium: vet.isPremium,
+            isVerified: vet.isVerified,
+            distanceKm: distance,
+            isFavorite: favoriteVetId != null && favoriteVetId == vet.uid,
+          ),
+        );
+      } else if (includeWithoutLocation) {
+        withoutLocation.add(
+          VetProfile(
+            uid: vet.uid,
+            name: vet.name,
+            phone: vet.phone,
+            address: vet.address,
+            lat: vet.lat,
+            lng: vet.lng,
+            isPremium: vet.isPremium,
+            isVerified: vet.isVerified,
+            isFavorite: favoriteVetId != null && favoriteVetId == vet.uid,
+          ),
+        );
+      }
+    }
+
+    withLocation.sort((a, b) {
+      if (a.isFavorite != b.isFavorite) return a.isFavorite ? -1 : 1;
+      if (a.isPremium != b.isPremium) return a.isPremium ? -1 : 1;
+      final da = a.distanceKm ?? double.infinity;
+      final db = b.distanceKm ?? double.infinity;
+      return da.compareTo(db);
+    });
+    withoutLocation.sort((a, b) => a.name.compareTo(b.name));
+
+    return [...withLocation, ...withoutLocation];
   }
 
   Future<List<VetProfile>> findPremiumVetsNearby({
@@ -91,7 +202,7 @@ class VetProximityRadarService {
     final ranked = <VetProfile>[];
 
     for (final doc in snapshot.docs) {
-      final vet = _mapVet(doc.id, doc.data());
+      final vet = await _mapVet(doc.id, doc.data());
       if (!vet.isPremium) continue;
 
       double? distance;
@@ -167,9 +278,10 @@ class VetProximityRadarService {
     }
 
     if (buyerPosition != null) {
-      final nearby = await findPremiumVetsNearby(
+      final nearby = await findVerifiedVetsNearby(
         buyerPosition: buyerPosition,
         favoriteVetId: favoriteVetId,
+        includeWithoutLocation: true,
       );
       for (final vet in nearby) {
         if (seen.contains(vet.uid)) continue;
@@ -181,20 +293,39 @@ class VetProximityRadarService {
     return results;
   }
 
-  VetProfile _mapVet(String uid, Map<String, dynamic> data) {
+  Future<VetProfile> _mapVet(String uid, Map<String, dynamic> data) async {
     final shop = FarmerShopSettings.fromMap(data);
+    final address = data['address']?.toString().trim() ?? '';
+
+    final coords = await _geocodingService.resolveCoordinates(
+      address: address,
+      lat: shop.farmLat,
+      lng: shop.farmLng,
+      userId: uid,
+    );
+
     return VetProfile(
       uid: uid,
       name: data['name']?.toString() ?? '',
       phone: data['phone']?.toString() ?? '',
-      address: data['address']?.toString() ?? '',
-      lat: shop.farmLat,
-      lng: shop.farmLng,
+      address: address,
+      lat: coords?.lat,
+      lng: coords?.lng,
       isPremium: data['subscriptionTier'] ==
               SubscriptionTier.veterinarianLicense.firestoreValue &&
           data['premiumApprovalStatus']?.toString().toUpperCase() == 'APPROVED',
       isVerified: data['isVerified'] == true,
     );
+  }
+
+  bool _isVeterinarianData(Map<String, dynamic> data) {
+    return AppUser.resolveRoleCanonical(data) == 'veterinarian';
+  }
+
+  bool _matchesVetSearch(VetProfile vet, String normalized) {
+    if (vet.name.toLowerCase().contains(normalized)) return true;
+    if (vet.address.toLowerCase().contains(normalized)) return true;
+    return false;
   }
 }
 

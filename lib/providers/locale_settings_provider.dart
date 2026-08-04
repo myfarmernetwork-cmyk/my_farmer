@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_user.dart';
+import '../utils/currency_region_parse.dart';
 import '../services/payment_service.dart';
 
 class AppLocaleOption {
@@ -261,7 +262,7 @@ String? resolveBillingCountryCode({
   final payment = (paymentCountry ?? '').toUpperCase();
   if (payment.isNotEmpty) return payment;
 
-  final stored = (storedRegion ?? '').toLowerCase();
+  final stored = CurrencyRegionParse.normalize(storedRegion) ?? '';
   final lang = locale?.languageCode.toLowerCase() ?? '';
 
   if (lang == 'sr' && (stored == 'rs' || stored == 'bih')) {
@@ -292,7 +293,7 @@ String resolveCurrencyRegionForLocale(
           deviceCountryCode ??
           '')
       .toUpperCase();
-  final stored = (storedRegion ?? '').toLowerCase();
+  final stored = CurrencyRegionParse.normalize(storedRegion) ?? '';
 
   if (billingCountry.isNotEmpty) {
     return _regionFromIsoCountry(billingCountry, lang, stored);
@@ -401,5 +402,5 @@ Future<void> loadUserLocaleSettings(WidgetRef ref) async {
   if (data == null) return;
 
   ref.read(currencyRegionProvider.notifier).state =
-      data['currencyRegion'] as String?;
+      CurrencyRegionParse.normalize(data['currencyRegion']);
 }

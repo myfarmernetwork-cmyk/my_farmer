@@ -7,6 +7,9 @@ import '../models/post_author.dart';
 import '../repositories/community_post_repository.dart';
 import '../services/community_author_service.dart';
 import '../utils/community_formatters.dart';
+import '../utils/community_location_launcher.dart';
+import '../../../widgets/profile_avatar.dart';
+import 'community_applause_bar.dart';
 
 class CommunityPostCard extends StatelessWidget {
   const CommunityPostCard({
@@ -102,6 +105,7 @@ class CommunityPostCard extends StatelessWidget {
               final author = snapshot.data;
               return _AuthorHeader(
                 author: author,
+                authorId: post.authorId,
                 postedAt: CommunityFormatters.relativeTime(
                   context,
                   post.timestamp,
@@ -113,20 +117,48 @@ class CommunityPostCard extends StatelessWidget {
             },
           ),
           if (post.imageUrl.isNotEmpty)
-            Image.network(
-              post.imageUrl,
+            SizedBox(
               width: double.infinity,
               height: 250,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                height: 180,
-                color: Colors.grey.shade200,
-                alignment: Alignment.center,
-                child: Icon(Icons.broken_image, color: Colors.grey.shade500),
+              child: Image.network(
+                post.imageUrl,
+                width: double.infinity,
+                height: 250,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Container(
+                    color: Colors.grey.shade200,
+                    alignment: Alignment.center,
+                    child: CircularProgressIndicator(
+                      value: progress.expectedTotalBytes != null
+                          ? progress.cumulativeBytesLoaded /
+                              progress.expectedTotalBytes!
+                          : null,
+                      color: Colors.green.shade700,
+                    ),
+                  );
+                },
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey.shade200,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.grey.shade500, size: 40),
+                      const SizedBox(height: 8),
+                      Text(
+                        'community_image_load_error'.tr(),
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: Text(
               post.description.isNotEmpty
                   ? post.description
@@ -137,6 +169,10 @@ class CommunityPostCard extends StatelessWidget {
               ),
             ),
           ),
+          CommunityApplauseBar(
+            post: post,
+            postRepository: postRepository,
+          ),
         ],
       ),
     );
@@ -146,15 +182,33 @@ class CommunityPostCard extends StatelessWidget {
 class _AuthorHeader extends StatelessWidget {
   const _AuthorHeader({
     required this.author,
+    required this.authorId,
     required this.postedAt,
     required this.isLoading,
     required this.onReport,
   });
 
   final PostAuthor? author;
+  final String? authorId;
   final String postedAt;
   final bool isLoading;
   final VoidCallback onReport;
+
+  Future<void> _openLocationOnMap(BuildContext context) async {
+    final location = author?.location?.trim();
+    if (author?.hasMapLocation != true) return;
+
+    final opened = await openCommunityLocationOnMap(
+      locationLabel: location ?? '',
+      lat: author?.farmLat,
+      lng: author?.farmLng,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('community_location_open_failed'.tr())),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +216,8 @@ class _AuthorHeader extends StatelessWidget {
     final roleLabel = CommunityFormatters.roleLabel(role);
     final roleColor = CommunityFormatters.roleColor(role);
     final displayName = author?.displayName ?? 'common_user'.tr();
-    final location = author?.location;
+    final location = author?.location?.trim();
+    final canOpenLocation = author?.hasMapLocation == true;
 
     return Container(
       width: double.infinity,
@@ -185,115 +240,157 @@ class _AuthorHeader extends StatelessWidget {
                 ),
               ),
             )
-          : Column(
+          : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: roleColor.withValues(alpha: 0.15),
-                      child: Icon(Icons.person, color: roleColor, size: 22),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.only(right: 10, top: 2),
+                  child: ProfileAvatar(
+                    imageUrl: author?.profileImageUrl,
+                    radius: 20,
+                    backgroundColor: roleColor.withValues(alpha: 0.15),
+                    iconColor: roleColor,
+                    iconSize: 22,
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Text(
-                            displayName,
-                            style: const TextStyle(
-                              fontSize: 16,
+                          Expanded(
+                            child: Text(
+                              displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 36,
+                              minHeight: 36,
+                            ),
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: Colors.grey.shade700,
+                              size: 22,
+                            ),
+                            onSelected: (value) {
+                              if (value == 'report') onReport();
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                value: 'report',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.flag_outlined,
+                                      color: Colors.red.shade700,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text('community_report_post'.tr()),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: roleColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: roleColor.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            roleLabel,
+                            style: TextStyle(
+                              color: roleColor,
+                              fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (location != null && location.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 14,
-                                  color: Colors.grey.shade600,
-                                ),
-                                const SizedBox(width: 2),
-                                Expanded(
-                                  child: Text(
-                                    location,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey.shade700,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (location != null && location.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: canOpenLocation
+                                ? () => _openLocationOnMap(context)
+                                : null,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    Icons.location_on_outlined,
+                                    size: 16,
+                                    color: canOpenLocation
+                                        ? Colors.green.shade700
+                                        : Colors.grey.shade600,
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: Icon(
-                        Icons.more_vert,
-                        color: Colors.grey.shade700,
-                      ),
-                      onSelected: (value) {
-                        if (value == 'report') onReport();
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'report',
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.flag_outlined,
-                                color: Colors.red.shade700,
-                                size: 20,
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      location,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        height: 1.35,
+                                        color: canOpenLocation
+                                            ? Colors.green.shade800
+                                            : Colors.grey.shade700,
+                                        decoration: canOpenLocation
+                                            ? TextDecoration.underline
+                                            : null,
+                                        decorationColor: Colors.green.shade600,
+                                      ),
+                                    ),
+                                  ),
+                                  if (canOpenLocation)
+                                    Icon(
+                                      Icons.open_in_new,
+                                      size: 14,
+                                      color: Colors.green.shade700,
+                                    ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Text('community_report_post'.tr()),
-                            ],
+                            ),
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: roleColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: roleColor.withValues(alpha: 0.35),
+                      if (postedAt.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          postedAt,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        roleLabel,
-                        style: TextStyle(
-                          color: roleColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (postedAt.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    postedAt,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
+                      ],
+                    ],
                   ),
-                ],
+                ),
               ],
             ),
     );

@@ -13,6 +13,7 @@ import '../../models/payment_result.dart';
 import '../../providers/locale_settings_provider.dart';
 import '../../services/currency_service.dart';
 import '../../services/payment_service.dart';
+import '../../config/payment_config.dart';
 import '../../config/marketplace_payment_config.dart';
 import '../../services/peer_marketplace_payment_service.dart';
 import '../../repositories/order_repository.dart';
@@ -99,7 +100,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       final amountLabel =
           '${converted.displayAmount.toStringAsFixed(2)} ${converted.displayCurrency}';
 
-      if (MarketplacePaymentConfig.peerToPeerOnly) {
+      if (MarketplacePaymentConfig.peerToPeerOnly &&
+          !method.requiresDigitalProcessing) {
         final peerService = PeerMarketplacePaymentService();
         final seller = await peerService.loadSellerDetails(product.sellerId);
 
@@ -329,6 +331,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
+                if (PaymentConfig.isStripeConfigured) ...[
+                  _buildPaymentOption(
+                    label: 'cart_payment_stripe'.tr(),
+                    subtitle: 'payment_option_stripe_live_hint'.tr(),
+                    icon: Icons.credit_card,
+                    color: Colors.indigo.shade700,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _checkoutWithMethod(context, CartPaymentMethod.stripe);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 _buildPaymentOption(
                   label: 'peer_payment_option_paypal'.tr(),
                   subtitle: 'peer_payment_option_paypal_hint'.tr(),
@@ -384,6 +399,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
   void _showReviewModal(BuildContext context) async {
     final reviewRepo = ref.read(reviewRepositoryProvider);
+    final orderRepo = ref.read(orderRepositoryProvider);
     final alreadyReviewed = await reviewRepo.hasReviewed(product.sellerId);
 
     if (!context.mounted) return;
@@ -391,6 +407,17 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     if (alreadyReviewed) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('product_already_reviewed'.tr())),
+      );
+      return;
+    }
+
+    final hasPurchased =
+        await orderRepo.hasCompletedOrderFromSeller(product.sellerId);
+    if (!context.mounted) return;
+
+    if (!hasPurchased) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('product_review_purchase_required'.tr())),
       );
       return;
     }
@@ -404,76 +431,105 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: StatefulBuilder(
-          builder: (context, setModalState) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'product_rate_farmer'.tr(),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  return GestureDetector(
-                    onTap: () => setModalState(
-                            () => selectedRating = index + 1.0),
-                    child: Icon(
-                      index < selectedRating
-                          ? Icons.star
-                          : Icons.star_border,
-                      color: Colors.amber,
-                      size: 40,
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: commentController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'product_review_comment'.tr(),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-                onPressed: () async {
-                  await reviewRepo.addReview(
-                    sellerId: product.sellerId,
-                    rating: selectedRating,
-                    comment: commentController.text.trim(),
-                  );
-                  if (ctx.mounted) Navigator.pop(ctx);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('product_review_thanks'.tr()),
+      builder: (ctx) {
+        final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+              child: StatefulBuilder(
+                builder: (context, setModalState) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'product_rate_farmer'.tr(),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    );
-                  }
-                },
-                child: Text('product_send_review'.tr(),
-                    style: TextStyle(color: Colors.white)),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (index) {
+                        return GestureDetector(
+                          onTap: () => setModalState(
+                            () => selectedRating = index + 1.0,
+                          ),
+                          child: Icon(
+                            index < selectedRating
+                                ? Icons.star
+                                : Icons.star_border,
+                            color: Colors.amber,
+                            size: 40,
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: commentController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: 'product_review_comment'.tr(),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () async {
+                        try {
+                          await reviewRepo.addReview(
+                            sellerId: product.sellerId,
+                            rating: selectedRating,
+                            comment: commentController.text.trim(),
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('product_review_thanks'.tr()),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          final message = e.toString().contains(
+                                'product_review_purchase_required',
+                              )
+                              ? 'product_review_purchase_required'.tr()
+                              : 'common_error'.tr(
+                                  namedArgs: {'error': '$e'},
+                                );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(message),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      child: Text('product_send_review'.tr()),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -507,7 +563,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: TranslatedText(
+        title: Text(
           product.name,
           style: const TextStyle(color: Colors.white),
         ),
@@ -580,7 +636,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TranslatedText(
+                    Text(
                       product.name,
                       style: const TextStyle(
                         fontSize: 24,
@@ -657,33 +713,31 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       ),
                     ],
                     const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => FarmerStorefrontScreen(
-                              sellerId: product.sellerId),
-                        ),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[200]!),
                       ),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green[200]!),
-                        ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: product.sellerId.trim().isEmpty
+                            ? null
+                            : () => openSellerProfile(
+                                  context,
+                                  product.sellerId,
+                                ),
                         child: Row(
                           children: [
                             CircleAvatar(
                               backgroundColor: Colors.green[100],
-                              child: const Icon(Icons.person,
-                                  color: Colors.green),
+                              child: const Icon(Icons.person, color: Colors.green),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     'product_seller_label'.tr(),
@@ -695,14 +749,17 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   Text(
                                     product.sellerName,
                                     style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(Icons.arrow_forward_ios,
-                                size: 16, color: Colors.green[700]),
+                            Icon(
+                              Icons.chevron_right,
+                              color: Colors.green[700],
+                            ),
                           ],
                         ),
                       ),

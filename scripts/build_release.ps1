@@ -1,13 +1,13 @@
-# Play Store release build — učitava tajne iz secrets.local.json (ne ide u git).
-# 1. Kopiraj secrets.local.json.example -> secrets.local.json
-# 2. Popuni ključeve
+# Play Store release build - loads secrets from secrets.local.json (not in git).
+# 1. Copy secrets.local.json.example -> secrets.local.json
+# 2. Fill in keys
 # 3. .\scripts\build_release.ps1
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $secretsPath = Join-Path $root "secrets.local.json"
 
-# Ključevi samo za Firebase Functions — nikad u APK (--dart-define).
+# Keys for Firebase Functions only - never in APK (--dart-define).
 $serverOnlyKeys = @(
   "SENTINEL_HUB_CLIENT_ID",
   "SENTINEL_HUB_CLIENT_SECRET",
@@ -20,7 +20,7 @@ $serverOnlyKeys = @(
 )
 
 if (-not (Test-Path $secretsPath)) {
-  Write-Error "Nedostaje secrets.local.json — kopiraj secrets.local.json.example i popuni ključeve."
+  Write-Error "Missing secrets.local.json - copy secrets.local.json.example and fill keys."
 }
 
 $secrets = Get-Content $secretsPath -Raw | ConvertFrom-Json
@@ -35,19 +35,19 @@ foreach ($prop in $secrets.PSObject.Properties) {
   }
 
   if ($name -eq "REVENUECAT_SIMULATION" -and $value.Trim().ToLower() -eq "true") {
-    Write-Warning "REVENUECAT_SIMULATION=true — ignorirano za release build."
+    Write-Warning "REVENUECAT_SIMULATION=true ignored for release build."
     continue
   }
   if ($name -eq "BETA_FREE_PREMIUM" -and $value.Trim().ToLower() -eq "true") {
-    Write-Warning "BETA_FREE_PREMIUM=true — ignorirano za produkcijski release build."
+    Write-Warning "BETA_FREE_PREMIUM=true ignored for production release build."
     continue
   }
   if ($name -eq "PAYMENT_SIMULATION" -and $value.Trim().ToLower() -eq "true") {
-    Write-Warning "PAYMENT_SIMULATION=true — ignorirano za release build."
+    Write-Warning "PAYMENT_SIMULATION=true ignored for release build."
     continue
   }
   if ($name -eq "NIRS_USE_LIVE_API" -and $value.Trim().ToLower() -eq "false") {
-    Write-Warning "NIRS_USE_LIVE_API=false — ignorirano za release build (forsira se true)."
+    Write-Warning "NIRS_USE_LIVE_API=false ignored for release build (forced true)."
     continue
   }
 
@@ -58,16 +58,16 @@ foreach ($prop in $secrets.PSObject.Properties) {
 
 $rcKey = [string]$secrets.REVENUECAT_ANDROID_KEY
 if ($rcKey.Trim().Length -eq 0) {
-  Write-Error "REVENUECAT_ANDROID_KEY je obavezan u secrets.local.json."
+  Write-Error "REVENUECAT_ANDROID_KEY is required in secrets.local.json."
 }
 
 $nirsUrl = [string]$secrets.SENTINEL2_API_BASE_URL
 $nirsKey = [string]$secrets.SENTINEL2_API_KEY
 if ($nirsUrl.Trim().Length -eq 0 -or $nirsKey.Trim().Length -eq 0) {
-  Write-Error "SENTINEL2_API_BASE_URL i SENTINEL2_API_KEY su obavezni za live NIRS u release buildu."
+  Write-Error "SENTINEL2_API_BASE_URL and SENTINEL2_API_KEY are required for live NIRS."
 }
 if ($nirsUrl -match "sentinel-hub\.com/?$") {
-  Write-Error "SENTINEL2_API_BASE_URL mora biti Firebase funkcija fetchNirsNdvi, ne sentinel-hub.com."
+  Write-Error "SENTINEL2_API_BASE_URL must be Firebase fetchNirsNdvi, not sentinel-hub.com."
 }
 
 $defines += "--dart-define=REVENUECAT_SIMULATION=false"
@@ -77,7 +77,7 @@ $defines += "--dart-define=PLANT_SCANNER_USE_CLOUD=true"
 
 Push-Location $root
 try {
-  Write-Host "Building appbundle (release, live RevenueCat + NIRS + Plant.id cloud)..."
+  Write-Host "Building appbundle release..."
   $cmd = @("flutter", "build", "appbundle", "--release") + $defines
   & $cmd[0] $cmd[1..($cmd.Length - 1)]
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

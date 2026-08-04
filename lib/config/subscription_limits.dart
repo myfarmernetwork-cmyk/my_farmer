@@ -18,8 +18,11 @@ class SubscriptionLimits {
   static const int vetFreeMaxActiveProducts = 5;
   static const int vetPremiumMaxActiveProducts = 9999;
 
+  static const int buyerFreeMaxAnimals = 3;
   static const int buyerPremiumMaxAnimals = 10;
+  static const int hobbyFreeMaxAnimals = 5;
   static const int hobbyPremiumMaxAnimals = 20;
+  static const int proFreeMaxAnimals = 20;
   static const int proPremiumMaxAnimals = 500;
   static const int vetPremiumMaxPrivatePets = 10;
 
@@ -92,16 +95,29 @@ class SubscriptionLimits {
     SubscriptionTier? tier,
     required bool hasPaidPremium,
   }) {
-    if (!hasPaidPremium || tier == null) return 0;
-    switch (tier) {
-      case SubscriptionTier.buyerPremium:
-        return role == UserRole.buyer ? buyerPremiumMaxAnimals : 0;
-      case SubscriptionTier.hobbyFarmerPremium:
-        return role == UserRole.hobbyFarmer ? hobbyPremiumMaxAnimals : 0;
-      case SubscriptionTier.professionalFarmerPremium:
-        return role == UserRole.professionalFarmer ? proPremiumMaxAnimals : 0;
-      case SubscriptionTier.veterinarianLicense:
-        return role == UserRole.veterinarian ? vetPremiumMaxPrivatePets : 0;
+    switch (role) {
+      case UserRole.buyer:
+        if (hasPaidPremium && tier == SubscriptionTier.buyerPremium) {
+          return buyerPremiumMaxAnimals;
+        }
+        return buyerFreeMaxAnimals;
+      case UserRole.hobbyFarmer:
+        if (hasPaidPremium &&
+            (tier == SubscriptionTier.hobbyFarmerPremium ||
+                tier == SubscriptionTier.professionalFarmerPremium)) {
+          return hobbyPremiumMaxAnimals;
+        }
+        return hobbyFreeMaxAnimals;
+      case UserRole.professionalFarmer:
+        if (hasPaidPremium && tier == SubscriptionTier.professionalFarmerPremium) {
+          return proPremiumMaxAnimals;
+        }
+        return proFreeMaxAnimals;
+      case UserRole.veterinarian:
+        if (hasPaidPremium && tier == SubscriptionTier.veterinarianLicense) {
+          return vetPremiumMaxPrivatePets;
+        }
+        return 0;
       default:
         return 0;
     }
@@ -187,7 +203,7 @@ class SubscriptionLimits {
       role == UserRole.pharmacy;
 
   static bool buyerCanPurchaseWithoutPremium(UserRole role) =>
-      role == UserRole.buyer;
+      role == UserRole.buyer || role == UserRole.pharmacy;
 
   static bool isPremiumVeterinarian(SubscriptionTier? tier) =>
       tier == SubscriptionTier.veterinarianLicense;

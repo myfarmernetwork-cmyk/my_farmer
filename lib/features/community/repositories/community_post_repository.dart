@@ -160,6 +160,19 @@ class CommunityPostRepository {
       'timestamp': FieldValue.serverTimestamp(),
       'isReported': false,
       'reportedBy': <String>[],
+      'applaudedBy': <String>[],
+    });
+  }
+
+  Future<void> toggleApplause({
+    required String postId,
+    required String userId,
+    required bool currentlyApplauded,
+  }) async {
+    await _postsRef.doc(postId).update({
+      'applaudedBy': currentlyApplauded
+          ? FieldValue.arrayRemove([userId])
+          : FieldValue.arrayUnion([userId]),
     });
   }
 
@@ -215,7 +228,10 @@ class CommunityPostRepository {
         in [byAuthorId, byUserId, legacyByUserId, legacyByAuthorId]) {
       if (snapshot == null) continue;
       for (final doc in snapshot.docs) {
-        merged[doc.id] = CommunityPost.fromFirestore(doc);
+        final post = CommunityPost.tryFromFirestore(doc);
+        if (post != null) {
+          merged[doc.id] = post;
+        }
       }
     }
 

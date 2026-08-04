@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/company_catalog_item.dart';
+import '../utils/firestore_error_helper.dart';
 import '../services/company_catalog_csv_parser.dart';
 import '../services/product_upload_service.dart';
 
@@ -31,34 +33,59 @@ class CompanyCatalogRepository {
   }
 
   Stream<List<CompanyCatalogItem>> watchItems(String sellerId) {
+    rethrowIfSignedOut();
     return _itemsRef(sellerId)
         .orderBy('name')
         .snapshots()
-        .map(
-          (snap) =>
-              snap.docs.map(CompanyCatalogItem.fromFirestore).toList(),
-        );
+        .map((snap) {
+          final items = <CompanyCatalogItem>[];
+          for (final doc in snap.docs) {
+            try {
+              items.add(CompanyCatalogItem.fromFirestore(doc));
+            } catch (_) {
+              // Skip corrupt catalog rows.
+            }
+          }
+          return items;
+        });
   }
 
   Future<CompanyCatalogItem?> findBySku({
     required String sellerId,
     required String skuCode,
   }) async {
-    final code = skuCode.trim();
-    if (code.isEmpty) return null;
+    rethrowIfSignedOut();
+    try {
+      final code = skuCode.trim();
+      if (code.isEmpty) return null;
 
-    final exact = await _itemsRef(sellerId)
-        .where('skuCode', isEqualTo: code)
-        .limit(1)
-        .get();
-    if (exact.docs.isNotEmpty) {
-      return CompanyCatalogItem.fromFirestore(exact.docs.first);
+      final exact = await _itemsRef(sellerId)
+          .where('skuCode', isEqualTo: code)
+          .limit(1)
+          .get();
+      if (exact.docs.isNotEmpty) {
+        return CompanyCatalogItem.fromFirestore(exact.docs.first);
+      }
+
+      return null;
+    } on FirebaseException {
+      rethrow;
     }
-
-    return null;
   }
 
   Future<CatalogImportResult> importCsv({
+    required String sellerId,
+    required String csvContent,
+  }) async {
+    rethrowIfSignedOut();
+    try {
+      return await _importCsvImpl(sellerId: sellerId, csvContent: csvContent);
+    } on FirebaseException {
+      rethrow;
+    }
+  }
+
+  Future<CatalogImportResult> _importCsvImpl({
     required String sellerId,
     required String csvContent,
   }) async {

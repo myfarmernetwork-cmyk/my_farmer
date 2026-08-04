@@ -9,7 +9,10 @@ import 'package:geolocator/geolocator.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/app_user.dart';
 import '../../models/farmer_shop_settings.dart';
+import '../../screens/vet_finder_screen.dart';
+import '../../services/vet_navigation_service.dart';
 import '../../services/vet_proximity_radar_service.dart';
+import '../../widgets/vet_profile_sheet.dart';
 import '../../models/product.dart';
 import '../../models/search_radius.dart';
 import '../../services/search_location_service.dart';
@@ -17,13 +20,15 @@ import '../../utils/product_categories.dart';
 import '../../utils/production_types.dart';
 import '../../repositories/product_repository.dart';
 import '../../models/screen_guide_step.dart';
+import '../../providers/notification_navigation_provider.dart';
+import '../../widgets/notification_context_banner.dart';
 import '../../widgets/farmer_helper_button.dart';
 import '../../widgets/harvest_countdown_overlay.dart';
 import '../../widgets/product_card.dart';
-import '../../widgets/translated_text.dart';
 import 'buyer_orders_screen.dart';
 import 'cart_provider.dart';
 import 'cart_screen.dart';
+import 'farmer_storefront_screen.dart';
 import 'product_details_screen.dart';
 
 String marketplaceSearchHint(BuildContext context) {
@@ -167,8 +172,9 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
     }
 
     setState(() => _isSearchingVets = true);
-    final vets =
-        await ref.read(vetProximityRadarServiceProvider).searchVetsByName(query);
+    final vets = await ref
+        .read(vetProximityRadarServiceProvider)
+        .searchVetsByName(query, buyerPosition: _buyerPosition);
     if (mounted) {
       setState(() {
         _vetSearchResults = vets;
@@ -396,7 +402,7 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: TranslatedText(
+                      child: Text(
                         product.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -416,11 +422,21 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
                         fontSize: 12,
                       ),
                     ),
-                    Text(
-                      '${_sellerEmoji(product)} ${product.sellerName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                    GestureDetector(
+                      onTap: product.sellerId.trim().isEmpty
+                          ? null
+                          : () => openSellerProfile(context, product.sellerId),
+                      behavior: HitTestBehavior.opaque,
+                      child: Text(
+                        '${_sellerEmoji(product)} ${product.sellerName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.green[700],
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Row(
@@ -526,6 +542,46 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => VetFinderScreen(
+                    initialQuery: _searchQuery.trim().length >= 2
+                        ? _searchQuery.trim()
+                        : null,
+                  ),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.pets,
+                    color: Colors.white.withValues(alpha: 0.95),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.map_outlined,
+                    color: Colors.white.withValues(alpha: 0.95),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'vet_finder_open_map'.tr(),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.95),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
           Row(
             children: [
               Icon(
@@ -768,17 +824,37 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
           ..._vetSearchResults.map(
             (vet) => Card(
               child: ListTile(
+                onTap: () => showVetProfileSheet(
+                  context: context,
+                  ref: ref,
+                  vet: vet,
+                ),
                 leading: CircleAvatar(
                   backgroundColor: Colors.green[50],
                   child: Icon(Icons.medical_services, color: Colors.green[800]),
                 ),
                 title: Text(vet.name),
                 subtitle: Text(
-                  vet.address.isEmpty ? vet.phone : vet.address,
+                  [
+                    if (vet.address.isNotEmpty) vet.address,
+                    if (vet.distanceKm != null)
+                      '${vet.distanceKm!.toStringAsFixed(1)} km',
+                    if (!vet.hasLocation) 'vet_map_no_location'.tr(),
+                  ].where((s) => s.isNotEmpty).join(' · '),
                 ),
-                trailing: vet.isPremium
-                    ? Icon(Icons.verified, color: Colors.green[700])
-                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (vet.isPremium)
+                      Icon(Icons.verified, color: Colors.green[700]),
+                    if (vet.hasLocation)
+                      IconButton(
+                        tooltip: 'vet_navigate'.tr(),
+                        icon: Icon(Icons.directions, color: Colors.blue[700]),
+                        onPressed: () => openVetDirections(vet),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -851,6 +927,7 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
     final needsLocation = !_selectedRadius.isAll;
     final roleAsync = ref.watch(firestoreUserRoleProvider);
     final liveRole = roleAsync.valueOrNull ?? '';
+    final notificationIntent = ref.watch(notificationIntentProvider);
 
     if (roleAsync.isLoading || liveRole.isEmpty) {
       return const Scaffold(
@@ -918,6 +995,8 @@ class _BuyerHomeScreenState extends ConsumerState<BuyerHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (notificationIntent?.target == NotificationTarget.newProduct)
+              const NotificationContextBanner(),
             _buildSearchHeader(),
             _buildVetSearchSection(),
             _buildProductStreams(needsLocation: needsLocation),

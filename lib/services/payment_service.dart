@@ -1,7 +1,7 @@
 // Naplata u košarici (Stripe / PayPal / keš) i poslovni model pretplata.
 //
 // Poslovna pretplata tvrtke — cijena prati STVARNU REGIJU UREĐAJA (GPS → sustav → IP),
-// ne ručno odabrani jezik. Minimalni prag 4,99 €/mj (No-Loss AI Shield).
+// ne ručno odabrani jezik. Jeftinije regije = niža cijena + manje AI skenova (PPP).
 import 'dart:convert';
 import 'dart:ui' as ui;
 
@@ -104,7 +104,8 @@ class PaymentService {
   static const double companyBihMonthlyKm = 19.99;
   static const double companySerbiaMonthlyRsd = 1199;
   static const double vetSerbiaMonthlyRsd = 599;
-  static const double aiNoLossFloorEur = 4.99;
+  /// Referenca za proporcionalne limite skenova (BiH / emerging = manje od EU).
+  static const double vetEuMonthlyEur = 9.99;
 
   /// Plant.id (~0,10 €/scan) + vaša marža 0,05 € po dokupu.
   static const double scanApiCostEur = 0.10;
@@ -181,7 +182,11 @@ class PaymentService {
       case BusinessPricingZone.serbia:
         return companyScanCapBalkan;
       case BusinessPricingZone.emerging:
-        return companyScanCapEmerging;
+        return _regionalScanCapFromPpp(
+          companyScanCapEu,
+          companyEuMonthlyEur,
+          billingCountry,
+        );
     }
   }
 
@@ -816,7 +821,6 @@ class PaymentService {
     );
   }
 
-  static const double vetEuMonthlyEur = 9.99;
   static const double vetBihMonthlyKm = 9.99;
   static const String vetBihFlatPriceDisplay = '9,99 KM';
 
@@ -895,8 +899,9 @@ class PaymentService {
       return kenyaAdjustedEur(baseEur);
     }
     var eur = baseEur * _pppFactorForCountry(countryCode);
-    if (eur < aiNoLossFloorEur) {
-      eur = aiNoLossFloorEur;
+    // Nikad više od EU cijene istog paketa (Kupac max 1,99 € u EU = max 1,99 € svugdje).
+    if (eur > baseEur) {
+      eur = baseEur;
     }
     return (eur * 100).round() / 100;
   }
@@ -938,8 +943,13 @@ class PaymentService {
           return vetScanCapBalkan;
         case BusinessPricingZone.eu:
         case BusinessPricingZone.developed:
-        case BusinessPricingZone.emerging:
           return vetScanCapEu;
+        case BusinessPricingZone.emerging:
+          return _regionalScanCapFromPpp(
+            vetScanCapEu,
+            vetEuMonthlyEur,
+            billingCountry,
+          );
       }
     }
 
@@ -993,8 +1003,13 @@ class PaymentService {
         return vetScanCapBalkan;
       case BusinessPricingZone.eu:
       case BusinessPricingZone.developed:
-      case BusinessPricingZone.emerging:
         return vetScanCapEu;
+      case BusinessPricingZone.emerging:
+        return _regionalScanCapFromPpp(
+          vetScanCapEu,
+          vetEuMonthlyEur,
+          code,
+        );
     }
   }
 
@@ -1043,9 +1058,10 @@ class PaymentService {
         case BusinessPricingZone.developed:
           return euCap;
         case BusinessPricingZone.emerging:
-          return _proportionalScanCapFromPrice(
+          return _regionalScanCapFromPpp(
             euCap,
-            _emergingTierEur(vetEuMonthlyEur, billingCountry),
+            SubscriptionLimits.monthlyPriceEur(tier),
+            billingCountry,
           );
       }
     }
@@ -1121,9 +1137,10 @@ class PaymentService {
       case BusinessPricingZone.developed:
         return euCap;
       case BusinessPricingZone.emerging:
-        return _proportionalScanCapFromPrice(
+        return _regionalScanCapFromPpp(
           euCap,
-          _emergingTierEur(vetEuMonthlyEur, code),
+          SubscriptionLimits.monthlyPriceEur(tier),
+          code,
         );
     }
   }
@@ -1142,6 +1159,18 @@ class PaymentService {
 
   static int _proportionalScanCapFromPrice(int euCap, double priceEur) {
     final cap = (euCap * priceEur / vetEuMonthlyEur).round();
+    return cap < 1 ? 1 : cap;
+  }
+
+  /// Emerging / Afrika: cijena × PPP, skenovi proporcionalno (marža ~ kao EU nakon Play 15 %).
+  static int _regionalScanCapFromPpp(
+    int euCap,
+    double baseTierEur,
+    String countryCode,
+  ) {
+    if (baseTierEur <= 0) return euCap;
+    final regionalEur = _emergingTierEur(baseTierEur, countryCode);
+    final cap = (euCap * regionalEur / baseTierEur).round();
     return cap < 1 ? 1 : cap;
   }
 
@@ -1782,8 +1811,8 @@ class PaymentService {
       case BusinessPricingZone.emerging:
         final pppFactor = _pppFactorForCountry(countryCode);
         amountEur = companyEuMonthlyEur * pppFactor;
-        if (amountEur < aiNoLossFloorEur) {
-          amountEur = aiNoLossFloorEur;
+        if (amountEur > companyEuMonthlyEur) {
+          amountEur = companyEuMonthlyEur;
         }
         currencyCode = CurrencyService.eur;
         amount = amountEur;

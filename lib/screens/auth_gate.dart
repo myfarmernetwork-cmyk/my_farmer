@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,7 +55,25 @@ class _AuthGateState extends ConsumerState<AuthGate> {
         body: Center(child: CircularProgressIndicator()),
       ),
       error: (error, stack) => Scaffold(
-        body: Center(child: Text("Greška: $error")),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Greška: $error', textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () async {
+                    await ref.read(authServiceProvider).logoutAndClearCache();
+                    invalidateAuthSessionCache(ref);
+                  },
+                  child: const Text('Odjava i pokušaj ponovo'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       data: (user) {
         if (user == null) {
@@ -67,7 +87,25 @@ class _AuthGateState extends ConsumerState<AuthGate> {
             body: Center(child: CircularProgressIndicator()),
           ),
           error: (error, _) => Scaffold(
-            body: Center(child: Text("Greška: $error")),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Greška: $error', textAlign: TextAlign.center),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await ref.read(authServiceProvider).logoutAndClearCache();
+                        invalidateAuthSessionCache(ref);
+                      },
+                      child: const Text('Odjava i pokušaj ponovo'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           data: (role) {
             if (role == null || role.isEmpty) {
@@ -113,6 +151,7 @@ class _AuthenticatedAppShellState extends State<_AuthenticatedAppShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService().flushPendingNavigation();
+      unawaited(NotificationService().ensurePushReady());
     });
   }
 

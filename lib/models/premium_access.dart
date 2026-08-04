@@ -135,16 +135,42 @@ class PremiumAccess {
 
     if (user == null) return null;
 
-    if (isAdminBypass || closedTestFreePremium) return _previewTierForRole(effectiveRole);
-
-    if (user!.needsAdminVerification) {
-
-      return user!.isPremiumApproved ? user!.approvedTier : null;
-
+    if (isAdminBypass || closedTestFreePremium) {
+      return _previewTierForRole(effectiveRole);
     }
 
-    return SubscriptionTierX.fromFirestore(user!.subscriptionTier);
+    if (user!.needsAdminVerification) {
+      return user!.isPremiumApproved ? user!.approvedTier : null;
+    }
 
+    final stored = SubscriptionTierX.fromFirestore(user!.subscriptionTier);
+    if (stored != null) return stored;
+
+    final requested = SubscriptionTierX.fromFirestore(user!.requestedPremiumTier);
+    if (requested != null && _tierMatchesRole(requested, effectiveRole)) {
+      return requested;
+    }
+
+    if (user!.premiumActive || isPremium || isInPromoPeriod) {
+      return _consumerTierForRole();
+    }
+
+    return null;
+
+  }
+
+  bool _tierMatchesRole(SubscriptionTier tier, UserRole role) {
+    switch (role) {
+      case UserRole.buyer:
+        return tier == SubscriptionTier.buyerPremium;
+      case UserRole.hobbyFarmer:
+        return tier == SubscriptionTier.hobbyFarmerPremium ||
+            tier == SubscriptionTier.professionalFarmerPremium;
+      case UserRole.professionalFarmer:
+        return tier == SubscriptionTier.professionalFarmerPremium;
+      default:
+        return false;
+    }
   }
 
   SubscriptionTier? _previewTierForRole(UserRole previewRole) {
@@ -200,7 +226,19 @@ class PremiumAccess {
 
     if (isPremium) return true;
 
-    if (user!.subscriptionTier != null) return true;
+    if (user!.premiumActive) return true;
+
+    if (user!.subscriptionTier != null &&
+        user!.subscriptionTier!.trim().isNotEmpty) {
+      return true;
+    }
+
+    if (user!.requestedPremiumTier != null &&
+        user!.requestedPremiumTier!.trim().isNotEmpty) {
+      return true;
+    }
+
+    if (isInPromoPeriod) return true;
 
     return false;
 

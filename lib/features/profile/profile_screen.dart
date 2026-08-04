@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../config/app_version.dart';
 import '../../screens/login_screen.dart';
 import '../../models/app_user.dart';
 import '../../models/premium_access.dart';
@@ -14,7 +15,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/admin_role_preview_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../admin/widgets/admin_role_switcher.dart';
-import '../../widgets/premium_gate.dart';
 import '../../widgets/premium_gate_dialog.dart';
 import '../../widgets/farmer_help_widgets.dart';
 import '../../screens/company_market_analytics_screen.dart';
@@ -28,15 +28,20 @@ import '../admin/admin_dashboard_screen.dart';
 import '../../models/farmer_shop_settings.dart';
 import '../../providers/locale_settings_provider.dart';
 import '../../services/currency_service.dart';
+import '../../services/address_geocoding_service.dart';
 import '../../services/payment_service.dart';
+import '../../utils/currency_region_parse.dart';
+import '../../utils/firestore_error_helper.dart';
 import '../../utils/farmer_shop_localization.dart';
 import '../../utils/role_helpers.dart';
 import '../../utils/weekday_localization.dart';
 import '../../models/screen_guide_step.dart';
 import '../../widgets/farmer_helper_button.dart';
+import '../../widgets/firestore_error_panel.dart';
 import '../../widgets/profile_subscription_card.dart';
 import '../../widgets/profile_payment_methods_tile.dart';
 import '../../widgets/profile_delete_account_tile.dart';
+import '../../widgets/farmer_follower_count_badge.dart';
 import '../../screens/roles_subscription_pdf_screen.dart';
 import '../../screens/beta_test_pdf_screen.dart';
 import '../legal/marketplace_terms_screen.dart';
@@ -81,6 +86,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   String _orderCurrency = 'KM';
   String? _selectedLocaleKey;
   String? _currencyRegion;
+  Object? _profileLoadErrorObject;
+  bool _isLoadingProfile = true;
   final List<String> _selectedWorkingDays = [];
   final List<String> _selectedPickupDays = [];
   final List<String> _selectedDeliveryDays = [];
@@ -250,15 +257,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Future<void> _loadUserData() async {
+    if (!mounted) return;
+    setState(() {
+      _profileLoadErrorObject = null;
+      _isLoadingProfile = true;
+    });
+
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingProfile = false;
+        _profileLoadErrorObject = const FirestoreNotSignedInException();
+      });
+      return;
+    }
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get(const GetOptions(source: Source.server));
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get(const GetOptions(source: Source.server));
 
-    if (mounted) {
+      if (!mounted) return;
+
       final raw = doc.exists ? (doc.data() ?? {}) : <String, dynamic>{};
       final resolvedRole = AppUser.resolveRoleCanonical(raw);
       if (resolvedRole.isNotEmpty) {
@@ -274,6 +296,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       );
       setState(() {
         _userData = raw;
+        _isLoadingProfile = false;
+        _profileLoadErrorObject = null;
         _nameController.text = _userData?['name'] ?? '';
         _phoneController.text = _userData?['phone'] ?? '';
         _addressController.text = _userData?['address'] ?? '';
@@ -295,11 +319,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _maxDeliveryController.text = shop.maxDeliveryDistanceKm > 0
             ? shop.maxDeliveryDistanceKm.toStringAsFixed(0)
             : '';
-        _zone1MaxController.text = shop.deliveryZone1MaxKm.toStringAsFixed(0);
+        _zone1MaxController.text = shop.deliveryZone1MaxKm > 0
+            ? shop.deliveryZone1MaxKm.toStringAsFixed(0)
+            : '';
         _zone1MinController.text = shop.deliveryZone1MinOrder > 0
             ? shop.deliveryZone1MinOrder.toStringAsFixed(0)
             : '';
-        _zone2MaxController.text = shop.deliveryZone2MaxKm.toStringAsFixed(0);
+        _zone2MaxController.text = shop.deliveryZone2MaxKm > 0
+            ? shop.deliveryZone2MaxKm.toStringAsFixed(0)
+            : '';
         _zone2MinController.text = shop.deliveryZone2MinOrder > 0
             ? shop.deliveryZone2MinOrder.toStringAsFixed(0)
             : '';
@@ -316,12 +344,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _selectedLocaleKey = _resolveInitialLocaleKey(
           _userData?['preferredLanguage'] as String?,
         );
-        _currencyRegion = _userData?['currencyRegion'] as String?;
+        _currencyRegion =
+            CurrencyRegionParse.normalize(_userData?['currencyRegion']);
       });
       await _syncCurrencyRegionWithDeviceLocation(
         userId: user.uid,
         persistIfAutoDetected: _currencyRegion == null || _currencyRegion!.isEmpty,
       );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingProfile = false;
+        _profileLoadErrorObject = e;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingProfile = false;
+        _profileLoadErrorObject = e;
+      });
     }
   }
 
@@ -377,7 +418,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     setState(() => _currencyRegion = resolved);
     ref.read(currencyRegionProvider.notifier).state = resolved;
 
-    final storedInProfile = _userData?['currencyRegion'] as String?;
+    final storedInProfile =
+        CurrencyRegionParse.normalize(_userData?['currencyRegion']);
     final shouldPersist = persistIfAutoDetected ||
         locked != null ||
         storedInProfile != resolved;
@@ -430,18 +472,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     setState(() => _isUploading = true);
 
     try {
+      final role = _userData?['role']?.toString();
+      final address = _addressController.text.trim();
+
+      if (_needsLocationFromAddress(role) &&
+          address.isNotEmpty &&
+          (_farmLat == null || _farmLng == null)) {
+        final coords = await AddressGeocodingService().resolveCoordinates(
+          address: address,
+          lat: _farmLat,
+          lng: _farmLng,
+          userId: user.uid,
+        );
+        if (coords != null) {
+          _farmLat = coords.lat;
+          _farmLng = coords.lng;
+        }
+      }
+
       final payload = <String, dynamic>{
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'address': _addressController.text.trim(),
+        'address': address,
         'preferredLanguage': _selectedLocaleKey ??
             AppLocaleOption.fromLocale(context.locale)?.storageKey ??
             context.locale.languageCode,
-        if (_currencyRegion != null) 'currencyRegion': _currencyRegion,
+        if (_currencyRegion != null && _currencyRegion!.isNotEmpty)
+          'currencyRegion': _currencyRegion,
       };
 
-      final role = _userData?['role'];
-      if (isFarmerRole(role)) {
+      if (_needsLocationFromAddress(role) || isFarmerRole(role)) {
         payload.addAll(_farmerShopSettingsFromForm().toMap());
       }
 
@@ -454,7 +514,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         _userData?['name'] = _nameController.text.trim();
         _userData?['phone'] = _phoneController.text.trim();
         _userData?['address'] = _addressController.text.trim();
-        if (isFarmerRole(role)) {
+        if (_needsLocationFromAddress(role) || isFarmerRole(role)) {
           _userData?.addAll(_farmerShopSettingsFromForm().toMap());
         }
         _isEditing = false;
@@ -529,7 +589,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           SnackBar(content: Text('profile_gps_error'.tr(namedArgs: {'error': '$e'}))),
         );
       }
+      await _geocodeAddressFallback();
     }
+  }
+
+  bool _needsLocationFromAddress(String? role) {
+    final canonical = role?.trim().toLowerCase() ?? '';
+    return canonical == 'veterinarian' || canonical == 'pharmacy';
+  }
+
+  Future<void> _geocodeAddressFallback() async {
+    final address = _addressController.text.trim();
+    if (address.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    final coords = await AddressGeocodingService().resolveCoordinates(
+      address: address,
+      userId: user?.uid,
+    );
+    if (coords == null || !mounted) return;
+
+    setState(() {
+      _farmLat = coords.lat;
+      _farmLng = coords.lng;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('profile_farm_location_from_address'.tr()),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -815,7 +905,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   String _currencyRegionLabel(String regionCode) {
-    switch (regionCode) {
+    final region = CurrencyRegionParse.normalize(regionCode) ?? 'eu';
+    switch (region) {
       case 'bih':
         return 'region_bih'.tr();
       case 'rs':
@@ -1282,9 +1373,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ),
         ],
       ),
-      body: _userData == null
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
+      body: _profileLoadErrorObject != null
+          ? FirestoreErrorPanel(
+              error: _profileLoadErrorObject!,
+              onRetry: _loadUserData,
+            )
+          : _isLoadingProfile || _userData == null
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
               controller: _tabController,
               children: [
                 _buildProfileInfoTab(
@@ -1372,6 +1468,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
+                if (isFarmer && user != null) ...[
+                  const SizedBox(height: 10),
+                  Center(
+                    child: FarmerFollowerCountBadge(farmerId: user.uid),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Center(
                   child: Container(
@@ -2056,15 +2158,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ),
                 subtitle: Text('animals_profile_subtitle'.tr()),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => PremiumGate.run(
+                onTap: () => Navigator.push(
                   context,
-                  ref,
-                  feature: PremiumFeature.animalRecords,
-                  onUnlocked: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const MyAnimalsScreen(),
-                    ),
+                  MaterialPageRoute(
+                    builder: (_) => const MyAnimalsScreen(),
                   ),
                 ),
               ),
@@ -2082,6 +2179,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           const ProfilePrivacyPolicyTile(),
           const SizedBox(height: 12),
           const ProfileDeleteAccountTile(),
+          const SizedBox(height: 12),
+          Center(
+            child: Text(
+              'Build ${AppVersion.label}',
+              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+            ),
+          ),
           const SizedBox(height: 16),
 
           // ODJAVA

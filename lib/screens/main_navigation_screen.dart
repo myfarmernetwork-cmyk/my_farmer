@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,15 +18,23 @@ import '../providers/auth_provider.dart';
 import '../providers/admin_role_preview_provider.dart';
 import '../providers/locale_settings_provider.dart';
 import '../providers/navigation_badges_provider.dart';
+import '../providers/notification_navigation_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../utils/upcoming_product_helper.dart';
+import '../services/buyer_order_status_listener.dart';
+import '../services/chat_message_alert_listener.dart';
+import '../services/forum_activity_alert_listener.dart';
 import '../services/seller_order_alert_listener.dart';
+import '../services/vet_intake_alert_listener.dart';
+import '../widgets/notification_context_banner.dart';
 import '../services/company_catalog_prefs.dart';
 import '../widgets/farmer_welcome_dialog.dart';
 import '../widgets/pending_verification_banner.dart';
 import '../features/admin/widgets/admin_role_switcher.dart';
 import '../widgets/premium_gate.dart';
 import '../services/payment_service.dart';
+import '../services/notification_service.dart';
+import '../services/user_presence_service.dart';
 import 'plant_scanner_screen.dart';
 
 bool hasSellerTab(String role) {
@@ -59,7 +69,8 @@ class MainNavigationScreen extends ConsumerStatefulWidget {
       _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
+class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen>
+    with WidgetsBindingObserver {
   late int _selectedIndex;
   bool _localeRestored = false;
   bool _welcomeChecked = false;
@@ -67,8 +78,40 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedIndex = widget.initialTabIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(NotificationService().ensurePushReady());
+      ref.read(userPresenceServiceProvider).start();
+      NotificationNavigationBridge.register(
+        ref.read(notificationIntentProvider.notifier),
+      );
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _restoreUserLocale());
+  }
+
+  @override
+  void dispose() {
+    NotificationNavigationBridge.unregister();
+    ref.read(userPresenceServiceProvider).stop();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final presence = ref.read(userPresenceServiceProvider);
+    switch (state) {
+      case AppLifecycleState.resumed:
+        presence.onForeground();
+        unawaited(NotificationService().ensurePushReady());
+        NotificationService().flushPendingNavigation();
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        presence.onBackground();
+    }
   }
 
   Future<void> _restoreUserLocale() async {
@@ -148,6 +191,38 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
       setState(() => _selectedIndex = 0);
     } else if (_selectedIndex >= _tabCountForRole(nextRole)) {
       setState(() => _selectedIndex = 0);
+    }
+  }
+
+  void _applyNotificationIntent(NotificationNavigationIntent intent) {
+    final role = ref.read(effectiveFirestoreRoleProvider);
+    final profileIndex = _tabCountForRole(role) - 1;
+
+    switch (intent.target) {
+      case NotificationTarget.weather:
+      case NotificationTarget.lowStock:
+      case NotificationTarget.orders:
+        if (hasSellerTab(role)) {
+          setState(() => _selectedIndex = 1);
+        }
+        break;
+      case NotificationTarget.buyerOrders:
+        break;
+      case NotificationTarget.newProduct:
+        setState(() => _selectedIndex = 0);
+        break;
+      case NotificationTarget.vetIntake:
+      case NotificationTarget.vetResponse:
+        if (role == 'veterinarian') {
+          setState(() => _selectedIndex = profileIndex);
+        }
+        break;
+      case NotificationTarget.chatMessage:
+        break;
+      case NotificationTarget.forumTopic:
+      case NotificationTarget.forumReply:
+        setState(() => _selectedIndex = hasSellerTab(role) ? 3 : 2);
+        break;
     }
   }
 
@@ -247,8 +322,18 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
           label: navLabel('nav_community', 'Community'),
         ),
         BottomNavigationBarItem(
-          icon: const Icon(Icons.person_outline),
-          activeIcon: const Icon(Icons.person),
+          icon: _badgedIcon(
+            icon: Icons.person_outline,
+            activeIcon: Icons.person,
+            count: badges.profileTabBadge,
+            active: false,
+          ),
+          activeIcon: _badgedIcon(
+            icon: Icons.person_outline,
+            activeIcon: Icons.person,
+            count: badges.profileTabBadge,
+            active: true,
+          ),
           label: navLabel('nav_profile', 'Profile'),
         ),
       ];
@@ -275,8 +360,18 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
         label: navLabel('nav_community', 'Community'),
       ),
       BottomNavigationBarItem(
-        icon: const Icon(Icons.person_outline),
-        activeIcon: const Icon(Icons.person),
+        icon: _badgedIcon(
+          icon: Icons.person_outline,
+          activeIcon: Icons.person,
+          count: badges.profileTabBadge,
+          active: false,
+        ),
+        activeIcon: _badgedIcon(
+          icon: Icons.person_outline,
+          activeIcon: Icons.person,
+          count: badges.profileTabBadge,
+          active: true,
+        ),
         label: navLabel('nav_profile', 'Profile'),
       ),
     ];
@@ -301,6 +396,14 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
       if (!ref.read(adminPremiumBypassProvider)) return;
       _handleRoleChange(previous, next);
     });
+
+    ref.listen<NotificationNavigationIntent?>(
+      notificationIntentProvider,
+      (previous, next) {
+        if (next == null || !mounted) return;
+        _applyNotificationIntent(next);
+      },
+    );
 
     if (roleAsync.isLoading || userAsync.isLoading) {
       return const Scaffold(
@@ -335,12 +438,19 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
       _welcomeChecked = true;
     }
 
-    return SellerOrderAlertListener(
+    return BuyerOrderStatusListener(
       role: role,
-      child: Scaffold(
+      child: SellerOrderAlertListener(
+        role: role,
+        child: VetIntakeAlertListener(
+          role: role,
+          child: ChatMessageAlertListener(
+            child: ForumActivityAlertListener(
+              child: Scaffold(
         body: Column(
           children: [
             const AdminPreviewBanner(),
+            const NotificationContextBanner(),
             PendingVerificationBanner(key: ValueKey(context.locale.toString())),
             Expanded(
               child: IndexedStack(
@@ -360,6 +470,10 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
           unselectedItemColor: Colors.grey,
           items: _navItemsForRole(role, badges),
         ),
+      ),
+          ),
+        ),
+      ),
       ),
     );
   }

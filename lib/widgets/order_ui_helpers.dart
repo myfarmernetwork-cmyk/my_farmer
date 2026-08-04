@@ -34,7 +34,12 @@ String formatOrderDate(BuildContext context, Timestamp? timestamp) {
   return DateFormat.yMMMd(locale).add_Hm().format(timestamp.toDate());
 }
 
-String orderStatusLabel(String statusCode) => OrderStatus.labelKey(statusCode).tr();
+String orderStatusLabel(String statusCode, {String deliveryType = 'pickup'}) {
+  if (statusCode == OrderStatus.completed) {
+    return OrderStatus.completedLabelKey(deliveryType).tr();
+  }
+  return OrderStatus.labelKey(statusCode).tr();
+}
 
 Color orderStatusColor(String statusCode) {
   switch (statusCode) {

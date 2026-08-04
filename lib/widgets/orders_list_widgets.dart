@@ -1,10 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/order.dart';
+import '../services/currency_service.dart';
 import '../utils/order_status.dart';
 import '../utils/quantity_helper.dart';
 import 'order_ui_helpers.dart';
+import 'product_price_text.dart';
 
 class OrdersErrorView extends StatelessWidget {
   final String message;
@@ -35,11 +38,12 @@ class OrdersErrorView extends StatelessWidget {
   }
 }
 
-class OrdersListView extends StatelessWidget {
+class OrdersListView extends StatefulWidget {
   final List<Order> orders;
   final String emptyMessage;
   final bool isBuyerView;
   final bool showCompletedDate;
+  final String? highlightOrderId;
   final void Function(Order order)? onAdvanceStatus;
 
   const OrdersListView({
@@ -48,12 +52,49 @@ class OrdersListView extends StatelessWidget {
     required this.emptyMessage,
     required this.isBuyerView,
     this.showCompletedDate = false,
+    this.highlightOrderId,
     this.onAdvanceStatus,
   });
 
   @override
+  State<OrdersListView> createState() => _OrdersListViewState();
+}
+
+class _OrdersListViewState extends State<OrdersListView> {
+  final GlobalKey _highlightKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleScrollToHighlight();
+  }
+
+  @override
+  void didUpdateWidget(covariant OrdersListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.highlightOrderId != widget.highlightOrderId ||
+        oldWidget.orders.length != widget.orders.length) {
+      _scheduleScrollToHighlight();
+    }
+  }
+
+  void _scheduleScrollToHighlight() {
+    if (widget.highlightOrderId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 450),
+        alignment: 0.15,
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (orders.isEmpty) {
+    if (widget.orders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -65,7 +106,7 @@ class OrdersListView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              emptyMessage,
+              widget.emptyMessage,
               style: TextStyle(fontSize: 16, color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
@@ -76,26 +117,35 @@ class OrdersListView extends StatelessWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
-      itemCount: orders.length,
+      itemCount: widget.orders.length,
       itemBuilder: (context, index) {
-        final order = orders[index];
-        return OrderCard(
+        final order = widget.orders[index];
+        final highlighted =
+            widget.highlightOrderId != null && order.id == widget.highlightOrderId;
+        final card = OrderCard(
           order: order,
-          isBuyerView: isBuyerView,
-          showCompletedDate: showCompletedDate,
-          onAdvanceStatus: onAdvanceStatus == null
+          isBuyerView: widget.isBuyerView,
+          showCompletedDate: widget.showCompletedDate,
+          highlighted: highlighted,
+          onAdvanceStatus: widget.onAdvanceStatus == null
               ? null
-              : () => onAdvanceStatus!(order),
+              : () => widget.onAdvanceStatus!(order),
+        );
+        if (!highlighted) return card;
+        return KeyedSubtree(
+          key: _highlightKey,
+          child: card,
         );
       },
     );
   }
 }
 
-class OrderCard extends StatelessWidget {
+class OrderCard extends ConsumerWidget {
   final Order order;
   final bool isBuyerView;
   final bool showCompletedDate;
+  final bool highlighted;
   final VoidCallback? onAdvanceStatus;
 
   const OrderCard({
@@ -103,21 +153,42 @@ class OrderCard extends StatelessWidget {
     required this.order,
     required this.isBuyerView,
     this.showCompletedDate = false,
+    this.highlighted = false,
     this.onAdvanceStatus,
   });
 
+  String _orderOriginalCurrency() {
+    if (order.items.isEmpty) return CurrencyService.bam;
+    return order.items.first.originalCurrency;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final statusCode = order.statusCode;
     final statusColor = orderStatusColor(statusCode);
     final statusIcon = orderStatusIcon(statusCode);
-    final statusLabel = orderStatusLabel(statusCode);
+    final statusLabel = orderStatusLabel(
+      statusCode,
+      deliveryType: order.deliveryType,
+    );
+    final stepHint = !isBuyerView && OrderStatus.isActive(statusCode)
+        ? OrderStatus.sellerHintKey(statusCode)
+        : '';
+    final nextActionKey = onAdvanceStatus != null && OrderStatus.isActive(statusCode)
+        ? OrderStatus.nextActionLabelKey(statusCode, order.deliveryType)
+        : null;
     final completedTs = order.completedAt ?? order.createdAt;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: highlighted
+            ? BorderSide(color: Colors.orange.shade700, width: 2)
+            : BorderSide.none,
+      ),
+      color: highlighted ? Colors.orange.shade50 : null,
+      elevation: highlighted ? 4 : 2,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -174,17 +245,18 @@ class OrderCard extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 4,
+                            vertical: 6,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.orange[800],
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            'orders_next_step'.tr(),
+                            (nextActionKey ?? 'orders_next_step').tr(),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -194,6 +266,19 @@ class OrderCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (!isBuyerView && stepHint.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _OrderFlowSteps(currentCode: statusCode),
+              const SizedBox(height: 6),
+              Text(
+                stepHint.tr(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                  height: 1.35,
+                ),
+              ),
+            ],
             if (isBuyerView && order.items.length > 1) ...[
               const SizedBox(height: 6),
               Text(
@@ -248,7 +333,12 @@ class OrderCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  '${order.total.toStringAsFixed(2)} KM',
+                  ProductPriceText.formatAmountOnly(
+                    context,
+                    ref,
+                    order.total,
+                    originalCurrency: _orderOriginalCurrency(),
+                  ),
                   style: const TextStyle(
                     fontSize: 15,
                     color: Colors.green,
@@ -261,11 +351,30 @@ class OrderCard extends StatelessWidget {
                 ],
               ],
             ),
-            if (isBuyerView) ...[
-              const SizedBox(height: 6),
-              Text(
-                orderDeliveryLabel(order.deliveryType),
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            if (isBuyerView && statusCode == OrderStatus.completed) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Text(
+                  order.deliveryType == 'delivery'
+                      ? 'notification_order_ready_delivery_body'.tr(
+                          namedArgs: {'schedule': '—'},
+                        )
+                      : 'notification_order_ready_pickup_body'.tr(
+                          namedArgs: {'seller': order.sellerName},
+                        ),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.green.shade900,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ],
             if (showCompletedDate && completedTs != null) ...[
@@ -285,9 +394,77 @@ class OrderCard extends StatelessWidget {
                 ],
               ),
             ],
+            if (!isBuyerView && statusCode == OrderStatus.completed) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        order.deliveryType == 'delivery'
+                            ? 'orders_seller_notify_sent_delivery'.tr()
+                            : 'orders_seller_notify_sent_pickup'.tr(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade900,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _OrderFlowSteps extends StatelessWidget {
+  const _OrderFlowSteps({required this.currentCode});
+
+  final String currentCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final steps = OrderStatus.flow;
+    final currentIndex = steps.indexOf(currentCode);
+
+    return Row(
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Container(
+                height: 2,
+                color: i <= currentIndex
+                    ? Colors.orange.shade700
+                    : Colors.grey.shade300,
+              ),
+            ),
+          Text(
+            OrderStatus.flowStepLabelKey(steps[i]).tr(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: i == currentIndex ? FontWeight.w700 : FontWeight.w500,
+              color: i <= currentIndex
+                  ? Colors.orange.shade900
+                  : Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -319,13 +496,13 @@ class OrderItemsList extends StatelessWidget {
   }
 }
 
-class _OrderItemRow extends StatelessWidget {
+class _OrderItemRow extends ConsumerWidget {
   const _OrderItemRow({required this.item});
 
   final OrderItem item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final quantityLabel =
         QuantityHelper.formatWithUnit(item.quantity, item.unit);
 
@@ -356,7 +533,12 @@ class _OrderItemRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          '${item.lineTotal.toStringAsFixed(2)} KM',
+          ProductPriceText.formatAmountOnly(
+            context,
+            ref,
+            item.lineTotal,
+            originalCurrency: item.originalCurrency,
+          ),
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,

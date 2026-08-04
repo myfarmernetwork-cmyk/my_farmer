@@ -9,7 +9,10 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/revenuecat_config.dart';
+import '../models/app_user.dart';
+import '../models/subscription_tier.dart';
 import 'payment_service.dart';
+import 'subscription_tier_sync.dart';
 
 class SubscriptionService {
   final StreamController<bool> _premiumController =
@@ -37,13 +40,28 @@ class SubscriptionService {
 
     if (apiKey.isEmpty) return;
 
-    await Purchases.configure(PurchasesConfiguration(apiKey));
+    try {
+      await Purchases.configure(PurchasesConfiguration(apiKey)).timeout(
+        const Duration(seconds: 12),
+      );
+    } on TimeoutException {
+      debugPrint('Purchases.configure timed out');
+      return;
+    }
 
     Purchases.addCustomerInfoUpdateListener(_handleCustomerInfo);
 
     _configured = true;
-    await refreshPremiumStatus();
-    await syncPaymentStoreCountry();
+    try {
+      await refreshPremiumStatus().timeout(const Duration(seconds: 8));
+    } on TimeoutException {
+      debugPrint('refreshPremiumStatus timed out');
+    }
+    try {
+      await syncPaymentStoreCountry().timeout(const Duration(seconds: 8));
+    } on TimeoutException {
+      debugPrint('syncPaymentStoreCountry timed out');
+    }
   }
 
   /// Država Play/App Store računa — odakle se stvarno plaća pretplata.
@@ -309,18 +327,35 @@ class SubscriptionService {
     }
 
     try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final data = doc.data() ?? <String, dynamic>{};
+      final existingTier = data['subscriptionTier']?.toString().trim() ?? '';
+
+      final updates = <String, dynamic>{
+        'premiumActive': isPremium,
+        'premiumActiveUpdatedAt': FieldValue.serverTimestamp(),
+        if (isPremium) 'weatherAlertsEnabled': true,
+        if (expiresAt != null)
+          'subscriptionExpiresAt': expiresAt
+        else if (!isPremium)
+          'subscriptionExpiresAt': FieldValue.delete(),
+      };
+
+      if (isPremium && existingTier.isEmpty) {
+        final role = AppUser.parseRole(AppUser.resolveRoleCanonical(data));
+        final inferred = tierForRole(role);
+        if (role == UserRole.buyer ||
+            role == UserRole.hobbyFarmer ||
+            role == UserRole.professionalFarmer) {
+          updates['subscriptionTier'] = inferred.firestoreValue;
+        }
+      }
+
       await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        {
-          'premiumActive': isPremium,
-          'premiumActiveUpdatedAt': FieldValue.serverTimestamp(),
-          if (isPremium) 'weatherAlertsEnabled': true,
-          if (expiresAt != null)
-            'subscriptionExpiresAt': expiresAt
-          else if (!isPremium)
-            'subscriptionExpiresAt': FieldValue.delete(),
-        },
-        SetOptions(merge: true),
-      );
+            updates,
+            SetOptions(merge: true),
+          );
     } catch (e) {
       if (kDebugMode) {
         debugPrint('syncPremiumActive: $e');

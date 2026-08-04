@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,8 +38,12 @@ class FollowFarmerButton extends ConsumerWidget {
                     SnackBar(
                       content: Text(
                         isFollowing
-                            ? 'Više ne pratite $farmerName'
-                            : 'Pratite $farmerName — obavijestit ćemo vas o novim proizvodima',
+                            ? 'follow_farmer_stopped'.tr(
+                                namedArgs: {'name': farmerName},
+                              )
+                            : 'follow_farmer_started'.tr(
+                                namedArgs: {'name': farmerName},
+                              ),
                       ),
                       backgroundColor:
                           isFollowing ? Colors.grey[700] : Colors.green,
@@ -57,7 +62,9 @@ class FollowFarmerButton extends ConsumerWidget {
         icon: Icon(
           isFollowing ? Icons.notifications_active : Icons.notifications_none,
         ),
-        label: Text(isFollowing ? 'PRATIŠ' : 'ZAPRATI'),
+        label: Text(
+          isFollowing ? 'follow_farmer_active'.tr() : 'follow_farmer_action'.tr(),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: isFollowing ? Colors.green[700] : Colors.orange,
           foregroundColor: Colors.white,

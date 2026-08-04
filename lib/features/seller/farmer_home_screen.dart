@@ -7,11 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/product.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/navigation_badges_provider.dart';
+import '../../providers/notification_navigation_provider.dart';
 import '../../utils/production_types.dart';
 import '../../utils/upcoming_product_helper.dart';
 import '../../models/screen_guide_step.dart';
 import '../../widgets/farmer_helper_button.dart';
 import '../../widgets/farmer_weather_banner.dart';
+import '../../widgets/notification_context_banner.dart';
 import '../../widgets/company_catalog_guide.dart';
 import '../../widgets/seller_product_availability_switch.dart';
 import '../../widgets/product_price_text.dart';
@@ -31,6 +33,31 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen> {
   final GlobalKey _guideWeatherKey = GlobalKey();
   final GlobalKey _guideListKey = GlobalKey();
   final GlobalKey _guideFabKey = GlobalKey();
+  final ScrollController _productScrollController = ScrollController();
+  final GlobalKey _highlightProductKey = GlobalKey();
+  String? _lastScrolledProductId;
+
+  @override
+  void dispose() {
+    _productScrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToProductIfNeeded(String? productId) {
+    if (productId == null || productId.isEmpty) return;
+    if (_lastScrolledProductId == productId) return;
+    _lastScrolledProductId = productId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightProductKey.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 450),
+        alignment: 0.2,
+        curve: Curves.easeInOut,
+      );
+    });
+  }
 
   List<ScreenGuideStep> _guideStepsForRole(bool isCompany) => [
         if (!isCompany)
@@ -79,6 +106,11 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final badges = ref.watch(navigationBadgesProvider);
+    final notificationIntent = ref.watch(notificationIntentProvider);
+    final highlightProductId = notificationIntent?.target ==
+            NotificationTarget.lowStock
+        ? notificationIntent?.productId
+        : null;
     final roleAsync = ref.watch(firestoreUserRoleProvider);
     final isCompany =
         UpcomingProductHelper.isCompanyRole(roleAsync.valueOrNull);
@@ -136,6 +168,9 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (notificationIntent != null &&
+              notificationIntent.target != NotificationTarget.orders)
+            const NotificationContextBanner(),
           _topBanner(context: context, isCompany: isCompany),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -187,17 +222,27 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen> {
                 }
 
                 return ListView.builder(
+                  controller: _productScrollController,
                   padding: const EdgeInsets.all(12),
                   itemCount: products.length,
                   itemBuilder: (context, index) {
                     final product = products[index];
+                    final highlighted =
+                        highlightProductId != null && product.id == highlightProductId;
+                    if (highlighted) {
+                      _scrollToProductIfNeeded(product.id);
+                    }
                     final card = Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                elevation: 2,
-                child: ListTile(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        side: highlighted
+                            ? BorderSide(color: Colors.orange.shade700, width: 2)
+                            : BorderSide.none,
+                      ),
+                      color: highlighted ? Colors.orange.shade50 : null,
+                      elevation: highlighted ? 4 : 2,
+                      child: ListTile(
                   contentPadding: const EdgeInsets.all(10),
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
@@ -293,10 +338,13 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen> {
                 ),
                     );
 
-                    if (index == 0) {
-                      return _productListAnchor(child: card);
+                    Widget wrapped = card;
+                    if (highlighted) {
+                      wrapped = KeyedSubtree(key: _highlightProductKey, child: card);
+                    } else if (index == 0) {
+                      wrapped = _productListAnchor(child: card);
                     }
-                    return card;
+                    return wrapped;
                   },
                 );
               },

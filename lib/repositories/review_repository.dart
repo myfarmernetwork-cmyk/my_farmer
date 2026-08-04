@@ -2,8 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'order_repository.dart';
+
 class ReviewRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OrderRepository _orderRepository = OrderRepository();
 
   // Dodaj ocjenu
   Future<void> addReview({
@@ -13,6 +16,12 @@ class ReviewRepository {
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception("Korisnik nije prijavljen");
+
+    final canReview =
+        await _orderRepository.hasCompletedOrderFromSeller(sellerId);
+    if (!canReview) {
+      throw Exception('product_review_purchase_required');
+    }
 
     final reviewRef = _firestore
         .collection('users')
@@ -54,6 +63,11 @@ class ReviewRepository {
         .get();
 
     return doc.exists;
+  }
+
+  Future<bool> canReviewSeller(String sellerId) async {
+    if (await hasReviewed(sellerId)) return false;
+    return _orderRepository.hasCompletedOrderFromSeller(sellerId);
   }
 
   // Izračunaj i sačuvaj prosječnu ocjenu

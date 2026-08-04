@@ -249,6 +249,28 @@ class OrderRepository {
     }
     await _firestore.collection('orders').doc(orderId).update(payload);
   }
+
+  /// True when the signed-in buyer has at least one completed order from [sellerId].
+  Future<bool> hasCompletedOrderFromSeller(String sellerId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || sellerId.isEmpty) return false;
+
+    final snapshot = await _firestore
+        .collection('orders')
+        .where('buyerId', isEqualTo: user.uid)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final orderSellerId =
+          data['sellerId']?.toString() ?? data['farmerId']?.toString() ?? '';
+      if (orderSellerId != sellerId) continue;
+      if (OrderStatus.isHistory(OrderStatus.normalize(data['status']))) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 final orderRepositoryProvider = Provider((ref) => OrderRepository());

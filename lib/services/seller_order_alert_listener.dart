@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/order.dart';
 import '../repositories/order_repository.dart';
+import '../utils/order_status.dart';
 import '../services/notification_service.dart';
 
 /// Lokalni fallback: obavijest farmeru dok je app otvoren,
@@ -60,13 +61,14 @@ class _SellerOrderAlertListenerState
 
     for (final order in orders) {
       if (_seenOrderIds.contains(order.id)) continue;
-      if (order.status != 'Novo') continue;
+      if (order.statusCode != OrderStatus.newOrder) continue;
 
       _seenOrderIds.add(order.id);
       NotificationService().showNewOrderAlert(
         buyerName: order.buyerName,
         summary: order.summaryTitle,
         total: order.total,
+        orderId: order.id,
       );
     }
   }

@@ -1,5 +1,5 @@
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
@@ -13,11 +13,21 @@ const {
   createPayPalOrderBody,
   capturePayPalOrderBody,
 } = require("./paypal_checkout");
+const {
+  createPaymentIntentBody,
+  mapStripeError,
+} = require("./stripe_checkout");
 const { identifyPlantBody } = require("./plant_id_proxy");
 const {
   requestAccountDeletion,
   purgeScheduledAccountDeletions,
 } = require("./account_deletion");
+const {
+  resolveLang,
+  normalizeOrderStatus,
+  newOrderNotification,
+  buyerStatusNotification,
+} = require("./order_notification_copy");
 
 const PAYPAL_SECRETS = ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_ENV"];
 const PLANT_ID_SECRETS = ["PLANT_ID_API_KEY"];
@@ -40,44 +50,28 @@ const SUBSCRIPTION_MONTHLY_CENTS_EUR = {
 exports.createPaymentIntent = onCall(
   { secrets: ["STRIPE_SECRET_KEY"] },
   async (request) => {
-  const amount = Number(request.data?.amount);
-  const currency = (request.data?.currency || "eur").toLowerCase();
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new HttpsError("invalid-argument", "Invalid payment amount.");
-  }
-
-  const stripeSecret = getStripeSecretKey();
-  if (!stripeSecret) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Stripe secret key is not configured on the server.",
-    );
-  }
-
-  const stripe = require("stripe")(stripeSecret);
-  const productId = request.data?.productId || "";
-  const subscriptionCents = SUBSCRIPTION_MONTHLY_CENTS_EUR[productId];
-  const resolvedAmount =
-    subscriptionCents != null ? subscriptionCents : Math.round(amount);
-
-  const intent = await stripe.paymentIntents.create({
-    amount: resolvedAmount,
-    currency,
-    automatic_payment_methods: { enabled: true },
-    metadata: {
-      sellerId: request.data?.sellerId || "",
-      buyerId: request.auth?.uid || "",
-      productId,
-      subscriptionMonthlyCents:
-        subscriptionCents != null ? String(subscriptionCents) : "",
-    },
-  });
-
-  return {
-    clientSecret: intent.client_secret,
-    paymentIntentId: intent.id,
-  };
+    try {
+      return await createPaymentIntentBody({
+        stripeSecret: getStripeSecretKey(),
+        amountCents: Number(request.data?.amount),
+        currency: request.data?.currency || "eur",
+        sellerId: request.data?.sellerId || "",
+        buyerId: request.auth?.uid || "",
+        productId: request.data?.productId || "",
+        subscriptionCentsMap: SUBSCRIPTION_MONTHLY_CENTS_EUR,
+      });
+    } catch (error) {
+      const mapped = mapStripeError(error);
+      console.error("createPaymentIntent failed:", {
+        code: mapped.code,
+        message: mapped.message,
+        stripeType: error?.type,
+        amount: request.data?.amount,
+        currency: request.data?.currency,
+        productId: request.data?.productId,
+      });
+      throw new HttpsError(mapped.code, mapped.message);
+    }
   },
 );
 
@@ -155,6 +149,18 @@ exports.identifyPlant = onCall(
       if (error.code === "failed-precondition") {
         throw new HttpsError("failed-precondition", error.message);
       }
+      if (error.httpStatus === 401 || error.httpStatus === 403) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Plant.id API key is invalid or expired.",
+        );
+      }
+      if (error.httpStatus === 429) {
+        throw new HttpsError(
+          "resource-exhausted",
+          "Plant.id API credits exhausted for this key.",
+        );
+      }
       console.error("identifyPlant failed:", error);
       throw new HttpsError("internal", "Plant identification failed.");
     }
@@ -188,7 +194,8 @@ exports.notifyFarmerOnNewOrder = onDocumentCreated(
     }
 
     const sellerDoc = await getFirestore().collection("users").doc(sellerId).get();
-    const fcmToken = sellerDoc.data()?.fcmToken;
+    const sellerData = sellerDoc.data() || {};
+    const fcmToken = sellerData.fcmToken;
 
     if (!fcmToken) {
       console.log(`No FCM token for seller ${sellerId}.`);
@@ -198,13 +205,19 @@ exports.notifyFarmerOnNewOrder = onDocumentCreated(
     const buyerName = order.buyerName || "Kupac";
     const summary = buildOrderSummary(order);
     const total = order.total ?? order.totalPrice ?? 0;
+    const currency = sellerData.orderCurrency || "KM";
+    const lang = resolveLang(sellerData.preferredLanguage);
+    const notification = newOrderNotification({
+      lang,
+      buyer: buyerName,
+      summary,
+      total,
+      currency,
+    });
 
     await getMessaging().send({
       token: fcmToken,
-      notification: {
-        title: "Nova narudžba!",
-        body: `${buyerName} je naručio: ${summary} (${total} KM)`,
-      },
+      notification,
       data: {
         type: "new_order",
         orderId: event.params.orderId,
@@ -218,6 +231,75 @@ exports.notifyFarmerOnNewOrder = onDocumentCreated(
     });
 
     console.log(`Notification sent to seller ${sellerId}.`);
+  },
+);
+
+exports.notifyBuyerOnOrderStatusUpdate = onDocumentUpdated(
+  "orders/{orderId}",
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    const prevStatus = normalizeOrderStatus(before.status);
+    const nextStatus = normalizeOrderStatus(after.status);
+    if (prevStatus === nextStatus) return;
+    if (nextStatus !== "preparing" && nextStatus !== "completed") return;
+
+    const buyerId = after.buyerId;
+    if (!buyerId) {
+      console.log("Order without buyerId, skipping buyer notification.");
+      return;
+    }
+
+    const buyerDoc = await getFirestore().collection("users").doc(buyerId).get();
+    const buyerData = buyerDoc.data() || {};
+    const fcmToken = buyerData.fcmToken;
+    if (!fcmToken) {
+      console.log(`No FCM token for buyer ${buyerId}.`);
+      return;
+    }
+
+    const sellerId = after.sellerId || after.farmerId;
+    let sellerData = {};
+    if (sellerId) {
+      const sellerDoc = await getFirestore().collection("users").doc(sellerId).get();
+      sellerData = sellerDoc.data() || {};
+    }
+
+    const lang = resolveLang(buyerData.preferredLanguage);
+    const sellerName =
+      after.sellerName || after.farmerName || sellerData.name || "Farmer";
+    const deliveryType = after.deliveryType || "pickup";
+    const notification = buyerStatusNotification({
+      lang,
+      status: nextStatus,
+      sellerName,
+      deliveryType,
+      sellerData,
+    });
+    if (!notification) return;
+
+    await getMessaging().send({
+      token: fcmToken,
+      notification,
+      data: {
+        type: "order_status",
+        orderId: event.params.orderId,
+        status: nextStatus,
+        deliveryType,
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "high_importance_channel",
+        },
+      },
+    });
+
+    console.log(
+      `Order status notification (${nextStatus}) sent to buyer ${buyerId}.`,
+    );
   },
 );
 
@@ -276,6 +358,7 @@ exports.notifyFollowersOnNewProduct = onDocumentCreated(
         farmerId,
         productId: event.params.productId,
         farmerName,
+        productName,
       },
       android: {
         priority: "high",
@@ -441,7 +524,8 @@ exports.notifyUserOnChatMessage = onDocumentCreated(
 
     const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
 
-    await getMessaging().send({
+    try {
+      await getMessaging().send({
       token: fcmToken,
       notification: {
         title: senderName,
@@ -453,17 +537,32 @@ exports.notifyUserOnChatMessage = onDocumentCreated(
         senderId,
         senderName,
         messageId: event.params.messageId,
+        message: preview,
       },
       android: {
         priority: "high",
         notification: {
           channelId: "high_importance_channel",
+          sound: "default",
+          notificationPriority: "PRIORITY_HIGH",
         },
       },
     });
 
     console.log(`Chat notification sent to ${receiverId}.`);
-  },
+  } catch (error) {
+    console.error(`Chat notification failed for ${receiverId}:`, error);
+    const code = error?.code || "";
+    if (
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      await getFirestore().collection("users").doc(receiverId).update({
+        fcmToken: FieldValue.delete(),
+      });
+    }
+  }
+},
 );
 
 exports.notifyFarmerOnLowStock = onDocumentUpdated(
@@ -511,6 +610,153 @@ exports.notifyFarmerOnLowStock = onDocumentUpdated(
     });
 
     console.log(`Low stock notification sent to seller ${sellerId}.`);
+  },
+);
+
+exports.notifyUsersOnNewForumTopic = onDocumentCreated(
+  "forum_topics/{topicId}",
+  async (event) => {
+    const topic = event.data?.data();
+    if (!topic) return;
+
+    const authorId = topic.authorId;
+    if (!authorId) return;
+
+    let authorName = (topic.authorName || "").trim();
+    if (!authorName) {
+      const authorDoc = await getFirestore().collection("users").doc(authorId).get();
+      authorName =
+        authorDoc.data()?.name ||
+        authorDoc.data()?.displayName ||
+        "Korisnik";
+    }
+
+    const topicTitle = (topic.title || "Nova tema").trim();
+    const topicId = event.params.topicId;
+
+    const usersSnap = await getFirestore().collection("users").get();
+    const tokens = [];
+
+    for (const userDoc of usersSnap.docs) {
+      if (userDoc.id === authorId) continue;
+      const token = userDoc.data()?.fcmToken;
+      if (token) tokens.push(token);
+    }
+
+    if (tokens.length === 0) {
+      console.log("No FCM tokens for forum new topic notification.");
+      return;
+    }
+
+    const body = `${authorName} — ${topicTitle}`;
+    const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
+
+    await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: "Nova tema na forumu",
+        body: preview,
+      },
+      data: {
+        type: "forum_new_topic",
+        topicId,
+        topicTitle,
+        authorName,
+      },
+      android: {
+        priority: "high",
+        notification: {
+          channelId: "high_importance_channel",
+        },
+      },
+    });
+
+    console.log(`Forum new topic notification sent to ${tokens.length} user(s).`);
+  },
+);
+
+exports.notifyTopicAuthorOnForumComment = onDocumentCreated(
+  "forum_comments/{commentId}",
+  async (event) => {
+    const comment = event.data?.data();
+    if (!comment) return;
+
+    const topicId = comment.topicId;
+    const commentAuthorId = comment.authorId;
+    if (!topicId || !commentAuthorId) return;
+
+    const topicDoc = await getFirestore().collection("forum_topics").doc(topicId).get();
+    if (!topicDoc.exists) return;
+
+    const topic = topicDoc.data();
+    const topicAuthorId = topic?.authorId;
+    if (!topicAuthorId || topicAuthorId === commentAuthorId) return;
+
+    const authorDoc = await getFirestore()
+      .collection("users")
+      .doc(topicAuthorId)
+      .get();
+    const fcmToken = authorDoc.data()?.fcmToken;
+    if (!fcmToken) {
+      console.log(`No FCM token for forum topic author ${topicAuthorId}.`);
+      return;
+    }
+
+    let authorName = (comment.authorName || "").trim();
+    if (!authorName) {
+      const commentAuthorDoc = await getFirestore()
+        .collection("users")
+        .doc(commentAuthorId)
+        .get();
+      authorName =
+        commentAuthorDoc.data()?.name ||
+        commentAuthorDoc.data()?.displayName ||
+        "Korisnik";
+    }
+
+    const topicTitle = (topic?.title || "Vaša tema").trim();
+    let preview = (comment.text || "").trim();
+    if (!preview && comment.imageUrl) preview = "📷 Slika u komentaru";
+    if (!preview) preview = "Novi odgovor";
+    if (preview.length > 120) preview = `${preview.slice(0, 117)}...`;
+
+    try {
+      await getMessaging().send({
+        token: fcmToken,
+        notification: {
+          title: topicTitle,
+          body: preview,
+        },
+        data: {
+          type: "forum_reply",
+          topicId,
+          topicTitle,
+          authorName,
+          preview,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "high_importance_channel",
+            sound: "default",
+            notificationPriority: "PRIORITY_HIGH",
+          },
+        },
+      });
+
+      console.log(`Forum reply notification sent to ${topicAuthorId}.`);
+    } catch (error) {
+      console.error(`Forum reply notification failed for ${topicAuthorId}:`, error);
+      const code = error?.code || "";
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        await getFirestore().collection("users").doc(topicAuthorId).update({
+          fcmToken: FieldValue.delete(),
+        });
+      }
+    }
   },
 );
 

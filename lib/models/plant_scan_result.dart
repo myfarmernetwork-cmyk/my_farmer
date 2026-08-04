@@ -14,7 +14,7 @@ class PlantDiseaseSuggestion {
   });
 
   factory PlantDiseaseSuggestion.fromMap(Map<String, dynamic> data) {
-    final details = data['details'] as Map<String, dynamic>? ?? {};
+    final details = PlantScanResult._map(data['details']);
     final treatmentRaw = details['treatment'];
 
     String? treatmentText;
@@ -62,39 +62,35 @@ class PlantScanResult {
   bool get hasDiseaseSuggestions => diseases.isNotEmpty;
 
   factory PlantScanResult.fromJson(Map<String, dynamic> json) {
-    final result = json['result'] as Map<String, dynamic>? ?? {};
+    final result = _map(json['result']);
 
-    final isPlantData = result['is_plant'] as Map<String, dynamic>? ?? {};
+    final isPlantData = _map(result['is_plant']);
     final isPlant = isPlantData['binary'] as bool? ?? true;
 
-    final classification =
-        result['classification'] as Map<String, dynamic>? ?? {};
-    final suggestions =
-        (classification['suggestions'] as List<dynamic>?) ?? [];
+    final classification = _map(result['classification']);
+    final suggestions = (classification['suggestions'] as List<dynamic>?) ?? [];
 
     String? commonName;
     String? scientificName;
     double confidence = 0;
 
     if (suggestions.isNotEmpty) {
-      final top = suggestions.first as Map<String, dynamic>;
+      final top = _map(suggestions.first);
       scientificName = top['name'] as String?;
       confidence = (top['probability'] as num?)?.toDouble() ?? 0;
 
-      final details = top['details'] as Map<String, dynamic>? ?? {};
+      final details = _map(top['details']);
       final commonNames = details['common_names'];
       if (commonNames is List && commonNames.isNotEmpty) {
         commonName = commonNames.first.toString();
       }
     }
 
-    final diseaseBlock = result['disease'] as Map<String, dynamic>? ?? {};
-    final isHealthyData = diseaseBlock['is_healthy'] as Map<String, dynamic>?;
+    final diseaseBlock = _map(result['disease']);
+    final isHealthyData = _optionalMap(diseaseBlock['is_healthy']);
     final diseaseSuggestions = (diseaseBlock['suggestions'] as List<dynamic>?)
             ?.map(
-              (item) => PlantDiseaseSuggestion.fromMap(
-                Map<String, dynamic>.from(item as Map),
-              ),
+              (item) => PlantDiseaseSuggestion.fromMap(_map(item)),
             )
             .toList() ??
         [];
@@ -109,5 +105,17 @@ class PlantScanResult {
           (isHealthyData?['probability'] as num?)?.toDouble(),
       diseases: diseaseSuggestions,
     );
+  }
+
+  static Map<String, dynamic> _map(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {};
+  }
+
+  static Map<String, dynamic>? _optionalMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
   }
 }

@@ -7,7 +7,6 @@ import '../config/subscription_limits.dart';
 import '../models/subscription_tier.dart';
 import '../models/user_roles.dart';
 import '../models/plant_scan_result.dart';
-import '../services/plant_id_service.dart';
 import '../utils/product_categories.dart';
 import '../utils/upcoming_product_helper.dart';
 
@@ -441,43 +440,16 @@ class ProductUploadService {
         tier: SubscriptionTierX.fromFirestore(user.subscriptionTier),
       );
 
-  /// Brza pozadinska AI analiza fotografije: kategorija, naziv i opis.
+  /// Brza pozadinska analiza fotografije — samo lokalna logika, bez Plant.id API-ja
+  /// (ne troši AI skener kredite ni Kindwise API pozive).
   static Future<ProductImageAnalysis?> analyzeProductFromImage({
     required File imageFile,
     required String? role,
     String languageCode = 'hr',
   }) async {
-    try {
-      final scan = await PlantIdService().identifyPlant(
-        imageFile,
-        language: languageCode,
-      );
-
-      final corpus = _buildVisionCorpus(scan);
-      if (corpus.isEmpty && !scan.isPlant) return null;
-
-      final categoryMatch = UpcomingProductHelper.isCompanyRole(role)
-          ? _matchCompanyCategory(corpus)
-          : _matchFarmerCategory(corpus, scan);
-
-      return ProductImageAnalysis(
-        categoryMatch: categoryMatch,
-        suggestedName: _suggestProductName(
-          scan: scan,
-          match: categoryMatch,
-          role: role,
-          languageCode: languageCode,
-        ),
-        suggestedDescription: _suggestProductDescription(
-          scan: scan,
-          match: categoryMatch,
-          role: role,
-          languageCode: languageCode,
-        ),
-      );
-    } catch (_) {
-      return null;
-    }
+    // Namjerno bez Plant.id: prepoznavanje pri dodavanju proizvoda ne smije trošiti
+    // Kindwise kredite. Farmer ručno unosi naziv; kategorija se bira u formi.
+    return null;
   }
 
   /// Brza pozadinska AI klasifikacija kategorije preko Plant.id Vision API-ja.

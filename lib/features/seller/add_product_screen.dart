@@ -24,6 +24,7 @@ import '../../services/firebase_storage_service.dart';
 import '../../models/company_catalog_item.dart';
 import '../../repositories/company_catalog_repository.dart';
 import '../../widgets/barcode_scan_screen.dart';
+import '../../widgets/product_image_framer.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? productToEdit;
@@ -50,6 +51,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _unitDescriptionController = TextEditingController();
 
   File? _imageFile;
+  final GlobalKey _imageFrameKey = GlobalKey();
   final _picker = ImagePicker();
   bool _isUploading = false;
   final FirebaseStorageService _storageService = FirebaseStorageService();
@@ -214,7 +216,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   bool get _canUseUpcomingHarvest {
     return UpcomingProductHelper.canUseUpcoming(
       role: _userRole,
-      isPremium: ref.watch(isPremiumProvider).value ?? false,
+      isPremium: ref.watch(premiumAccessProvider).isPremium,
     );
   }
 
@@ -592,7 +594,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
       var imageUrl = _existingImageUrl;
       if (_imageFile != null) {
-        final uploaded = await _storageService.uploadProductImage(_imageFile!);
+        final framed = await ProductImageFramer.exportFrame(_imageFrameKey);
+        final uploadFile = framed ?? _imageFile!;
+        final uploaded = await _storageService.uploadProductImage(uploadFile);
         if (uploaded != null) imageUrl = uploaded;
       }
 
@@ -661,8 +665,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           SnackBar(
             content: Text(
               _isEditing
-                  ? 'Proizvod uspješno ažuriran!'
-                  : 'Proizvod uspješno objavljen!',
+                  ? 'add_product_updated_success'.tr()
+                  : 'add_product_published_success'.tr(),
             ),
             backgroundColor: Colors.green,
           ),
@@ -688,69 +692,44 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Uredi proizvod' : 'Novi proizvod'),
+        title: Text(
+          _isEditing
+              ? 'add_product_title_edit'.tr()
+              : 'add_product_title_new'.tr(),
+        ),
         backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
         actions: [
           FarmerHelperIconButton(guideSteps: _guideSteps),
         ],
       ),
-      body: _isUploading
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: Colors.green),
-            const SizedBox(height: 16),
-            Text('add_product_publishing'.tr()),
-          ],
-        ),
-      )
-          : Form(
-        key: _formKey,
-        child: ListView(
+      body: SafeArea(
+        top: false,
+        child: _isUploading
+            ? Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Colors.green),
+              const SizedBox(height: 16),
+              Text('add_product_publishing'.tr()),
+            ],
+          ),
+        )
+            : Form(
+          key: _formKey,
+          child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // SLIKA
-            GestureDetector(
-              onTap: _showImagePicker,
-              child: Container(
-                height: 180,
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: Colors.green.withOpacity(0.5)),
-                ),
-                child: _imageFile == null && _existingImageUrl.isEmpty
-                    ? Column(
-                  mainAxisAlignment:
-                  MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_a_photo,
-                        size: 50,
-                        color: Colors.green[700]),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Dodaj sliku proizvoda",
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "Kamera ili galerija",
-                      style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12),
-                    ),
-                  ],
-                )
-                    : ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: _imageFile != null
-                      ? Image.file(_imageFile!, fit: BoxFit.cover)
-                      : Image.network(_existingImageUrl, fit: BoxFit.cover),
-                ),
-              ),
+            // SLIKA — povlačenje / pinch za centriranje proizvoda
+            ProductImageFramer(
+              frameKey: _imageFrameKey,
+              imageFile: _imageFile,
+              networkUrl:
+                  _imageFile == null && _existingImageUrl.isNotEmpty
+                      ? _existingImageUrl
+                      : null,
+              onChangePhoto: _showImagePicker,
             ),
             if (_isClassifyingImage) ...[
               const SizedBox(height: 8),
@@ -784,13 +763,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             TextFormField(
               key: _guideNameKey,
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: "Naziv proizvoda",
+              decoration: InputDecoration(
+                labelText: 'add_product_name_label'.tr(),
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.eco_outlined),
               ),
               validator: (val) =>
-              val!.isEmpty ? "Unesite naziv" : null,
+                  val!.isEmpty ? 'add_product_name_required'.tr() : null,
             ),
             const SizedBox(height: 12),
 
@@ -1118,13 +1097,23 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         ? 'add_product_company_price_label'.tr()
                         : 'add_product_price'.tr(),
                 border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.attach_money_outlined),
+                prefixIcon: Center(
+                  widthFactor: 1,
+                  child: Text(
+                    currency.symbol,
+                    style: TextStyle(
+                      fontSize: currency.symbol.length > 2 ? 14 : 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ),
                 suffixText: _isService
-                    ? '${currency.symbol} / $_servicePriceUnit'
-                    : '${currency.symbol} / $_selectedUnit',
+                    ? '/ $_servicePriceUnit'
+                    : '/ $_selectedUnit',
               ),
               validator: (val) =>
-              val!.isEmpty ? "Unesite cijenu" : null,
+                  val!.isEmpty ? 'add_product_price_required'.tr() : null,
             ),
             const SizedBox(height: 30),
 
@@ -1138,8 +1127,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     borderRadius: BorderRadius.circular(15)),
               ),
               child: Text(
-                _isEditing ? 'SPREMI IZMJENE' : 'OBJAVI NA PRODAVNICU',
-                style: TextStyle(
+                _isEditing
+                    ? 'add_product_submit_save'.tr()
+                    : 'add_product_submit_publish'.tr(),
+                style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold),
@@ -1147,6 +1138,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ),
             const SizedBox(height: 20),
           ],
+        ),
         ),
       ),
     );

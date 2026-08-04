@@ -34,18 +34,20 @@ class ProductCardPriceText extends ConsumerWidget {
     required this.price,
     this.originalCurrency = CurrencyService.bam,
     this.unit = 'kom',
+    this.currencyRegionOverride,
     this.style,
   });
 
   final double price;
   final String originalCurrency;
   final String unit;
+  final String? currencyRegionOverride;
   final TextStyle? style;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(currencyRegionProvider);
-    final region = ref.read(currencyRegionProvider);
+    final region = currencyRegionOverride ?? ref.read(currencyRegionProvider);
     final converted = CurrencyService().convertForBuyer(
       amountInOriginal: price,
       originalCurrency: originalCurrency,

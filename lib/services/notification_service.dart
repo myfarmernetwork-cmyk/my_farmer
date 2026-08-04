@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:easy_localization/easy_localization.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -5,19 +8,25 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-import '../features/admin/admin_orders_screen.dart';
-import '../features/buyer/farmer_storefront_screen.dart';
+import '../features/buyer/buyer_orders_screen.dart';
+import '../features/buyer/product_details_screen.dart';
 import '../features/chat/chat_screen.dart';
+import '../features/forum/screens/forum_topic_detail_screen.dart';
+import '../features/seller/farmer_orders_screen.dart';
 import '../firebase_options.dart';
 import '../models/animal_record.dart';
+import '../models/product.dart';
 import '../models/veterinary_request.dart';
+import '../providers/notification_navigation_provider.dart';
 import '../screens/my_animals_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService.showBackgroundMessage(message);
 }
 
 class NotificationService {
@@ -55,9 +64,9 @@ class NotificationService {
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
     );
     await _localNotifications.initialize(
       const InitializationSettings(
@@ -65,20 +74,6 @@ class NotificationService {
         iOS: darwinSettings,
       ),
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
-    );
-
-    await _requestPlatformNotificationPermission();
-
-    await _messaging.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    await _messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
     );
 
     FirebaseMessaging.onMessage.listen(_showLocalNotification);
@@ -106,13 +101,39 @@ class NotificationService {
       }
     });
 
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      await syncTokenForUser(currentUser.uid);
-    }
-
     _initialized = true;
   }
+
+  /// Traži dozvolu (ako treba) i uvijek osvježi FCM token u Firestore.
+  /// Poziva se pri svakom ulasku u app — ne samo jednom.
+  Future<void> ensurePushReady() async {
+    try {
+      if (!_initialized) {
+        await initNotifications();
+      }
+
+      await _requestPlatformNotificationPermission();
+      await _messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      await _messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await syncTokenForUser(user.uid);
+      }
+    } catch (_) {
+      // Obavijesti nisu obavezne za rad appa.
+    }
+  }
+
+  Future<void> requestPermissionsWhenReady() => ensurePushReady();
 
   Future<void> _requestPlatformNotificationPermission() async {
     final androidPlugin =
@@ -186,6 +207,7 @@ class NotificationService {
     required String buyerName,
     required String summary,
     required double total,
+    String? orderId,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -199,16 +221,41 @@ class NotificationService {
 
     await _localNotifications.show(
       DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      'Nova narudžba!',
-      '$buyerName je naručio: $summary (${total.toStringAsFixed(2)} KM)',
+      'notification_new_order_title'.tr(),
+      'notification_new_order_push_body'.tr(
+        namedArgs: {
+          'buyer': buyerName,
+          'summary': summary,
+          'total': total.toStringAsFixed(2),
+        },
+      ),
       platformDetails,
-      payload: 'new_order',
+      payload: orderId == null || orderId.isEmpty
+          ? 'new_order'
+          : 'new_order|$orderId',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.orders,
+        orderId: orderId,
+        title: 'notification_new_order_title'.tr(),
+        body: 'notification_new_order_push_body'.tr(
+          namedArgs: {
+            'buyer': buyerName,
+            'summary': summary,
+            'total': total.toStringAsFixed(2),
+          },
+        ),
+        pushOrdersScreen: true,
+      ),
     );
   }
 
   Future<void> showLowStockAlert({
     required String productName,
     required double stock,
+    String? productId,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -225,7 +272,19 @@ class NotificationService {
       'Niska zaliha',
       '$productName — ostalo ${stock.toStringAsFixed(0)} kom',
       platformDetails,
-      payload: 'low_stock',
+      payload: productId == null || productId.isEmpty
+          ? 'low_stock'
+          : 'low_stock|$productId|$productName',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.lowStock,
+        productId: productId,
+        productName: productName,
+        title: 'Niska zaliha',
+        body: '$productName — ostalo ${stock.toStringAsFixed(0)} kom',
+      ),
     );
   }
 
@@ -251,6 +310,71 @@ class NotificationService {
       body,
       platformDetails,
       payload: payload ?? 'weather_alert',
+    );
+  }
+
+  static Future<void> showBackgroundMessage(RemoteMessage message) async {
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    await plugin.initialize(
+      const InitializationSettings(android: androidInit),
+    );
+
+    const channel = AndroidNotificationChannel(
+      _channelId,
+      _channelName,
+      description: 'Obavještenja o narudžbama, porukama, kartonima i više',
+      importance: Importance.max,
+    );
+
+    await plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    final data = message.data;
+    final type = data['type'] as String?;
+    final notification = message.notification;
+    final title = notification?.title ??
+        data['senderName'] as String? ??
+        'My Farmer';
+    final body = notification?.body ??
+        (data['message'] as String?) ??
+        'Nova poruka';
+
+    final payload = _buildPayloadStatic(data);
+    final isWeather = type == 'weather_alert';
+    final channelId = isWeather ? _weatherChannelId : _channelId;
+    final channelName = isWeather ? _weatherChannelName : _channelName;
+
+    if (isWeather) {
+      const weatherChannel = AndroidNotificationChannel(
+        _weatherChannelId,
+        _weatherChannelName,
+        description: 'Hitna upozorenja o vremenu za Premium farmere',
+        importance: Importance.max,
+      );
+      await plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(weatherChannel);
+    }
+
+    await plugin.show(
+      message.hashCode,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          importance: Importance.max,
+          priority: Priority.high,
+          showWhen: true,
+          category: isWeather ? AndroidNotificationCategory.alarm : null,
+        ),
+      ),
+      payload: payload,
     );
   }
 
@@ -305,17 +429,429 @@ class NotificationService {
       platformDetails,
       payload: _buildPayload(message.data),
     );
+
+    _dispatchInAppIntent(message.data, message.notification);
   }
 
-  String? _buildPayload(Map<String, dynamic> data) {
+  void _dispatchInAppIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final type = data['type'] as String?;
+    switch (type) {
+      case 'new_product':
+        _dispatchNewProductIntent(data, notification);
+        break;
+      case 'new_order':
+        NotificationNavigationBridge.dispatch(
+          NotificationNavigationIntent(
+            target: NotificationTarget.orders,
+            orderId: data['orderId'] as String?,
+            title: notification?.title,
+            body: notification?.body,
+            pushOrdersScreen: true,
+          ),
+        );
+        break;
+      case 'order_status':
+        NotificationNavigationBridge.dispatch(
+          NotificationNavigationIntent(
+            target: NotificationTarget.buyerOrders,
+            orderId: data['orderId'] as String?,
+            orderStatus: data['status'] as String?,
+            title: notification?.title,
+            body: notification?.body,
+          ),
+        );
+        break;
+      case 'low_stock':
+        NotificationNavigationBridge.dispatch(
+          NotificationNavigationIntent(
+            target: NotificationTarget.lowStock,
+            productId: data['productId'] as String?,
+            productName: data['productName'] as String?,
+            title: notification?.title ?? 'Niska zaliha',
+            body: notification?.body,
+          ),
+        );
+        break;
+      case 'weather_alert':
+        NotificationNavigationBridge.dispatch(
+          NotificationNavigationIntent(
+            target: NotificationTarget.weather,
+            weatherAlertKey: data['alertKey'] as String?,
+            title: notification?.title ?? '⚠️ Vremensko upozorenje',
+            body: notification?.body,
+          ),
+        );
+        break;
+      case 'vet_intake':
+        _dispatchVetIntakeIntent(data, notification);
+        break;
+      case 'vet_response':
+        _dispatchVetResponseIntent(data, notification);
+        break;
+      case 'chat_message':
+        _dispatchChatMessageIntent(data, notification);
+        break;
+      case 'forum_new_topic':
+        _dispatchForumNewTopicIntent(data, notification);
+        break;
+      case 'forum_reply':
+        _dispatchForumReplyIntent(data, notification);
+        break;
+    }
+  }
+
+  void _dispatchVetIntakeIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final requestId = data['requestId'] as String? ?? '';
+    if (requestId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.vetIntake,
+        requestId: requestId,
+        animalName: data['animalName'] as String?,
+        clientName: data['clientName'] as String?,
+        title: notification?.title ?? 'Novi digitalni karton',
+        body: notification?.body,
+      ),
+    );
+  }
+
+  void _dispatchVetResponseIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final animalId = data['animalId'] as String? ?? '';
+    if (animalId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.vetResponse,
+        animalId: animalId,
+        animalName: data['animalName'] as String?,
+        title: notification?.title ?? 'Odgovor veterinara',
+        body: notification?.body,
+      ),
+    );
+  }
+
+  void _dispatchChatMessageIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final senderId = data['senderId'] as String? ?? '';
+    if (senderId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.chatMessage,
+        senderId: senderId,
+        senderName: data['senderName'] as String? ?? 'Korisnik',
+        body: notification?.body ?? data['message'] as String?,
+        title: notification?.title ?? 'Nova poruka',
+      ),
+    );
+  }
+
+  void _dispatchForumNewTopicIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final topicId = data['topicId'] as String? ?? '';
+    if (topicId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.forumTopic,
+        topicId: topicId,
+        topicTitle: data['topicTitle'] as String?,
+        authorName: data['authorName'] as String?,
+        title: notification?.title,
+        body: notification?.body,
+      ),
+    );
+  }
+
+  void _dispatchForumReplyIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final topicId = data['topicId'] as String? ?? '';
+    if (topicId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.forumReply,
+        topicId: topicId,
+        topicTitle: data['topicTitle'] as String?,
+        authorName: data['authorName'] as String?,
+        body: notification?.body ?? data['preview'] as String?,
+        title: notification?.title,
+      ),
+    );
+  }
+
+  Future<void> showVetIntakeAlert({
+    required String requestId,
+    required String animalName,
+    required String clientName,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const platformDetails = NotificationDetails(android: androidDetails);
+
+    final body = clientName.trim().isEmpty
+        ? animalName.trim()
+        : '${clientName.trim()} — ${animalName.trim()}';
+
+    await _localNotifications.show(
+      requestId.hashCode,
+      'Novi digitalni karton',
+      body.isEmpty ? 'Novi karton ljubimca' : body,
+      platformDetails,
+      payload: 'vet_intake|$requestId',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.vetIntake,
+        requestId: requestId,
+        animalName: animalName,
+        clientName: clientName,
+        title: 'Novi digitalni karton',
+        body: body.isEmpty ? 'Novi karton ljubimca' : body,
+      ),
+    );
+  }
+
+  Future<void> showVetResponseAlert({
+    required String animalId,
+    required String animalName,
+    required String body,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const platformDetails = NotificationDetails(android: androidDetails);
+
+    await _localNotifications.show(
+      animalId.hashCode,
+      'Odgovor veterinara',
+      body,
+      platformDetails,
+      payload: 'vet_response|$animalId',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.vetResponse,
+        animalId: animalId,
+        animalName: animalName,
+        title: 'Odgovor veterinara',
+        body: body,
+      ),
+    );
+  }
+
+  Future<void> showChatMessageAlert({
+    required String senderId,
+    required String senderName,
+    required String messagePreview,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const platformDetails = NotificationDetails(android: androidDetails);
+
+    await _localNotifications.show(
+      '$senderId$messagePreview'.hashCode,
+      'Nova poruka',
+      messagePreview.isEmpty ? senderName : messagePreview,
+      platformDetails,
+      payload: 'chat_message|$senderId|$senderName',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.chatMessage,
+        senderId: senderId,
+        senderName: senderName,
+        title: 'Nova poruka',
+        body: messagePreview.isEmpty ? senderName : messagePreview,
+      ),
+    );
+  }
+
+  Future<void> showForumNewTopicAlert({
+    required String topicId,
+    required String topicTitle,
+    required String authorName,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const platformDetails = NotificationDetails(android: androidDetails);
+
+    final title = topicTitle.trim().isEmpty ? 'Nova tema na forumu' : topicTitle.trim();
+    final body = authorName.trim().isEmpty
+        ? 'Netko je objavio novu temu'
+        : authorName.trim();
+
+    await _localNotifications.show(
+      topicId.hashCode,
+      title,
+      body,
+      platformDetails,
+      payload: 'forum_new_topic|$topicId',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.forumTopic,
+        topicId: topicId,
+        topicTitle: topicTitle,
+        authorName: authorName,
+        title: title,
+        body: body,
+      ),
+    );
+  }
+
+  Future<void> showForumReplyAlert({
+    required String topicId,
+    required String topicTitle,
+    required String authorName,
+    required String preview,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+    );
+    const platformDetails = NotificationDetails(android: androidDetails);
+
+    final title = topicTitle.trim().isEmpty
+        ? 'Novi odgovor na forumu'
+        : topicTitle.trim();
+    final body = preview.trim().isNotEmpty
+        ? preview.trim()
+        : (authorName.trim().isEmpty ? 'Netko je odgovorio' : authorName.trim());
+
+    await _localNotifications.show(
+      '$topicId$preview'.hashCode,
+      title,
+      body,
+      platformDetails,
+      payload: 'forum_reply|$topicId',
+    );
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.forumReply,
+        topicId: topicId,
+        topicTitle: topicTitle,
+        authorName: authorName,
+        title: title,
+        body: body,
+      ),
+    );
+  }
+
+  Future<void> openVetRequestFromNotification(String requestId) =>
+      _openVetRequest(requestId);
+
+  Future<void> openAnimalDetailFromNotification(String animalId) =>
+      _openAnimalDetail(animalId);
+
+  void openChatFromNotification(String senderId, String senderName) =>
+      _openChat(senderId, senderName);
+
+  Future<void> openForumTopicFromNotification(String topicId) async {
+    await _openForumTopic(topicId);
+  }
+
+  void _dispatchNewProductIntent(
+    Map<String, dynamic> data,
+    RemoteNotification? notification,
+  ) {
+    final productId = data['productId'] as String? ?? '';
+    if (productId.isEmpty) return;
+
+    NotificationNavigationBridge.dispatch(
+      NotificationNavigationIntent(
+        target: NotificationTarget.newProduct,
+        productId: productId,
+        farmerId: data['farmerId'] as String?,
+        farmerName: data['farmerName'] as String?,
+        productName: data['productName'] as String?,
+        title: notification?.title,
+        body: notification?.body,
+      ),
+    );
+  }
+
+  /// Otvara ekran proizvoda iz obavijesti (banner, tržnica, push).
+  Future<void> openProductFromNotification(String productId) async {
+    await _openProductDetails(productId);
+  }
+
+  String? _buildPayload(Map<String, dynamic> data) =>
+      _buildPayloadStatic(data);
+
+  static String? _buildPayloadStatic(Map<String, dynamic> data) {
     final type = data['type'] as String?;
     if (type == null) return null;
 
     switch (type) {
+      case 'new_order':
+        final orderId = data['orderId'] as String? ?? '';
+        return orderId.isEmpty ? type : '$type|$orderId';
+      case 'order_status':
+        final orderId = data['orderId'] as String? ?? '';
+        final status = data['status'] as String? ?? '';
+        if (orderId.isEmpty) return type;
+        return status.isEmpty ? '$type|$orderId' : '$type|$orderId|$status';
+      case 'weather_alert':
+        final alertKey = data['alertKey'] as String? ?? '';
+        return alertKey.isEmpty ? type : '$type|$alertKey';
+      case 'low_stock':
+        final productId = data['productId'] as String? ?? '';
+        final productName = data['productName'] as String? ?? '';
+        if (productId.isEmpty) return type;
+        return productName.isEmpty
+            ? '$type|$productId'
+            : '$type|$productId|$productName';
       case 'new_product':
-        final farmerId = data['farmerId'] as String?;
-        if (farmerId == null) return type;
-        return '$type|$farmerId';
+        final productId = data['productId'] as String? ?? '';
+        final farmerId = data['farmerId'] as String? ?? '';
+        if (productId.isEmpty && farmerId.isEmpty) return type;
+        if (productId.isEmpty) return '$type||$farmerId';
+        if (farmerId.isEmpty) return '$type|$productId';
+        return '$type|$productId|$farmerId';
       case 'vet_response':
         final animalId = data['animalId'] as String? ?? '';
         return '$type|$animalId';
@@ -326,6 +862,12 @@ class NotificationService {
       case 'vet_intake':
         final requestId = data['requestId'] as String? ?? '';
         return '$type|$requestId';
+      case 'forum_new_topic':
+        final topicId = data['topicId'] as String? ?? '';
+        return topicId.isEmpty ? type : '$type|$topicId';
+      case 'forum_reply':
+        final topicId = data['topicId'] as String? ?? '';
+        return topicId.isEmpty ? type : '$type|$topicId';
       default:
         return type;
     }
@@ -342,24 +884,87 @@ class NotificationService {
   void _handleNotificationPayload(String? payload) {
     if (payload == null) return;
 
-    if (payload == 'new_order') {
-      _openOrdersScreen();
+    if (payload == 'new_order' || payload.startsWith('new_order|')) {
+      final parts = payload.split('|');
+      final orderId = parts.length > 1 ? parts[1] : null;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.orders,
+          orderId: orderId,
+          pushOrdersScreen: true,
+        ),
+      );
+      _openOrdersScreen(highlightOrderId: orderId);
       return;
     }
 
-    if (payload == 'low_stock' || payload == 'weather_alert') {
-      // Korisnik je već u appu — samo otvori home.
+    if (payload == 'order_status' || payload.startsWith('order_status|')) {
+      final parts = payload.split('|');
+      final orderId = parts.length > 1 ? parts[1] : null;
+      final status = parts.length > 2 ? parts[2] : null;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.buyerOrders,
+          orderId: orderId,
+          orderStatus: status,
+        ),
+      );
+      _openBuyerOrdersScreen();
+      return;
+    }
+
+    if (payload == 'low_stock' || payload.startsWith('low_stock|')) {
+      final parts = payload.split('|');
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.lowStock,
+          productId: parts.length > 1 ? parts[1] : null,
+          productName: parts.length > 2 ? parts.sublist(2).join('|') : null,
+          title: 'Niska zaliha',
+        ),
+      );
+      return;
+    }
+
+    if (payload == 'weather_alert' || payload.startsWith('weather_alert|')) {
+      final parts = payload.split('|');
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.weather,
+          weatherAlertKey: parts.length > 1 ? parts[1] : null,
+          title: '⚠️ Vremensko upozorenje',
+        ),
+      );
       return;
     }
 
     if (payload.startsWith('new_product|')) {
-      final farmerId = payload.split('|').last;
-      _openFarmerStorefront(farmerId);
+      final parts = payload.split('|');
+      final productId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
+      final farmerId = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
+
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.newProduct,
+          productId: productId,
+          farmerId: farmerId,
+        ),
+      );
+
+      if (productId != null) {
+        _openProductDetails(productId);
+      }
       return;
     }
 
     if (payload.startsWith('vet_response|')) {
       final animalId = payload.split('|').last;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.vetResponse,
+          animalId: animalId.isEmpty ? null : animalId,
+        ),
+      );
       if (animalId.isNotEmpty) {
         _openAnimalDetail(animalId);
       }
@@ -369,15 +974,58 @@ class NotificationService {
     if (payload.startsWith('chat_message|')) {
       final parts = payload.split('|');
       if (parts.length >= 3) {
-        _openChat(parts[1], parts.sublist(2).join('|'));
+        final senderId = parts[1];
+        final senderName = parts.sublist(2).join('|');
+        NotificationNavigationBridge.dispatch(
+          NotificationNavigationIntent(
+            target: NotificationTarget.chatMessage,
+            senderId: senderId,
+            senderName: senderName,
+          ),
+        );
+        _openChat(senderId, senderName);
       }
       return;
     }
 
     if (payload.startsWith('vet_intake|')) {
       final requestId = payload.split('|').last;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.vetIntake,
+          requestId: requestId.isEmpty ? null : requestId,
+        ),
+      );
       if (requestId.isNotEmpty) {
         _openVetRequest(requestId);
+      }
+      return;
+    }
+
+    if (payload.startsWith('forum_new_topic|')) {
+      final topicId = payload.split('|').last;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.forumTopic,
+          topicId: topicId.isEmpty ? null : topicId,
+        ),
+      );
+      if (topicId.isNotEmpty) {
+        _openForumTopic(topicId);
+      }
+      return;
+    }
+
+    if (payload.startsWith('forum_reply|')) {
+      final topicId = payload.split('|').last;
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.forumReply,
+          topicId: topicId.isEmpty ? null : topicId,
+        ),
+      );
+      if (topicId.isNotEmpty) {
+        _openForumTopic(topicId);
       }
       return;
     }
@@ -451,23 +1099,58 @@ class NotificationService {
     );
   }
 
-  void _openFarmerStorefront(String farmerId) {
+  Future<void> _openForumTopic(String topicId) async {
     final navigator = _navigatorKey?.currentState;
     if (navigator == null) return;
 
     navigator.push(
       MaterialPageRoute(
-        builder: (_) => FarmerStorefrontScreen(sellerId: farmerId),
+        builder: (_) => ForumTopicDetailScreen(topicId: topicId),
       ),
     );
   }
 
-  void _openOrdersScreen() {
+  Future<void> _openProductDetails(String productId) async {
+    final navigator = _navigatorKey?.currentState;
+    if (navigator == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .get();
+      if (!doc.exists) return;
+
+      final product = Product.fromFirestore(doc);
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => ProductDetailsScreen(product: product),
+        ),
+      );
+    } catch (_) {
+      // Navigacija ne smije blokirati app.
+    }
+  }
+
+  void _openBuyerOrdersScreen() {
     final navigator = _navigatorKey?.currentState;
     if (navigator == null) return;
 
     navigator.push(
-      MaterialPageRoute(builder: (_) => const AdminOrdersScreen()),
+      MaterialPageRoute(
+        builder: (_) => const BuyerOrdersScreen(),
+      ),
+    );
+  }
+
+  void _openOrdersScreen({String? highlightOrderId}) {
+    final navigator = _navigatorKey?.currentState;
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => FarmerOrdersScreen(highlightOrderId: highlightOrderId),
+      ),
     );
   }
 }

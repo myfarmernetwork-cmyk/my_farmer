@@ -33,6 +33,9 @@ x_android_stari/
 
 # Lokalni API ključevi za build
 secrets.local.json
+scripts/firebase-admin-key.json
+**/firebase-admin-key.json
+scripts/Downloads/
 
 # Slucajni screenshoti / artefakti
 flutter_01.png

@@ -33,6 +33,8 @@ class ProfileSubscriptionCard extends ConsumerWidget {
       storePremium: storePremium,
     );
     final isPending = user?.isPremiumPending ?? false;
+    final inLicensePromo = _inLicensePromo(user, role);
+    final awaitingLicenseApproval = _awaitingLicenseApproval(user, role);
 
     return Card(
       elevation: 0,
@@ -77,7 +79,11 @@ class ProfileSubscriptionCard extends ConsumerWidget {
                       Text(
                         isSubscribed
                             ? _planTitle(role)
-                            : _t(context, 'profile_subscription_inactive'),
+                            : inLicensePromo
+                                ? 'promo_period_active'.tr()
+                                : awaitingLicenseApproval
+                                    ? 'registration_pending_verification'.tr()
+                                    : _t(context, 'profile_subscription_inactive'),
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontSize: 13,
@@ -140,7 +146,7 @@ class ProfileSubscriptionCard extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 14),
-            if (!isSubscribed)
+            if (!isSubscribed && !inLicensePromo && !awaitingLicenseApproval)
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
@@ -160,7 +166,7 @@ class ProfileSubscriptionCard extends ConsumerWidget {
                   ),
                 ),
               )
-            else
+            else if (isSubscribed)
               Align(
                 alignment: Alignment.center,
                 child: TextButton.icon(
@@ -183,6 +189,20 @@ class ProfileSubscriptionCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  bool _isLicenseRole(UserRole role) =>
+      role == UserRole.veterinarian || role == UserRole.pharmacy;
+
+  bool _inLicensePromo(AppUser? user, UserRole role) {
+    if (!_isLicenseRole(role) || user == null) return false;
+    if (user.isPremiumPending) return false;
+    return user.isInPromotionalPeriod;
+  }
+
+  bool _awaitingLicenseApproval(AppUser? user, UserRole role) {
+    if (!_isLicenseRole(role) || user == null) return false;
+    return user.needsAdminVerification && !user.isPremiumApproved;
   }
 
   String _planTitle(UserRole role) {

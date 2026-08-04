@@ -448,6 +448,15 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     );
   }
 
+  void _clearImage() {
+    setState(() {
+      _imageFile = null;
+      _result = null;
+      _errorMessage = null;
+      _sponsoredProducts = [];
+    });
+  }
+
   void _showImageSourcePicker() {
     showModalBottomSheet(
       context: context,
@@ -824,6 +833,21 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                           fit: StackFit.expand,
                           children: [
                             Image.file(_imageFile!, fit: BoxFit.cover),
+                            if (!_isAnalyzing)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Material(
+                                  color: Colors.black54,
+                                  shape: const CircleBorder(),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: IconButton(
+                                    tooltip: 'scanner_clear_photo'.tr(),
+                                    icon: const Icon(Icons.close, color: Colors.white),
+                                    onPressed: _clearImage,
+                                  ),
+                                ),
+                              ),
                             if (_isAnalyzing)
                               Container(
                                 color: Colors.black45,
@@ -854,20 +878,47 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: KeyedSubtree(
               key: _aiAnalyzeButtonKey,
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _canAnalyze ? _analyzeImage : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[800],
-                    disabledBackgroundColor: Colors.grey[400],
-                    foregroundColor: Colors.white,
-                    disabledForegroundColor: Colors.white70,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _canAnalyze ? _analyzeImage : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[800],
+                        disabledBackgroundColor: Colors.grey[400],
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: Colors.white70,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.search),
+                      label: Text('scanner_analyze'.tr()),
+                    ),
                   ),
-                  icon: const Icon(Icons.search),
-                  label: Text('scanner_analyze'.tr()),
-                ),
+                  if (_imageFile != null && !_isAnalyzing) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _showImageSourcePicker,
+                            icon: const Icon(Icons.add_a_photo_outlined),
+                            label: Text('scanner_new_photo'.tr()),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _clearImage,
+                            icon: const Icon(Icons.refresh),
+                            label: Text('scanner_clear_photo'.tr()),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
           ),

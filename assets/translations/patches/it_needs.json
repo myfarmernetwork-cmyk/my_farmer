@@ -1,0 +1,2134 @@
+{
+  "password": {
+    "en": "Password",
+    "hr": "Lozinka",
+    "fix": true
+  },
+  "login": {
+    "en": "Login",
+    "hr": "Prijavi se",
+    "fix": true
+  },
+  "registration_vet_fields_required": {
+    "en": "Veterinarian must enter name, email, password, phone, address, and license number.",
+    "hr": "Veterinar mora unijeti ime, email, lozinku, telefon, adresu i broj licence."
+  },
+  "registration_company_reg_required": {
+    "en": "Company must enter registration number.",
+    "hr": "Tvrtka mora unijeti broj registra."
+  },
+  "cart_stock_insufficient": {
+    "en": "The farmer no longer has the requested quantity in stock. Cart quantities have been adjusted.",
+    "hr": "Farmer više nema traženu količinu na stanju. Količine u košarici su prilagođene."
+  },
+  "cart_delivery_min_remaining": {
+    "en": "Add {amount} {currency} more to unlock delivery",
+    "hr": "Još {amount} {currency} do minimalnog iznosa za dostavu"
+  },
+  "cart_delivery_ready": {
+    "en": "Minimum reached ({amount} {currency}) — delivery approved",
+    "hr": "Minimum dosegnut ({amount} {currency}) — dostava odobrena"
+  },
+  "scanner_new_photo": {
+    "en": "New photo",
+    "hr": "Nova fotografija"
+  },
+  "scanner_clear_photo": {
+    "en": "Clear",
+    "hr": "Poništi"
+  },
+  "region_serbia": {
+    "en": "Serbia (RSD)",
+    "hr": "Srbija (RSD)",
+    "fix": true
+  },
+  "first_aid_title": {
+    "en": "First aid — vet radar",
+    "hr": "Prva pomoć — veterinarski radar"
+  },
+  "first_aid_button": {
+    "en": "First aid",
+    "hr": "Prva pomoć"
+  },
+  "first_aid_no_vets": {
+    "en": "No nearby Premium vets. Search for a vet by name in the main search bar.",
+    "hr": "Nema dostupnih Premium veterinara u blizini. Ručno pretražite ime veterinara u glavnoj tražilici."
+  },
+  "first_aid_favorite": {
+    "en": "Mark as favorite vet",
+    "hr": "Označi kao omiljenog veterinara"
+  },
+  "first_aid_call": {
+    "en": "Call",
+    "hr": "Nazovi"
+  },
+  "first_aid_chat": {
+    "en": "Message",
+    "hr": "Poruka"
+  },
+  "vet_referral_title": {
+    "en": "Send record to veterinarian",
+    "hr": "Slanje kartona veterinaru"
+  },
+  "vet_referral_select_vet": {
+    "en": "Select a veterinarian (favorite or nearby radar):",
+    "hr": "Odaberite veterinara (omiljeni ili iz radara blizine):"
+  },
+  "vet_referral_memo_label": {
+    "en": "Briefly describe symptoms or reason for sending the sick animal (e.g. fever, refusing food...)",
+    "hr": "Opišite kratko simptome ili razlog slanja bolesne životinje (npr. povišena temperatura, odbija hranu...)"
+  },
+  "vet_referral_memo_required": {
+    "en": "Please describe symptoms or reason for sending.",
+    "hr": "Molimo opišite simptome ili razlog slanja."
+  },
+  "vet_referral_send": {
+    "en": "Send record to vet",
+    "hr": "Pošalji karton veterinaru"
+  },
+  "vet_referral_sent": {
+    "en": "Medical record sent to the veterinarian.",
+    "hr": "Karton je uspješno poslan veterinaru."
+  },
+  "vet_client_memo_title": {
+    "en": "Owner note",
+    "hr": "Napomena vlasnika"
+  },
+  "vet_client_memo_empty": {
+    "en": "Owner did not add a note.",
+    "hr": "Vlasnik nije dodao napomenu."
+  },
+  "vet_intake_empty": {
+    "en": "No incoming records yet. When an owner sends a record via First Aid, it will appear here.",
+    "hr": "Još nema pristiglih kartona. Kad vlasnik pošalje karton putem Prve pomoći, pojavit će se ovdje."
+  },
+  "vet_intake_search_hint": {
+    "en": "Search by animal, owner, or note…",
+    "hr": "Pretraži po životinji, vlasniku ili napomeni…"
+  },
+  "vet_intake_sort_label": {
+    "en": "Sort",
+    "hr": "Sortiraj"
+  },
+  "vet_intake_sort_newest": {
+    "en": "Newest",
+    "hr": "Najnovije"
+  },
+  "vet_intake_sort_animal_az": {
+    "en": "Animal A–Z",
+    "hr": "Životinja A–Z"
+  },
+  "vet_intake_sort_client_az": {
+    "en": "Owner A–Z",
+    "hr": "Vlasnik A–Z"
+  },
+  "vet_intake_sort_unread": {
+    "en": "Unread",
+    "hr": "Nepročitano"
+  },
+  "vet_intake_count_total": {
+    "en": "{count} records",
+    "hr": "{count} kartona"
+  },
+  "vet_intake_count_filtered": {
+    "en": "Showing {visible} of {total}",
+    "hr": "Prikazano {visible} od {total}"
+  },
+  "vet_intake_no_results": {
+    "en": "No records match this search. Try another term.",
+    "hr": "Nema kartona za ovu pretragu. Pokušajte drugi pojam."
+  },
+  "vet_intake_page": {
+    "en": "Page {current} of {total}",
+    "hr": "Stranica {current} od {total}"
+  },
+  "vet_intake_page_range": {
+    "en": "{from}–{to} of {total}",
+    "hr": "{from}–{to} od {total}"
+  },
+  "vet_intake_prev_page": {
+    "en": "Previous page",
+    "hr": "Prethodna stranica"
+  },
+  "vet_intake_next_page": {
+    "en": "Next page",
+    "hr": "Sljedeća stranica"
+  },
+  "vet_request_client": {
+    "en": "Owner",
+    "hr": "Vlasnik"
+  },
+  "vet_response_form_title": {
+    "en": "Professional report for owner",
+    "hr": "Stručni nalaz za vlasnika"
+  },
+  "vet_response_field_label": {
+    "en": "Enter professional advice, treatment instructions, or findings for the owner.",
+    "hr": "Upišite stručni savjet, uputu za liječenje ili nalaz za vlasnika."
+  },
+  "vet_response_field_hint": {
+    "en": "Enter your report or instructions here…",
+    "hr": "Upišite nalaz ili uputu ovdje…"
+  },
+  "vet_response_required": {
+    "en": "Please enter a report or instructions for the owner.",
+    "hr": "Molimo upišite nalaz ili uputu za vlasnika."
+  },
+  "vet_response_send": {
+    "en": "Save and send report",
+    "hr": "Spremi i pošalji nalaz"
+  },
+  "vet_response_sent": {
+    "en": "Report saved and sent to the owner.",
+    "hr": "Nalaz je spremljen i poslan vlasniku."
+  },
+  "vet_tab_patient_record": {
+    "en": "Record",
+    "hr": "Karton"
+  },
+  "vet_tab_conversations": {
+    "en": "Messages",
+    "hr": "Razgovori"
+  },
+  "vet_conversations_empty": {
+    "en": "No messages sent yet. Write the first report on the Record tab.",
+    "hr": "Još nema poslanih poruka. Napišite prvi nalaz na kartici Karton."
+  },
+  "vet_conversations_filter_all": {
+    "en": "All",
+    "hr": "Sve"
+  },
+  "vet_conversations_filter_important": {
+    "en": "Important",
+    "hr": "Važno"
+  },
+  "vet_conversations_important_empty": {
+    "en": "No important messages marked. Tap the star on a message.",
+    "hr": "Nema označenih važnih poruka. Dodirnite zvjezdicu uz poruku."
+  },
+  "vet_conversations_mark_important": {
+    "en": "Mark as important",
+    "hr": "Označi kao važno"
+  },
+  "vet_conversations_unmark_important": {
+    "en": "Remove important mark",
+    "hr": "Ukloni oznaku važno"
+  },
+  "vet_owner_response_title": {
+    "en": "Veterinarian report and instructions:",
+    "hr": "Nalaz i uputa veterinara:"
+  },
+  "vet_verified_badge": {
+    "en": "Verified",
+    "hr": "Provjereni"
+  },
+  "vet_search_results_title": {
+    "en": "Veterinarians (manual search)",
+    "hr": "Veterinari (ručna pretraga)"
+  },
+  "animals_photo_camera": {
+    "en": "Take with camera",
+    "hr": "Uslikaj kamerom"
+  },
+  "animals_photo_gallery": {
+    "en": "Choose from gallery",
+    "hr": "Izaberi iz galerije"
+  },
+  "animals_attach_document": {
+    "en": "📎 Add / photograph animal document",
+    "hr": "📎 Dodaj / Uslikaj dokument životinje"
+  },
+  "animals_attach_document_hint": {
+    "en": "(vaccination records, reports, invoices)",
+    "hr": "(knjižica cijepljenja, nalazi, računi)"
+  },
+  "animals_doc_take_photo": {
+    "en": "Photograph document",
+    "hr": "Uslikaj dokument"
+  },
+  "animals_doc_pick_file": {
+    "en": "Choose file",
+    "hr": "Odaberi datoteku"
+  },
+  "add_product_pack_contents": {
+    "en": "Pack contents (e.g. 30 pieces)",
+    "hr": "Sadržaj pakiranja (npr. 30 komada ili vreća od 5 kg)"
+  },
+  "add_product_pack_contents_hint": {
+    "en": "30 pieces, 5 kg bag...",
+    "hr": "30 komada, vreća od 5 kg..."
+  },
+  "add_product_stock": {
+    "en": "Available stock",
+    "hr": "Dostupna zaliha"
+  },
+  "add_product_stock_hint": {
+    "en": "Enter the approximate quantity you have in stock",
+    "hr": "Unesite okvirnu količinu koju imate na skladištu"
+  },
+  "add_product_stock_required": {
+    "en": "Enter available stock",
+    "hr": "Unesite dostupnu zalihu"
+  },
+  "add_product_stock_invalid": {
+    "en": "Enter a valid quantity (0 or more)",
+    "hr": "Unesite valjanu količinu (0 ili više)"
+  },
+  "vet_tab_digital_intake": {
+    "en": "Digital record intake",
+    "hr": "Digitalni prijem kartona"
+  },
+  "vet_field_report_add": {
+    "en": "New field report",
+    "hr": "Novi terenski nalaz"
+  },
+  "vet_field_report_empty": {
+    "en": "No field reports yet. Tap + to record a farm visit with notes and a photo.",
+    "hr": "Još nema terenskih nalaza. Dodirnite + kako biste zabilježili posjet farmi, bilješke i fotografiju."
+  },
+  "vet_field_report_title_label": {
+    "en": "Report title",
+    "hr": "Naslov nalaza"
+  },
+  "vet_field_report_title_required": {
+    "en": "Enter a report title",
+    "hr": "Unesite naslov nalaza"
+  },
+  "vet_field_report_farmer_label": {
+    "en": "Farmer",
+    "hr": "Farmer"
+  },
+  "vet_field_report_select_farmer": {
+    "en": "Select farmer",
+    "hr": "Odaberite farmera"
+  },
+  "vet_field_report_other_farmer": {
+    "en": "Enter another farmer",
+    "hr": "Unesi drugog farmera"
+  },
+  "vet_field_report_farmer_required": {
+    "en": "Select or enter a farmer",
+    "hr": "Odaberite ili unesite farmera"
+  },
+  "vet_field_report_notes_label": {
+    "en": "Notes",
+    "hr": "Tekst bilješke"
+  },
+  "vet_field_report_photo_btn": {
+    "en": "Take / add photo",
+    "hr": "Uslikaj / dodaj fotografiju"
+  },
+  "vet_field_report_photo_camera": {
+    "en": "Take with camera",
+    "hr": "Uslikaj kamerom"
+  },
+  "vet_field_report_photo_gallery": {
+    "en": "Choose from gallery",
+    "hr": "Izaberi iz galerije"
+  },
+  "vet_field_report_save": {
+    "en": "Save field report",
+    "hr": "Spremi terenski nalaz"
+  },
+  "vet_field_report_saved": {
+    "en": "Field report saved",
+    "hr": "Terenski nalaz je spremljen"
+  },
+  "roles_pdf_screen_title": {
+    "en": "Roles and subscriptions",
+    "hr": "Uloge i pretplate"
+  },
+  "roles_pdf_profile_title": {
+    "en": "PDF: Roles and subscriptions",
+    "hr": "PDF: Uloge i pretplate"
+  },
+  "roles_pdf_profile_subtitle": {
+    "en": "Free vs. paid — overview of all app roles",
+    "hr": "Besplatno vs. plaćeno — pregled svih uloga u aplikaciji"
+  },
+  "company_catalog_import_success_detail": {
+    "en": "Imported {count} items ({inserted} new, {updated} updated)",
+    "hr": "Uvezeno {count} artikala ({inserted} novih, {updated} ažurirano)"
+  },
+  "company_catalog_csv_bad_headers": {
+    "en": "Invalid file format. Missing required columns: {columns}. Expected: barkod, naziv, cijena, zaliha, jedinica.",
+    "hr": "Krivi format datoteke. Nedostaju obavezni stupci: {columns}. Očekivano: barkod, naziv, cijena, zaliha, jedinica."
+  },
+  "company_catalog_csv_empty_file": {
+    "en": "The file is empty.",
+    "hr": "Datoteka je prazna."
+  },
+  "company_catalog_csv_no_data_rows": {
+    "en": "CSV has no data rows.",
+    "hr": "CSV nema redova s podacima."
+  },
+  "company_catalog_csv_parse_failed": {
+    "en": "Could not read the file as CSV.",
+    "hr": "Datoteku nije moguće pročitati kao CSV."
+  },
+  "company_catalog_csv_row_price_error": {
+    "en": "Error in row {row}: Price must be a number.",
+    "hr": "Greška u redu {row}: Cijena mora biti broj."
+  },
+  "company_catalog_csv_row_stock_error": {
+    "en": "Error in row {row}: Stock must be a number.",
+    "hr": "Greška u redu {row}: Zaliha mora biti broj."
+  },
+  "company_catalog_csv_row_sku_empty": {
+    "en": "Error in row {row}: SKU is required.",
+    "hr": "Greška u redu {row}: SKU je obavezan."
+  },
+  "company_catalog_csv_row_name_empty": {
+    "en": "Error in row {row}: Name is required.",
+    "hr": "Greška u redu {row}: Naziv je obavezan."
+  },
+  "company_catalog_template_download": {
+    "en": "Download template (.csv)",
+    "hr": "Preuzmi predložak (.csv)"
+  },
+  "company_catalog_template_downloaded": {
+    "en": "Template ready — choose where to save it",
+    "hr": "Predložak spreman — odaberite gdje ga spremiti"
+  },
+  "company_catalog_template_download_failed": {
+    "en": "Could not download the template.",
+    "hr": "Preuzimanje predloška nije uspjelo."
+  },
+  "company_commercial_weather_alert": {
+    "en": "Commercial weather alert: Monitor severe weather warnings in your region to adjust agrochemical and crop protection stock in time.",
+    "hr": "Komercijalni meteo-alarm: Pratite najave nepogoda u regiji kako biste na vrijeme prilagodili zalihe agrokemije i zaštitnih sredstava na skladištu."
+  },
+  "add_product_ai_classifying": {
+    "en": "AI is analyzing the photo and suggesting a category…",
+    "hr": "AI analizira fotografiju i predlaže kategoriju…"
+  },
+  "add_product_ai_category_detected": {
+    "en": "AI automatically selected the product category.",
+    "hr": "AI je automatski odabrao kategoriju proizvoda."
+  },
+  "add_product_subcategory": {
+    "en": "Sub-category",
+    "hr": "Pod-kategorija"
+  },
+  "add_product_sku_label": {
+    "en": "SKU / Catalog number",
+    "hr": "Šifra artikla / Kataloški broj"
+  },
+  "add_product_sku_required": {
+    "en": "Enter the item code from your warehouse system.",
+    "hr": "Unesite šifru artikla iz skladišnog sustava."
+  },
+  "add_product_scan_barcode": {
+    "en": "Scan product barcode",
+    "hr": "Skenirajte barkod proizvoda"
+  },
+  "add_product_barcode_scan_hint": {
+    "en": "Point the camera at the EAN/UPC barcode or QR code on the packaging.",
+    "hr": "Usmjerite kameru prema EAN/UPC barkodu ili QR kodu na ambalaži."
+  },
+  "add_product_barcode_scanned": {
+    "en": "Barcode scanned: {code}",
+    "hr": "Barkod očitan: {code}"
+  },
+  "add_product_company_stock_label": {
+    "en": "Available quantity (Stock):",
+    "hr": "Dostupna količina (Zaliha):"
+  },
+  "add_product_company_price_label": {
+    "en": "Price per unit of measure (€):",
+    "hr": "Cijena po jedinici mjere (€):"
+  },
+  "add_product_description_optional": {
+    "en": "Description (optional)",
+    "hr": "Opis (opcionalno)"
+  },
+  "add_product_detailed_description_label": {
+    "en": "Available specification, composition and instructions for use",
+    "hr": "Dostupna specifikacija, sastav i uputa za primjenu"
+  },
+  "add_product_detailed_description_required": {
+    "en": "Enter a detailed description, composition and instructions for use.",
+    "hr": "Unesite detaljan opis, sastav i uputu za primjenu."
+  },
+  "premium_upcoming_title": {
+    "en": "Premium — Upcoming reservation",
+    "hr": "Premium — Rezervacija u dolasku"
+  },
+  "premium_upcoming_desc": {
+    "en": "Activate Premium (Buyer €1.99 or Hobby €3.99/month) to reserve upcoming products and pay by card in the cart.",
+    "hr": "Aktivirajte Premium paket (Kupac 1,99 € ili Hobi 3,99 € mjesečno) kako biste rezervirali robu u dolasku i platili karticom u košarici."
+  },
+  "land_parcel_limit_reached": {
+    "en": "Parcel limit reached for your plan. Upgrade Premium for more parcels.",
+    "hr": "Dosegnut limit parcela za vaš paket. Nadogradite Premium za više parcela."
+  },
+  "cart_payment_stripe": {
+    "en": "💳 Credit card (Stripe)",
+    "hr": "💳 Kreditna kartica (Stripe)"
+  },
+  "cart_payment_google_pay": {
+    "en": "📱 Google Pay / Apple Pay",
+    "hr": "📱 Google Pay / Apple Pay"
+  },
+  "cart_upcoming_digital_required": {
+    "en": "Coming-soon products require digital payment to secure and lock your reservation.",
+    "hr": "Za proizvode u dolasku obvezna je digitalna uplata radi osiguranja i zaključavanja rezervacije."
+  },
+  "cart_upcoming_card_required": {
+    "en": "Coming-soon products require card payment to secure your reservation.",
+    "hr": "Za proizvode u dolasku obvezno je plaćanje karticom radi osiguranja rezervacije."
+  },
+  "product_upcoming_pro_only": {
+    "en": "\"Coming soon\" is only available to professional farmers with an active Premium subscription.",
+    "hr": "Opcija \"U dolasku\" dostupna je samo profesionalnim farmerima s aktivnom Premium pretplatom."
+  },
+  "product_upcoming_card_payment_hint": {
+    "en": "Reservations must be paid by card (Stripe) only.",
+    "hr": "Rezervacije se plaćaju isključivo karticom (Stripe)."
+  },
+  "order_badge_stripe": {
+    "en": "Card",
+    "hr": "Kartica"
+  },
+  "order_badge_google_pay": {
+    "en": "GOOGLE PAY",
+    "hr": "GOOGLE PAY"
+  },
+  "order_badge_paypal": {
+    "en": "PAYPAL",
+    "hr": "PAYPAL",
+    "fix": true
+  },
+  "payment_stripe_confirm_title": {
+    "en": "Stripe payment",
+    "hr": "Stripe plaćanje"
+  },
+  "payment_stripe_confirm_body": {
+    "en": "Confirm credit card payment through Stripe.",
+    "hr": "Potvrdite plaćanje kreditnom karticom putem Stripe sustava."
+  },
+  "payment_google_pay_confirm_body": {
+    "en": "Confirm payment via Google Pay or Apple Pay (Stripe Native API).",
+    "hr": "Potvrdite plaćanje putem Google Pay ili Apple Pay (Stripe Native API)."
+  },
+  "payment_stripe_confirm_done": {
+    "en": "Confirm payment",
+    "hr": "Potvrdi uplatu"
+  },
+  "payment_paypal_confirm_title": {
+    "en": "PayPal authorization",
+    "hr": "PayPal autorizacija"
+  },
+  "payment_paypal_confirm_body": {
+    "en": "After completing PayPal payment in your browser, confirm here to lock your reservation.",
+    "hr": "Nakon što završite PayPal uplatu u pregledniku, potvrdite ovdje da bismo zaključali rezervaciju."
+  },
+  "payment_paypal_confirm_done": {
+    "en": "PayPal payment completed",
+    "hr": "PayPal uplata završena"
+  },
+  "payment_simulation_confirm_body": {
+    "en": "Simulation mode: confirm digital payment to complete the order.",
+    "hr": "Simulacijski način: potvrdite digitalnu uplatu za završetak narudžbe."
+  },
+  "payment_simulation_confirm_button": {
+    "en": "Confirm simulation",
+    "hr": "Potvrdi simulaciju"
+  },
+  "payment_option_stripe_live_hint": {
+    "en": "Enter card in Stripe sheet",
+    "hr": "Unos kartice u Stripe prozoru"
+  },
+  "payment_option_paypal_live_hint": {
+    "en": "PayPal sandbox in browser",
+    "hr": "PayPal sandbox u pregledniku"
+  },
+  "payment_stripe_simulation_title": {
+    "en": "Stripe — simulation",
+    "hr": "Stripe — simulacija"
+  },
+  "payment_stripe_simulation_body": {
+    "en": "No card number entry — test only, no real charge.\n\n{reason}\n\nFor real test: run .\\scripts\\run_dev.ps1, set PAYMENT_SIMULATION=false, use test card 4242 4242 4242 4242.",
+    "hr": "Nema unosa broja kartice — ovo je test bez stvarne naplate.\n\n{reason}\n\nZa pravi test kartice: pokrenite .\\scripts\\run_dev.ps1, postavite PAYMENT_SIMULATION=false i koristite test karticu 4242 4242 4242 4242."
+  },
+  "payment_google_pay_simulation_body": {
+    "en": "No Google Pay charge — test only.\n\n{reason}",
+    "hr": "Nema Google Pay naplate — ovo je test bez stvarne naplate.\n\n{reason}"
+  },
+  "payment_paypal_simulation_title": {
+    "en": "PayPal — simulation",
+    "hr": "PayPal — simulacija"
+  },
+  "payment_paypal_simulation_body": {
+    "en": "No PayPal page — test only.\n\n{reason}",
+    "hr": "Nema PayPal stranice — ovo je test bez stvarne naplate.\n\n{reason}"
+  },
+  "payment_simulation_reason_flag": {
+    "en": "Reason: PAYMENT_SIMULATION=true in config.",
+    "hr": "Razlog: PAYMENT_SIMULATION=true u konfiguraciji."
+  },
+  "orders_items_title": {
+    "en": "Order items:",
+    "hr": "Stavke narudžbe:"
+  },
+  "admin_reported_posts_title": {
+    "en": "Reported posts",
+    "hr": "Prijavljene objave"
+  },
+  "admin_reported_posts_empty": {
+    "en": "No reported posts.",
+    "hr": "Nema prijavljenih objava."
+  },
+  "admin_report_dismiss": {
+    "en": "Keep",
+    "hr": "Zadrži"
+  },
+  "admin_report_delete": {
+    "en": "Delete permanently",
+    "hr": "Obriši trajno"
+  },
+  "admin_report_dismissed": {
+    "en": "Report dismissed — post restored to the community.",
+    "hr": "Prijava uklonjena — objava je vraćena u zajednicu."
+  },
+  "admin_report_delete_title": {
+    "en": "Delete post permanently?",
+    "hr": "Trajno obrisati objavu?"
+  },
+  "admin_report_delete_body": {
+    "en": "The post will be permanently deleted and the author will be blocked from posting in the community.",
+    "hr": "Objava će biti trajno obrisana, a autor neće moći dalje objavljivati u zajednici."
+  },
+  "admin_report_delete_confirm": {
+    "en": "Delete",
+    "hr": "Obriši"
+  },
+  "admin_report_deleted": {
+    "en": "Post deleted and author blocked.",
+    "hr": "Objava obrisana i autor blokiran."
+  },
+  "admin_report_count": {
+    "en": "Reports: {count}",
+    "hr": "Broj prijava: {count}"
+  },
+  "product_order_paypal_paid_success": {
+    "en": "Order sent! PayPal payment confirmed.",
+    "hr": "Narudžba poslata! PayPal uplata potvrđena."
+  },
+  "product_order_digital_paid_success": {
+    "en": "Order sent! Digital payment confirmed.",
+    "hr": "Narudžba poslata! Digitalna uplata potvrđena."
+  },
+  "location_install_title": {
+    "en": "Location required",
+    "hr": "Potrebna je lokacija"
+  },
+  "location_install_body": {
+    "en": "My Farmer uses GPS to show prices and currency for the country you are in. Without location, someone in the EU could not use African prices — and vice versa.",
+    "hr": "My Farmer koristi GPS kako bi prikazao cijene i valutu prema zemlji u kojoj se nalazite. Bez lokacije netko u EU ne bi smio koristiti afričke cijene — i obrnuto."
+  },
+  "location_install_enable": {
+    "en": "Enable GPS location",
+    "hr": "Uključi GPS lokaciju"
+  },
+  "location_install_open_settings": {
+    "en": "Open location settings",
+    "hr": "Otvori postavke lokacije"
+  },
+  "location_install_services_off": {
+    "en": "Location services are off. Enable GPS in your phone settings.",
+    "hr": "Usluge lokacije su isključene. Uključite GPS u postavkama telefona."
+  },
+  "location_install_permission_denied": {
+    "en": "Location permission denied. Enable it to continue.",
+    "hr": "Dozvola za lokaciju je odbijena. Omogućite je da biste nastavili."
+  },
+  "location_install_gps_failed": {
+    "en": "We could not verify your location. Try again outdoors.",
+    "hr": "Nismo mogli potvrditi vašu lokaciju. Pokušajte ponovo na otvorenom prostoru."
+  },
+  "location_install_gps_required_pay": {
+    "en": "GPS must be enabled to subscribe — pricing is based on your actual location.",
+    "hr": "Za pretplatu mora biti uključen GPS — cijena se određuje prema vašoj stvarnoj lokaciji."
+  },
+  "profile_payment_methods_title": {
+    "en": "Payment methods",
+    "hr": "Načini plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_add": {
+    "en": "Add payment method",
+    "hr": "Dodaj način plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_empty": {
+    "en": "No saved payment methods",
+    "hr": "Nemate spremljenih načina plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_empty_hint": {
+    "en": "Add PayPal, a card, or a bank account — you can change or remove them anytime.",
+    "hr": "Dodajte PayPal, karticu ili bankovni račun — možete ih kasnije mijenjati ili ukloniti.",
+    "fix": true
+  },
+  "profile_payment_methods_summary_empty": {
+    "en": "Add PayPal, card, or IBAN",
+    "hr": "Dodajte PayPal, karticu ili IBAN",
+    "fix": true
+  },
+  "profile_payment_methods_loading": {
+    "en": "Loading…",
+    "hr": "Učitavanje…",
+    "fix": true
+  },
+  "profile_payment_methods_saved": {
+    "en": "Payment method saved",
+    "hr": "Način plaćanja spremljen",
+    "fix": true
+  },
+  "profile_payment_methods_default": {
+    "en": "Default",
+    "hr": "Zadano",
+    "fix": true
+  },
+  "profile_payment_methods_set_default": {
+    "en": "Set as default",
+    "hr": "Postavi kao zadano",
+    "fix": true
+  },
+  "profile_payment_methods_delete_title": {
+    "en": "Remove payment method?",
+    "hr": "Ukloniti način plaćanja?",
+    "fix": true
+  },
+  "profile_payment_methods_delete_body": {
+    "en": "This payment method will be removed from your profile. You can add it again anytime.",
+    "hr": "Ovaj način plaćanja bit će uklonjen s vašeg profila. Možete ga ponovo dodati kad god želite.",
+    "fix": true
+  },
+  "profile_payment_methods_delete_confirm": {
+    "en": "Remove",
+    "hr": "Ukloni",
+    "fix": true
+  },
+  "profile_payment_methods_add_paypal_hint": {
+    "en": "Email where you receive PayPal payments",
+    "hr": "Email na koji primate PayPal uplate",
+    "fix": true
+  },
+  "profile_payment_methods_add_card_hint": {
+    "en": "Saved card for faster checkout",
+    "hr": "Spremljena kartica za brže plaćanje",
+    "fix": true
+  },
+  "profile_payment_methods_add_bank_hint": {
+    "en": "IBAN for bank transfers",
+    "hr": "IBAN za bankovne transfere",
+    "fix": true
+  },
+  "profile_payment_methods_bank": {
+    "en": "Bank account",
+    "hr": "Bankovni račun",
+    "fix": true
+  },
+  "profile_payment_methods_bank_name": {
+    "en": "Bank name",
+    "hr": "Naziv banke",
+    "fix": true
+  },
+  "profile_payment_methods_account_holder": {
+    "en": "Account holder",
+    "hr": "Vlasnik računa",
+    "fix": true
+  },
+  "profile_payment_methods_save_card_title": {
+    "en": "Add card",
+    "hr": "Dodaj karticu",
+    "fix": true
+  },
+  "profile_payment_methods_save_card_hint": {
+    "en": "Card is stored masked (last 4 digits only)",
+    "hr": "Kartica se sprema maskirano (samo zadnje 4 znamenke)",
+    "fix": true
+  },
+  "profile_payment_methods_card_security_hint": {
+    "en": "Full card number and CVC are never stored — only last 4 digits and expiry.",
+    "hr": "Puni broj kartice i CVC se ne spremaju — samo zadnje 4 znamenke i datum isteka.",
+    "fix": true
+  },
+  "profile_payment_methods_count_card": {
+    "en": "{count} card(s)",
+    "hr": "{count} kart.",
+    "fix": true
+  },
+  "profile_payment_methods_count_bank": {
+    "en": "{count} bank",
+    "hr": "{count} bank.",
+    "fix": true
+  },
+  "guide_profile_payment_methods_title": {
+    "en": "Payment methods",
+    "hr": "Načini plaćanja",
+    "fix": true
+  },
+  "guide_profile_payment_methods_body": {
+    "en": "Manage PayPal, cards, and bank accounts in one place — add, replace, or remove.",
+    "hr": "Ovdje upravljate PayPalom, karticama i bankovnim računom na jednom mjestu — dodajte, zamijenite ili uklonite.",
+    "fix": true
+  },
+  "profile_payment_methods_error_title": {
+    "en": "Payment methods could not be loaded",
+    "hr": "Načini plaćanja nisu učitani",
+    "fix": true
+  },
+  "profile_payment_methods_error_permission": {
+    "en": "You do not have permission to access payment methods. Sign in again or wait a few minutes and try again.",
+    "hr": "Nemate dozvolu za pristup načinima plaćanja. Prijavite se ponovo ili pričekajte nekoliko minuta pa pokušajte opet.",
+    "fix": true
+  },
+  "profile_payment_methods_error_permission_hint": {
+    "en": "If you are a developer: deploy Firestore rules with firebase deploy --only firestore:rules.",
+    "hr": "Ako ste developer: objavite Firestore pravila naredbom firebase deploy --only firestore:rules.",
+    "fix": true
+  },
+  "profile_payment_methods_error_load": {
+    "en": "Something went wrong while loading. Check your connection and try again.",
+    "hr": "Došlo je do greške pri učitavanju. Provjerite internet vezu i pokušajte ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_offline": {
+    "en": "Cannot reach the server. Check your internet connection and try again.",
+    "hr": "Nema veze s poslužiteljem. Provjerite internet i pokušajte ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_auth": {
+    "en": "Your session has expired. Sign out and sign in again.",
+    "hr": "Sesija je istekla. Odjavite se i prijavite ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_retry": {
+    "en": "Try again",
+    "hr": "Pokušaj ponovo",
+    "fix": true
+  },
+  "profile_payment_methods_peer_hint": {
+    "en": "My Farmer does not process payments — enter details for buyers to pay you directly (PayPal, IBAN). The platform is not responsible for payments between users.",
+    "hr": "My Farmer ne procesira uplate — ovdje unosite podatke na koje vam kupci plaćaju izravno (PayPal, IBAN). Platforma nije odgovorna za plaćanja između korisnika.",
+    "fix": true
+  },
+  "peer_payment_disclaimer": {
+    "en": "My Farmer is not a payment intermediary. You arrange and complete payment directly with the seller. The platform does not guarantee, verify, or accept liability for payments, refunds, or disputes.",
+    "hr": "My Farmer nije platni posrednik. Plaćanje dogovarate i izvršavate izravno s prodavačem. Platforma ne jamči, ne provjerava i ne odgovara za uplate, povrate ili sporove.",
+    "fix": true
+  },
+  "peer_payment_disclaimer_short": {
+    "en": "Payment is directly between buyer and seller. My Farmer is not involved in charging.",
+    "hr": "Plaćanje je izravno između kupca i prodavača. My Farmer ne sudjeluje u naplati.",
+    "fix": true
+  },
+  "peer_payment_accept_checkbox": {
+    "en": "I understand that My Farmer is not a party to the payment and responsibility is solely between me and the seller.",
+    "hr": "Razumijem da My Farmer nije strana u plaćanju i da je odgovornost isključivo između mene i prodavača.",
+    "fix": true
+  },
+  "peer_payment_confirm_order": {
+    "en": "Submit order",
+    "hr": "Pošalji narudžbu",
+    "fix": true
+  },
+  "peer_payment_amount": {
+    "en": "Amount to agree: {amount}",
+    "hr": "Iznos za dogovor: {amount}",
+    "fix": true
+  },
+  "peer_payment_paypal_title": {
+    "en": "PayPal — direct to seller",
+    "hr": "PayPal — izravno prodavaču",
+    "fix": true
+  },
+  "peer_payment_paypal_instruction": {
+    "en": "Pay the seller directly on PayPal (outside the app):",
+    "hr": "Platite izravno na PayPal prodavača (izvan aplikacije):",
+    "fix": true
+  },
+  "peer_payment_bank_title": {
+    "en": "Bank transfer — direct to seller",
+    "hr": "Bankovni transfer — izravno prodavaču",
+    "fix": true
+  },
+  "peer_payment_bank_instruction": {
+    "en": "Transfer directly to the seller's IBAN:",
+    "hr": "Uplatite izravno na IBAN prodavača:",
+    "fix": true
+  },
+  "peer_payment_cash_title": {
+    "en": "Cash",
+    "hr": "Gotovina",
+    "fix": true
+  },
+  "peer_payment_cash_instruction": {
+    "en": "Pay the seller in cash on pickup or delivery.",
+    "hr": "Plaćate gotovinom prodavaču pri preuzimanju ili dostavi.",
+    "fix": true
+  },
+  "peer_payment_option_paypal": {
+    "en": "PayPal to seller",
+    "hr": "PayPal prodavaču",
+    "fix": true
+  },
+  "peer_payment_option_paypal_hint": {
+    "en": "Pay directly to the seller's PayPal email",
+    "hr": "Uplata izravno na PayPal email prodavača",
+    "fix": true
+  },
+  "peer_payment_option_bank": {
+    "en": "Bank transfer",
+    "hr": "Bankovni transfer",
+    "fix": true
+  },
+  "peer_payment_option_bank_hint": {
+    "en": "Pay directly to the seller's IBAN",
+    "hr": "Uplata izravno na IBAN prodavača",
+    "fix": true
+  },
+  "peer_payment_upcoming_required": {
+    "en": "Coming-soon products require payment directly to the seller (PayPal or bank), not through the platform.",
+    "hr": "Za proizvode u dolasku potrebna je uplata izravno prodavaču (PayPal ili banka), ne preko platforme.",
+    "fix": true
+  },
+  "peer_payment_multi_seller": {
+    "en": "For multiple sellers at once, use cash or order from each seller separately.",
+    "hr": "Za više prodavača odjednom koristite gotovinu ili narudžbu po prodavaču.",
+    "fix": true
+  },
+  "peer_payment_seller_missing_title": {
+    "en": "Seller has no payment method set up",
+    "hr": "Prodavač nema postavljen način plaćanja",
+    "fix": true
+  },
+  "peer_payment_seller_missing_paypal": {
+    "en": "The seller has not added PayPal in Payment methods. Choose cash or bank transfer, or contact the seller.",
+    "hr": "Prodavač još nije dodao PayPal u Načine plaćanja. Odaberite gotovinu ili bankovni transfer, ili kontaktirajte prodavača.",
+    "fix": true
+  },
+  "peer_payment_seller_missing_bank": {
+    "en": "The seller has not added a bank account. Choose PayPal or cash.",
+    "hr": "Prodavač još nije dodao bankovni račun. Odaberite PayPal ili gotovinu.",
+    "fix": true
+  },
+  "peer_payment_order_success_paypal": {
+    "en": "Order sent! Pay the seller directly on PayPal.",
+    "hr": "Narudžba poslata! Platite prodavaču izravno na PayPal.",
+    "fix": true
+  },
+  "peer_payment_order_success_bank": {
+    "en": "Order sent! Transfer directly to the seller's IBAN.",
+    "hr": "Narudžba poslata! Uplatite prodavaču izravno na IBAN.",
+    "fix": true
+  },
+  "order_badge_direct_paypal": {
+    "en": "PAYPAL DIRECT",
+    "hr": "PAYPAL DIRECT",
+    "fix": true
+  },
+  "legal_marketplace_terms_title": {
+    "en": "Marketplace terms of use",
+    "hr": "Uvjeti korištenja tržnice",
+    "fix": true
+  },
+  "legal_marketplace_terms_subtitle": {
+    "en": "My Farmer — order intermediary, not a payment service",
+    "hr": "My Farmer — posrednik za narudžbe, ne platni servis",
+    "fix": true
+  },
+  "legal_terms_profile_title": {
+    "en": "Marketplace terms of use",
+    "hr": "Uvjeti korištenja tržnice",
+    "fix": true
+  },
+  "legal_terms_profile_subtitle": {
+    "en": "Payments, liability, and subscriptions",
+    "hr": "Plaćanja, odgovornost i pretplate",
+    "fix": true
+  },
+  "legal_terms_read_link": {
+    "en": "Read terms of use",
+    "hr": "Pročitaj uvjete korištenja",
+    "fix": true
+  },
+  "legal_terms_footer": {
+    "en": "By using the My Farmer marketplace you accept these terms. Contact app support with questions. We recommend reviewing these terms periodically.",
+    "hr": "Korištenjem tržnice My Farmer prihvaćate ove uvjete. Za pitanja kontaktirajte podršku aplikacije. Preporučujemo da ove uvjete povremeno pregledate.",
+    "fix": true
+  },
+  "legal_terms_role_title": {
+    "en": "1. Role of the platform",
+    "hr": "1. Uloga platforme",
+    "fix": true
+  },
+  "legal_terms_role_body": {
+    "en": "My Farmer is a digital platform for listing products, placing orders, and communication between buyers and sellers (farmers, businesses). My Farmer is not the seller of marketplace products, nor a payment intermediary, bank, or payment service provider.",
+    "hr": "My Farmer je digitalna platforma koja omogućuje objavu proizvoda, slanje narudžbi i komunikaciju između kupaca i prodavača (farmera, firmi). My Farmer nije prodavač proizvoda na tržnici niti platni posrednik, banka ili pružatelj platnih usluga.",
+    "fix": true
+  },
+  "legal_terms_payments_title": {
+    "en": "2. Payments between users",
+    "hr": "2. Plaćanja između korisnika",
+    "fix": true
+  },
+  "legal_terms_payments_body": {
+    "en": "Payment for marketplace products is arranged and completed solely between buyer and seller (cash, PayPal, bank transfer, or another agreed method). My Farmer does not receive, hold, route, or process money for product orders. The platform does not guarantee payment, refunds, or resolution of payment disputes.",
+    "hr": "Plaćanje za proizvode na tržnici dogovaraju i izvršavaju isključivo kupac i prodavač (gotovina, PayPal, bankovni transfer ili drugi dogovoreni način). My Farmer ne prima, ne drži, ne preusmjerava i ne obrađuje novac za narudžbe proizvoda. Platforma ne jamči izvršenje plaćanja, povrat novca niti rješavanje sporova o plaćanju.",
+    "fix": true
+  },
+  "legal_terms_seller_title": {
+    "en": "3. Seller responsibility",
+    "hr": "3. Odgovornost prodavača",
+    "fix": true
+  },
+  "legal_terms_seller_body": {
+    "en": "The seller is responsible for accuracy of prices, quantities, quality, and delivery, for valid payment details in their profile, and for fulfilling orders. The seller is solely responsible for taxes, invoices, and legal obligations related to the sale.",
+    "hr": "Prodavač je odgovoran za točnost cijena, količina, kvalitete i isporuke proizvoda, za valjane podatke za plaćanje u profilu te za ispunjenje narudžbe. Prodavač samostalno odgovara za poreze, račune i zakonske obveze vezan uz prodaju.",
+    "fix": true
+  },
+  "legal_terms_buyer_title": {
+    "en": "4. Buyer responsibility",
+    "hr": "4. Odgovornost kupca",
+    "fix": true
+  },
+  "legal_terms_buyer_body": {
+    "en": "The buyer is responsible for verifying the seller and product, completing payment as agreed with the seller, and for accurate order details. By confirming an order, the buyer accepts that My Farmer is not a party to the payment.",
+    "hr": "Kupac je odgovoran za provjeru prodavača i proizvoda, za izvršenje plaćanja dogovoreno s prodavačem te za točnost podataka narudžbe. Potvrđivanjem narudžbe kupac prihvaća da My Farmer nije strana u plaćanju.",
+    "fix": true
+  },
+  "legal_terms_premium_title": {
+    "en": "5. Premium subscriptions (Google Play)",
+    "hr": "5. Premium pretplate (Google Play)",
+    "fix": true
+  },
+  "legal_terms_premium_body": {
+    "en": "Premium and similar platform services are billed separately via Google Play under Google's terms. This is not payment between buyer and seller for marketplace products.",
+    "hr": "Pretplate Premium i slične usluge platforme naplaćuju se odvojeno putem Google Play trgovine prema uvjetima Googlea. To nije plaćanje između kupca i prodavača za proizvode na tržnici.",
+    "fix": true
+  },
+  "legal_terms_disputes_title": {
+    "en": "6. Disputes and complaints",
+    "hr": "6. Sporovi i reklamacije",
+    "fix": true
+  },
+  "legal_terms_disputes_body": {
+    "en": "Disputes regarding products, delivery, or payment are resolved directly between buyer and seller. My Farmer may, but is not required to, assist with communication. The platform is not liable for damage arising from payment or non-performance of contracts between users.",
+    "hr": "Sporovi u vezi proizvoda, dostave ili plaćanja rješavaju se izravno između kupca i prodavača. My Farmer može, ali nije obvezan, pomoći u komunikaciji. Platforma ne odgovara za štetu nastalu zbog plaćanja ili neispunjenja ugovora između korisnika.",
+    "fix": true
+  },
+  "legal_terms_acceptance_title": {
+    "en": "7. Acceptance",
+    "hr": "7. Prihvaćanje",
+    "fix": true
+  },
+  "legal_terms_acceptance_body": {
+    "en": "By submitting an order or using payment options in the app, you confirm that you have read and understood that My Farmer has no role in charging between users, and you waive claims against the platform regarding marketplace payments except where law explicitly requires otherwise.",
+    "hr": "Slanjem narudžbe ili korištenjem načina plaćanja u aplikaciji potvrđujete da ste pročitali i razumjeli da My Farmer nema ulogu u naplati između korisnika te da se odričete bilo kakvog potraživanja prema platformi u vezi plaćanja na tržnici, osim ako zakon izričito ne nalaže drugačije.",
+    "fix": true
+  },
+  "profile_gallery_empty": {
+    "en": "No community photos yet. Share village beauty in the Community feed.",
+    "hr": "Još nema fotografija iz zajednice. Podijelite ljepotu sela u feedu Zajednice."
+  },
+  "unit_pak": {
+    "en": "pack",
+    "hr": "pak"
+  },
+  "unit_pak_full": {
+    "en": "pack (pak)",
+    "hr": "pakiranje (pak)"
+  },
+  "product_available_stock": {
+    "en": "Available stock: {quantity}",
+    "hr": "Dostupna zaliha: {quantity}"
+  },
+  "product_mark_sold_out": {
+    "en": "Mark as sold out",
+    "hr": "Označi kao rasprodano"
+  },
+  "product_mark_available": {
+    "en": "Product is available on the marketplace",
+    "hr": "Artikal je dostupan na tržnici"
+  },
+  "product_available_on_market": {
+    "en": "Visible to buyers — can be ordered",
+    "hr": "Vidljiv kupcima — može se naručiti"
+  },
+  "product_hidden_on_market": {
+    "en": "Hidden from marketplace — shows as [SOLD OUT]",
+    "hr": "Skriveno s tržnice — prikazuje se [RASPRODANO]"
+  },
+  "product_buy_now": {
+    "en": "Buy now",
+    "hr": "Kupi odmah"
+  },
+  "product_reserve_ahead": {
+    "en": "Reserve ahead",
+    "hr": "Rezerviši unaprijed"
+  },
+  "product_upcoming_badge": {
+    "en": "Coming soon",
+    "hr": "U dolasku"
+  },
+  "product_upcoming_toggle": {
+    "en": "Publish as \"Coming soon\"",
+    "hr": "Objavi kao \"U dolasku\""
+  },
+  "product_upcoming_toggle_hint": {
+    "en": "Product will be visible with a countdown until harvest.",
+    "hr": "Proizvod će biti vidljiv s odbrojavanjem do berbe."
+  },
+  "product_upcoming_reserve_hint": {
+    "en": "Reserve ahead — harvest is being planned.",
+    "hr": "Rezervišite unaprijed — berba je u tijeku planiranja."
+  },
+  "harvest_countdown_prefix": {
+    "en": "Harvest in:",
+    "hr": "Berba za:"
+  },
+  "delivery_countdown_prefix": {
+    "en": "Delivery in:",
+    "hr": "Isporuka za:"
+  },
+  "delivery_countdown_days": {
+    "en": "Arrives in: {days} days",
+    "hr": "Stiže za: {days} dana"
+  },
+  "delivery_countdown_hours": {
+    "en": "Arrives in: {hours} h",
+    "hr": "Stiže za: {hours} h"
+  },
+  "delivery_countdown_soon": {
+    "en": "Arriving soon",
+    "hr": "Stiže uskoro"
+  },
+  "delivery_countdown_due": {
+    "en": "Stock is ready!",
+    "hr": "Roba je spremna!"
+  },
+  "delivery_date_label": {
+    "en": "Expected delivery / import date",
+    "hr": "Očekivani datum isporuke / uvoza"
+  },
+  "delivery_manage_title": {
+    "en": "Manage delivery",
+    "hr": "Upravljaj isporukom"
+  },
+  "delivery_final_photo_instruction": {
+    "en": "Upload a photo of the actual product in stock to move it to regular sale.",
+    "hr": "Učitajte fotografiju stvarnog proizvoda na skladištu kako bi prešao u redovnu prodaju."
+  },
+  "product_upcoming_delivery_badge": {
+    "en": "Coming soon",
+    "hr": "Stiže uskoro"
+  },
+  "product_upcoming_company_toggle": {
+    "en": "Publish as \"Coming soon\" (import/delivery)",
+    "hr": "Objavi kao \"U dolasku\" (uvoz/isporuka)"
+  },
+  "product_upcoming_company_toggle_hint": {
+    "en": "Companies can schedule delivery up to {days} days ahead.",
+    "hr": "Firma može planirati isporuku do {days} dana unaprijed."
+  },
+  "product_upcoming_company_premium_only": {
+    "en": "Coming-soon for companies requires an active Premium subscription.",
+    "hr": "Opcija u dolasku za firme dostupna je samo s aktivnom Premium pretplatom."
+  },
+  "product_upcoming_company_max_days": {
+    "en": "Maximum delivery lead time is {days} days.",
+    "hr": "Maksimalni rok isporuke je {days} dana."
+  },
+  "product_upcoming_farmer_max_days": {
+    "en": "Maximum harvest lead time is {days} days.",
+    "hr": "Maksimalni rok berbe je {days} dana."
+  },
+  "product_upcoming_delivery_reserve_hint": {
+    "en": "Reserve ahead — the product is on its way to the warehouse.",
+    "hr": "Rezervišite unaprijed — roba je na putu prema skladištu."
+  },
+  "harvest_countdown_days_hours": {
+    "en": "{days}d {hours}h",
+    "hr": "{days}d {hours}h"
+  },
+  "harvest_countdown_hours_minutes": {
+    "en": "{hours}h {minutes}m",
+    "hr": "{hours}h {minutes}m"
+  },
+  "harvest_countdown_minutes": {
+    "en": "{minutes} min",
+    "hr": "{minutes} min"
+  },
+  "harvest_countdown_due": {
+    "en": "Harvest ready!",
+    "hr": "Berba je spremna!"
+  },
+  "harvest_manage_title": {
+    "en": "Manage harvest",
+    "hr": "Upravljaj berbom"
+  },
+  "harvest_manage_action": {
+    "en": "Manage harvest",
+    "hr": "Upravljaj berbom"
+  },
+  "harvest_date_label": {
+    "en": "Harvest date and time",
+    "hr": "Datum i vrijeme berbe"
+  },
+  "harvest_save_schedule": {
+    "en": "Save harvest schedule",
+    "hr": "Spremi raspored berbe"
+  },
+  "harvest_schedule_saved": {
+    "en": "Harvest schedule updated.",
+    "hr": "Raspored berbe ažuriran."
+  },
+  "harvest_update_development_photo": {
+    "en": "Add new developing fruit photo",
+    "hr": "Dodaj novu sliku ploda u razvoju"
+  },
+  "harvest_complete_action": {
+    "en": "Finish harvest & pick",
+    "hr": "Završi berbu i uberi"
+  },
+  "harvest_complete_confirm_title": {
+    "en": "Finish harvest?",
+    "hr": "Završiti berbu?"
+  },
+  "harvest_complete_confirm_body": {
+    "en": "The product will be hidden until you upload a real photo of the harvested crop.",
+    "hr": "Proizvod će biti privremeno skriven dok ne učitate pravu sliku ubranog ploda."
+  },
+  "harvest_complete_success": {
+    "en": "Harvest finished — upload the final photo.",
+    "hr": "Berba završena — učitajte konačnu sliku."
+  },
+  "harvest_final_photo_alert": {
+    "en": "Please photograph the real harvested product in a crate to move it to regular sale.",
+    "hr": "Molim te uslikaj pravi, ubrani proizvod u gajbi kako bi prešao u redovnu prodaju."
+  },
+  "harvest_awaiting_final_photo_short": {
+    "en": "Awaiting final photo",
+    "hr": "Čeka konačnu sliku"
+  },
+  "harvest_final_photo_instruction": {
+    "en": "Upload a photo of the real harvested product in a crate.",
+    "hr": "Učitajte fotografiju pravog, ubranog proizvoda u gajbi."
+  },
+  "harvest_final_photo_pick": {
+    "en": "Add final harvested product photo",
+    "hr": "Dodaj konačnu sliku ubranog ploda"
+  },
+  "harvest_final_photo_required": {
+    "en": "Select the final photo before publishing.",
+    "hr": "Odaberite konačnu sliku prije objave."
+  },
+  "harvest_publish_final_photo": {
+    "en": "Publish to regular sale",
+    "hr": "Objavi u redovnu prodaju"
+  },
+  "harvest_final_photo_success": {
+    "en": "Product is now available for purchase!",
+    "hr": "Proizvod je sada dostupan za kupnju!"
+  },
+  "weather_alert_title": {
+    "en": "⚠️ Weather warning",
+    "hr": "⚠️ Vremensko upozorenje"
+  },
+  "weather_alert_high_wind": {
+    "en": "Strong wind ({wind} km/h)! Secure greenhouses, nets and tarps before the storm.",
+    "hr": "Jak vjetar ({wind} km/h)! Sigurno učvrstite plastenike, mreže i cerade prije nevremena."
+  },
+  "weather_alert_extreme_heat": {
+    "en": "Extreme heat ({temp}°C)! Irrigate early morning and shade sensitive crops.",
+    "hr": "Ekstremna vrućina ({temp}°C)! Navodnjavajte u ranim jutarnjim satima i zaklonite osjetljive kulture."
+  },
+  "weather_alert_hail": {
+    "en": "Hail risk ({rain}% precipitation)! Cover fruit trees and vegetables; use hail nets if needed.",
+    "hr": "Rizik od tuče ({rain}% padalina)! Pokrijte voćke i povrće, po potrebi koristite anti-tuš mreže."
+  },
+  "weather_alert_frost": {
+    "en": "Frost risk ({temp}°C)! Protect young plants and blossoms with foil or agrotextile.",
+    "hr": "Rizik od mraza ({temp}°C)! Zaštitite mlade biljke i cvjetove folijom ili agrotekstilom."
+  },
+  "weather_alert_storm": {
+    "en": "Thunderstorm alert! Pause field work if needed, secure tarps and protect equipment.",
+    "hr": "Grmljavina i nepogoda! Po potrebi prekinite rad na polju, učvrstite cerade i zaštitite strojeve."
+  },
+  "weather_alert_heavy_rain": {
+    "en": "Heavy rain ({rain}% precipitation)! Check drainage, protect crops and delay spraying.",
+    "hr": "Jaka kiša ({rain}% padalina)! Provjerite odvodnju, zaštitite usjeve i odložite prskanje."
+  },
+  "farmer_welcome_title": {
+    "en": "Hello! I am your assistant",
+    "hr": "Zdravo! Ja sam tvoj Pomoćnik"
+  },
+  "farmer_welcome_body": {
+    "en": "I am here to guide you through the app. Whenever you need an explanation on any screen, just tap my icon in the top corner.",
+    "hr": "Tu sam da te vodim kroz aplikaciju. Kada god ti zatreba objašnjenje na bilo kojem ekranu, samo klikni na moju ikonu u gornjem kutu."
+  },
+  "farmer_welcome_start": {
+    "en": "Let's go!",
+    "hr": "Krećemo na put!"
+  },
+  "guide_marketplace_search_title": {
+    "en": "Product search",
+    "hr": "Pretraga proizvoda"
+  },
+  "guide_marketplace_search_body": {
+    "en": "Quickly search for fresh food, seeds, or farm machinery here.",
+    "hr": "Ovdje možete brzo pretraživati domaću hranu, sjeme ili poljoprivredne mašine."
+  },
+  "guide_marketplace_filters_title": {
+    "en": "Filter options",
+    "hr": "Opcije filtriranja"
+  },
+  "guide_marketplace_filters_body": {
+    "en": "Use these filters to sort products by distance, type, or growing method.",
+    "hr": "Koristite ove filtere za sortiranje proizvoda prema udaljenosti, vrsti ili načinu uzgoja."
+  },
+  "guide_marketplace_products_title": {
+    "en": "Products",
+    "hr": "Proizvodi"
+  },
+  "guide_marketplace_products_body": {
+    "en": "Tap a product card for details, price, and ordering.",
+    "hr": "Kliknite na karticu proizvoda za detalje, cijenu i narudžbu."
+  },
+  "guide_cart_payment_title": {
+    "en": "Payment",
+    "hr": "Plaćanje"
+  },
+  "guide_cart_payment_body": {
+    "en": "Choose how to pay. Coming-soon products require card payment.",
+    "hr": "Odaberite način plaćanja. Za proizvode u dolasku obavezna je kartica."
+  },
+  "guide_cart_delivery_title": {
+    "en": "Delivery",
+    "hr": "Dostava"
+  },
+  "guide_cart_delivery_body": {
+    "en": "For each farmer, choose farm pickup or delivery to your address.",
+    "hr": "Za svakog farmera odaberite preuzimanje na farmi ili dostavu na adresu."
+  },
+  "guide_cart_checkout_title": {
+    "en": "Checkout",
+    "hr": "Narudžba"
+  },
+  "guide_cart_checkout_body": {
+    "en": "Review the total and send your order with one tap.",
+    "hr": "Provjerite ukupni iznos i pošaljite narudžbu jednim klikom."
+  },
+  "guide_add_product_image_title": {
+    "en": "Product photo",
+    "hr": "Slika proizvoda"
+  },
+  "guide_add_product_image_body": {
+    "en": "Add a clear photo — buyers see the image first.",
+    "hr": "Dodajte jasnu fotografiju — kupci prvo vide sliku, zatim odlučuju."
+  },
+  "guide_add_product_details_title": {
+    "en": "Basic details",
+    "hr": "Osnovni podaci"
+  },
+  "guide_add_product_details_body": {
+    "en": "Enter name, description, category, and other product details.",
+    "hr": "Unesite naziv, opis, kategoriju i ostale detalje proizvoda."
+  },
+  "guide_add_product_submit_title": {
+    "en": "Publish",
+    "hr": "Objava"
+  },
+  "guide_add_product_submit_body": {
+    "en": "When everything is ready, publish the product to the marketplace.",
+    "hr": "Kada je sve spremno, objavite proizvod na tržnicu."
+  },
+  "guide_product_name_title": {
+    "en": "Product name",
+    "hr": "Naziv proizvoda"
+  },
+  "guide_product_name_body": {
+    "en": "Enter a clear name (e.g. Homemade honey) so buyers can find you easily.",
+    "hr": "Upišite jasan naziv (npr. Domaći med ili Mladi luk) kako bi vas kupci lakše pronašli."
+  },
+  "guide_product_price_title": {
+    "en": "Product price",
+    "hr": "Cijena proizvoda"
+  },
+  "guide_product_price_body": {
+    "en": "Enter the unit price. Our system converts it automatically for foreign customers.",
+    "hr": "Unesite cijenu po jedinici. Naš pametni sustav je automatski preračunava kupcima iz drugih država."
+  },
+  "guide_product_stock_title": {
+    "en": "Available stock",
+    "hr": "Dostupna zaliha"
+  },
+  "guide_product_stock_body": {
+    "en": "Enter how much you have in stock. The app reduces this after each purchase.",
+    "hr": "Upišite koliko otprilike imate robe na stanju. Aplikacija sama smanjuje ovaj broj nakon svake kupnje."
+  },
+  "guide_product_upcoming_title": {
+    "en": "Coming soon (Premium)",
+    "hr": "Roba u dolasku (Premium)"
+  },
+  "guide_farmer_weather_title": {
+    "en": "Agro forecast",
+    "hr": "Agro prognoza"
+  },
+  "guide_farmer_weather_body": {
+    "en": "Here you will see the forecast and severe weather alerts once you set your farm location in profile.",
+    "hr": "Ovdje ćete vidjeti prognozu i hitne alarme za nepogode čim unesete lokaciju farme u profilu."
+  },
+  "guide_farmer_list_title": {
+    "en": "Stock management",
+    "hr": "Upravljanje zalihama"
+  },
+  "guide_farmer_list_body": {
+    "en": "Track your products, available stock, and use the switch to quickly mark [SOLD OUT].",
+    "hr": "Ovdje pratite svoje proizvode, dostupne kilograme i koristite switch za brzu oznaku [RASPRODANO]."
+  },
+  "guide_farmer_add_title": {
+    "en": "New listing",
+    "hr": "Novi oglas"
+  },
+  "guide_farmer_add_body": {
+    "en": "Tap this plus to open the form and add a new product or premium upcoming item.",
+    "hr": "Kliknite na ovaj plus da otvorite formu i unesete novi proizvod ili premium robu u dolasku."
+  },
+  "guide_profile_settings_title": {
+    "en": "Language and currency region",
+    "hr": "Jezik i valutna regija"
+  },
+  "guide_profile_settings_body": {
+    "en": "Use the dropdown menus here to choose the app language and currency region for marketplace prices.",
+    "hr": "Ovdje iz padajućih izbornika birate jezik aplikacije i valutnu regiju za preračun cijena na tržnici."
+  },
+  "guide_profile_tabs_title": {
+    "en": "Top menu",
+    "hr": "Gornji izbornik"
+  },
+  "guide_profile_tabs_body": {
+    "en": "My Profile manages your business data, while My Gallery lets you share beautiful community moments – your village, garden, plants, animals, and pets.",
+    "hr": "'Moj Profil' vam služi za upravljanje poslovnim podacima, dok 'Moja galerija' služi da podijelite lijepe trenutke sa zajednicom – pokažite ljepotu svog sela, predivan vrt, biljke, životinje i kućne ljubimce."
+  },
+  "guide_profile_identity_title": {
+    "en": "Farmer identity",
+    "hr": "Identitet farmera"
+  },
+  "guide_profile_identity_body": {
+    "en": "Your profile photo and name appear here. The orange 'Professional Farmer' badge shows buyers you are a verified, serious producer.",
+    "hr": "Ovdje stoji vaša profilna slika i ime. Narančasta značka 'Profesionalni Farmer' kupcima dokazuje da ste provjereni i ozbiljni proizvođač."
+  },
+  "guide_profile_company_identity_title": {
+    "en": "Business identity",
+    "hr": "Identitet poduzeća"
+  },
+  "guide_profile_company_identity_body": {
+    "en": "Your company logo and official business name appear here. The gold business badge shows buyers and farmers that you are a verified, trusted supplier.",
+    "hr": "Ovdje stoji logotip i službeni naziv vašeg poduzeća. Zlatna poslovna značka kupcima i farmerima dokazuje da ste provjereni, sigurni i ovlašteni dobavljač repromaterijala."
+  },
+  "guide_profile_phone_title": {
+    "en": "Phone number",
+    "hr": "Broj telefona"
+  },
+  "guide_profile_phone_body": {
+    "en": "Enter the number buyers can call to arrange orders and reach you quickly.",
+    "hr": "Unesite broj na koji vas kupci mogu nazvati za dogovor narudžbe i brzu komunikaciju."
+  },
+  "guide_profile_address_title": {
+    "en": "Farm address",
+    "hr": "Adresa imanja"
+  },
+  "guide_profile_address_body": {
+    "en": "Enter your farm location so buyers and the app can find you on the map.",
+    "hr": "Upišite lokaciju farme kako bi vas kupci i aplikacija lakše pronašli na karti."
+  },
+  "guide_profile_paypal_title": {
+    "en": "PayPal account",
+    "hr": "PayPal račun"
+  },
+  "guide_profile_paypal_body": {
+    "en": "Optionally add your PayPal email for faster and safer online payments from buyers.",
+    "hr": "Opcionalno dodajte PayPal e-mail za brže i sigurnije online plaćanje od kupaca."
+  },
+  "guide_profile_land_title": {
+    "en": "Satellite radar",
+    "hr": "Satelitski radar"
+  },
+  "guide_profile_land_body": {
+    "en": "Tap here to open the satellite map, draw field boundaries, calculate hectares for free, and start advanced Premium NIRS multispectral crop health monitoring.",
+    "hr": "Kliknite ovdje da otvorite satelitsku kartu, prstom ucrtate granice njive, besplatno izračunate hektare i pokrenete napredni Premium NIRS multispektralni nadzor zdravlja biljaka."
+  },
+  "guide_profile_farm_number_title": {
+    "en": "Farm registration number",
+    "hr": "Broj gazdinstva"
+  },
+  "guide_profile_farm_number_body": {
+    "en": "Enter your BPG or OPG number that confirms your registered farm business.",
+    "hr": "Upišite BPG ili OPG broj koji potvrđuje vaše registrirano poljoprivredno gospodarstvo."
+  },
+  "guide_profile_shop_hours_title": {
+    "en": "Availability and working hours",
+    "hr": "Dostupnost i radno vrijeme"
+  },
+  "guide_profile_shop_hours_body": {
+    "en": "Turn order availability on, pick working days, and set the hours when you are on the farm for buyers.",
+    "hr": "Uključite dostupnost za narudžbe, odaberite radne dane i satnice kada ste na imanju i dostupni kupcima."
+  },
+  "guide_profile_min_order_title": {
+    "en": "Minimum order",
+    "hr": "Minimalna narudžba"
+  },
+  "guide_profile_min_order_body": {
+    "en": "Set the minimum amount in euros a buyer must spend before you personally pack and deliver the products.",
+    "hr": "Postavite najmanji iznos u eurima koji kupac mora potrošiti da biste mu vi osobno spakovali i dostavili proizvode."
+  },
+  "guide_profile_pickup_title": {
+    "en": "Personal pickup",
+    "hr": "Osobno preuzimanje"
+  },
+  "guide_profile_pickup_body": {
+    "en": "Specify the days and exact hours when buyers can drive to your farm themselves to pick up their orders.",
+    "hr": "Navedite dane i točne sate kada kupci mogu sami automobilom doći kod vas na imanje po svoje narudžbe."
+  },
+  "guide_profile_delivery_info_title": {
+    "en": "Home delivery",
+    "hr": "Dostava na adresu"
+  },
+  "guide_profile_delivery_info_body": {
+    "en": "Enter a short description for buyers about how and when you personally deliver goods (e.g. which days you drive).",
+    "hr": "Ovdje upišite kratak tekstualni opis za kupce o tome kako i kada vršite lični prevoz robe (npr. kojim danima vozite)."
+  },
+  "guide_profile_delivery_zones_title": {
+    "en": "Delivery zones",
+    "hr": "Zone dostave"
+  },
+  "guide_profile_delivery_zones_body": {
+    "en": "Set the minimum order amount for each distance so you know when it is worth driving personally to deliver within that zone.",
+    "hr": "Ovdje određujete minimalni iznos narudžbe za svaku udaljenost kako biste znali kada vam se isplati lično sjesti u auto i odvesti robu kupcu unutar te zone."
+  },
+  "guide_animals_list_title": {
+    "en": "Animal list",
+    "hr": "Popis stoke"
+  },
+  "guide_animals_list_body": {
+    "en": "Here you see all your animals sorted by species, numbers, and categories.",
+    "hr": "Ovdje vidite sve vaše životinje razvrstane po vrstama, brojevima i kategorijama."
+  },
+  "guide_animals_records_title": {
+    "en": "Health record",
+    "hr": "Zdravstveni karton"
+  },
+  "guide_animals_records_body": {
+    "en": "Track important data, vet check-ups, and vaccination history for each animal here.",
+    "hr": "Ovdje pratite važne podatke, preglede veterinara i povijest cijepljenja za svako pojedino grlo."
+  },
+  "guide_animals_add_title": {
+    "en": "Add animal",
+    "hr": "Unos životinje"
+  },
+  "guide_animals_add_body": {
+    "en": "Tap this green plus to open the form and register a new animal in your database.",
+    "hr": "Kliknite na ovaj zeleni plus kako biste otvorili formu i registrirali novo grlo u svoju bazu."
+  },
+  "guide_add_animal_photo_title": {
+    "en": "Photo",
+    "hr": "Fotografija"
+  },
+  "guide_add_animal_photo_body": {
+    "en": "Tap here to take a photo with the camera or pick an image from the gallery for easier identification.",
+    "hr": "Kliknite ovdje da uslikate životinju kamerom ili izaberete sliku iz galerije radi lakšeg prepoznavanja."
+  },
+  "guide_add_animal_identity_title": {
+    "en": "Animal identity",
+    "hr": "Identitet životinje"
+  },
+  "guide_add_animal_identity_body": {
+    "en": "Enter the animal name or ear-tag number, then choose the livestock type from the dropdown below.",
+    "hr": "Upišite ime životinje ili broj ušne markice, a ispod izaberite vrstu stoke iz padajućeg izbornika."
+  },
+  "guide_add_animal_health_title": {
+    "en": "Health data",
+    "hr": "Zdravstveni podaci"
+  },
+  "guide_add_animal_health_body": {
+    "en": "Enter the animal age and use the large field for medical notes, vaccination history, or vet advice.",
+    "hr": "Unesite starost životinje, a u veliko polje upišite medicinske bilješke, povijest cijepljenja ili savjete veterinara."
+  },
+  "guide_add_animal_documents_title": {
+    "en": "Vet documents",
+    "hr": "Veterinarski dokumenti"
+  },
+  "guide_add_animal_documents_body": {
+    "en": "Tap here to photograph and attach vet papers, vaccination records, or medical reports for this animal.",
+    "hr": "Ovdje kliknite ako želite uslikati i priložiti papire od veterinara, knjižicu cijepljenja ili nalaze za ovu životinju."
+  },
+  "guide_add_animal_save_title": {
+    "en": "Save data",
+    "hr": "Spremanje podataka"
+  },
+  "guide_add_animal_save_body": {
+    "en": "Tap this button to permanently save the data and open the animal digital health record.",
+    "hr": "Kliknite na ovaj gumb da trajno spremite podatke i otvorite digitalni zdravstveni karton životinje."
+  },
+  "forum_cat_crops": {
+    "en": "Field crops",
+    "hr": ""
+  },
+  "forum_cat_mechanization": {
+    "en": "Mechanization",
+    "hr": ""
+  },
+  "land_title": {
+    "en": "My parcels",
+    "hr": "Moje parcele"
+  },
+  "land_premium_title": {
+    "en": "Premium Pro Package",
+    "hr": "Premium Pro Paket"
+  },
+  "land_premium_desc": {
+    "en": "Activate Premium Pro for €9.99 per month. Up to 50 parcels with full NIRS/NDVI satellite monitoring, Agro-Alarms for severe weather over your fields, up to 500 livestock with document attachments, and 60 AI scans per month!",
+    "hr": "Aktivirajte Premium Pro za 9,99 € mjesečno. Do 50 parcela s punim NIRS/NDVI satelitskim nadzorom, Agro-Alarmi za nepogode iznad vaših njiva, do 500 životinja stoke s privitcima dokumenata i 60 AI skeniranja mjesečno!"
+  },
+  "land_premium_activate": {
+    "en": "Activate Premium Pro",
+    "hr": "Aktiviraj Premium Pro"
+  },
+  "land_tap_hint": {
+    "en": "Tap the map to place points. Drag markers to adjust boundaries precisely.",
+    "hr": "Dodirnite kartu da postavite točke. Povucite marker da precizno pomjerite granicu."
+  },
+  "land_map_expand": {
+    "en": "Open full screen map",
+    "hr": "Otvori kartu preko cijelog ekrana"
+  },
+  "land_map_minimize": {
+    "en": "Minimize map",
+    "hr": "Umanji kartu"
+  },
+  "land_map_compact_hint": {
+    "en": "Tap the map to draw on full screen.",
+    "hr": "Dodirnite kartu za crtanje preko cijelog ekrana."
+  },
+  "land_close_parcel": {
+    "en": "Close parcel",
+    "hr": "Zatvori parcelu"
+  },
+  "land_nirs_button": {
+    "en": "Multispectral NIRS/NDVI monitoring",
+    "hr": "Multispektralni NIRS/NDVI nadzor"
+  },
+  "land_nirs_premium_title": {
+    "en": "Premium satellite monitoring",
+    "hr": "Premium satelitski nadzor"
+  },
+  "land_nirs_premium_body": {
+    "en": "This advanced satellite monitoring of crop health and soil moisture (NIRS/NDVI) is available only to Premium members. Activate Premium Pro and track crop status live with Sentinel-2 satellite data!",
+    "hr": "Napredni NIRS/NDVI satelitski nadzor dostupan je u Premium paketu: Hobi Farmer — 20 učitavanja/mj, Profesionalni Farmer Pro — 50 učitavanja/mj. Aktivirajte pretplatu i pratite stanje usjeva sa Sentinel-2 satelita!"
+  },
+  "land_nirs_coming_soon": {
+    "en": "NIRS/NDVI monitoring will open for this parcel. Sentinel-2 data coming soon.",
+    "hr": "NIRS/NDVI nadzor se otvara za ovu parcelu. Podaci sa Sentinel-2 satelita uskoro stižu."
+  },
+  "land_nirs_quota_remaining": {
+    "en": "Available NIRS satellite scans this month: {remaining} / {limit}",
+    "hr": "Dostupnih NIRS satelitskih nadzora za ovaj mjesec: {remaining} / {limit}"
+  },
+  "land_nirs_limit_monthly": {
+    "en": "You have used all NIRS satellite scans for this month.",
+    "hr": "Iskoristili ste sve NIRS satelitske nadzore za ovaj mjesec."
+  },
+  "land_nirs_subscription_required": {
+    "en": "NIRS satellite monitoring requires a Premium subscription.",
+    "hr": "NIRS satelitski nadzor zahtijeva Premium pretplatu."
+  },
+  "land_nirs_close_parcel_first": {
+    "en": "Close the parcel first before loading the NIRS/NDVI map.",
+    "hr": "Prvo zatvorite parcelu prije učitavanja NIRS/NDVI karte."
+  },
+  "land_nirs_load_title": {
+    "en": "Load NIRS/NDVI map",
+    "hr": "Učitaj NIRS/NDVI kartu"
+  },
+  "land_nirs_load_body": {
+    "en": "Load Sentinel-2 NIRS/NDVI monitoring for the closed parcel? Each load uses 1 monthly scan.",
+    "hr": "Učitati Sentinel-2 NIRS/NDVI nadzor za zatvorenu parcelu? Svako učitavanje koristi 1 od mjesečnih nadzora."
+  },
+  "land_nirs_load_success": {
+    "en": "NIRS/NDVI analysis is ready. View results on the map.",
+    "hr": "NIRS/NDVI analiza je spremna. Pregledajte rezultate na karti."
+  },
+  "land_nirs_results_title": {
+    "en": "NIRS/NDVI results",
+    "hr": "NIRS/NDVI rezultati"
+  },
+  "land_nirs_ndvi_mean": {
+    "en": "Average NDVI index",
+    "hr": "Prosječni NDVI indeks"
+  },
+  "land_nirs_moisture": {
+    "en": "Estimated soil moisture",
+    "hr": "Procijenjena vlažnost tla"
+  },
+  "land_nirs_health": {
+    "en": "Vegetation status",
+    "hr": "Stanje vegetacije"
+  },
+  "land_nirs_health_good": {
+    "en": "Excellent (dense vegetation)",
+    "hr": "Odlično (gusta vegetacija)"
+  },
+  "land_nirs_health_moderate": {
+    "en": "Moderate (needs attention)",
+    "hr": "Umjereno (potrebna pažnja)"
+  },
+  "land_nirs_health_low": {
+    "en": "Low (possible crop stress)",
+    "hr": "Slabo (moguć stres biljaka)"
+  },
+  "land_nirs_scan_date": {
+    "en": "Satellite capture date",
+    "hr": "Datum snimke"
+  },
+  "land_nirs_analysis_date": {
+    "en": "Analysis run at",
+    "hr": ""
+  },
+  "land_nirs_cloud_cover": {
+    "en": "Cloud cover on scene",
+    "hr": ""
+  },
+  "land_nirs_cloud_cover_value": {
+    "en": "{percent}%",
+    "hr": ""
+  },
+  "land_nirs_imagery_stale": {
+    "en": "Satellite imagery is {days} days old. Sentinel-2 revisits the same area about every 5 days — run again later for a fresher scene.",
+    "hr": ""
+  },
+  "land_nirs_basemap_note": {
+    "en": "The Google Maps satellite background may be older than the NIRS overlay data.",
+    "hr": ""
+  },
+  "land_nirs_source": {
+    "en": "Data source: {source}",
+    "hr": "Izvor podataka: {source}"
+  },
+  "land_nirs_run_scan": {
+    "en": "Start NIRS/NDVI monitoring",
+    "hr": "Pokreni NIRS/NDVI nadzor"
+  },
+  "land_nirs_run_again": {
+    "en": "Reload NIRS/NDVI",
+    "hr": "Ponovno učitaj NIRS/NDVI"
+  },
+  "land_nirs_no_scan_yet": {
+    "en": "No NIRS/NDVI scan for this parcel yet. Start monitoring with the button below.",
+    "hr": "Još nema NIRS/NDVI snimke za ovu parcelu. Pokrenite nadzor gumbom ispod."
+  },
+  "land_parcel_tap_open": {
+    "en": "Tap to open",
+    "hr": "Dodirni za pregled"
+  },
+  "land_nirs_loading": {
+    "en": "Loading Sentinel-2 NIRS/NDVI data…",
+    "hr": "Učitavanje Sentinel-2 NIRS/NDVI podataka…"
+  },
+  "land_nirs_simulation_badge": {
+    "en": "Simulation — enable live API before production",
+    "hr": "Simulacija — uključite stvarni API prije produkcije"
+  },
+  "land_nirs_legend_title": {
+    "en": "NDVI legend",
+    "hr": "NDVI legenda"
+  },
+  "land_nirs_legend_good": {
+    "en": "Excellent — dense vegetation",
+    "hr": "Odlično — gusta vegetacija"
+  },
+  "land_nirs_legend_moderate": {
+    "en": "Moderate — monitor parcel",
+    "hr": "Umjereno — pratite parcelu"
+  },
+  "land_nirs_legend_low": {
+    "en": "Low — possible crop stress",
+    "hr": "Slabo — moguć stres biljaka"
+  },
+  "land_nirs_advice_title": {
+    "en": "Parcel recommendation",
+    "hr": "Preporuka za parcelu"
+  },
+  "land_nirs_advice_good": {
+    "en": "Vegetation is in good condition. Continue weekly monitoring.",
+    "hr": "Vegetacija je u dobrom stanju. Nastavite redoviti nadzor jednom tjedno."
+  },
+  "land_nirs_advice_moderate": {
+    "en": "Vegetation is moderate. Check irrigation and seed density in 3–5 days.",
+    "hr": "Vegetacija je umjerena. Provjerite navodnjavanje i gustoću sijanja u sljedećih 3–5 dana."
+  },
+  "land_nirs_advice_low": {
+    "en": "Low NDVI — check irrigation, fertilization and possible field diseases.",
+    "hr": "Nizak NDVI — provjerite navodnjavanje, hranidbu i moguće bolesti na terenu."
+  },
+  "land_nirs_advice_low_moisture": {
+    "en": "Soil moisture is low. Plan irrigation in the next 24–48 hours.",
+    "hr": "Vlažnost tla je niska. Planirajte navodnjavanje u sljedećih 24–48 sati."
+  },
+  "land_nirs_advice_high_moisture": {
+    "en": "Soil is very wet. Delay irrigation and watch for moisture-related diseases.",
+    "hr": "Tlo je vrlo vlažno. Odgodite navodnjavanje i pripazite na bolesti uslijed vlage."
+  },
+  "land_nirs_compare_title": {
+    "en": "Comparison with previous scan",
+    "hr": "Usporedba s prethodnim skenom"
+  },
+  "land_nirs_compare_previous": {
+    "en": "Before",
+    "hr": "Prije"
+  },
+  "land_nirs_compare_current": {
+    "en": "Now",
+    "hr": "Sada"
+  },
+  "land_nirs_compare_up": {
+    "en": "NDVI increased by {delta} — vegetation is improving.",
+    "hr": "NDVI porastao za {delta} — vegetacija se poboljšava."
+  },
+  "land_nirs_compare_down": {
+    "en": "NDVI dropped by {delta} — check the parcel in the field.",
+    "hr": "NDVI pao za {delta} — provjerite parcelu na terenu."
+  },
+  "land_nirs_compare_stable": {
+    "en": "NDVI stable compared to the previous scan.",
+    "hr": "NDVI stabilan u odnosu na prethodni sken."
+  },
+  "land_nirs_history_title": {
+    "en": "Scan history",
+    "hr": "Povijest skenova"
+  },
+  "guide_land_nirs_quota_title": {
+    "en": "NIRS monthly limit",
+    "hr": "NIRS mjesečni limit"
+  },
+  "guide_land_nirs_quota_body": {
+    "en": "Here you can see how many NIRS satellite scans remain this month. Your drawn parcels are stored for one year.",
+    "hr": "Ovdje pratite koliko vam je preostalo dostupnih NIRS satelitskih nadzora za ovaj mjesec unutar vašeg paketa. Povijest vaših iscrtanih parcela sustav čuva točno godinu dana."
+  },
+  "land_clear_all": {
+    "en": "Clear all",
+    "hr": "Očisti sve"
+  },
+  "land_draw_hint": {
+    "en": "Draw at least 3 points and close the parcel to calculate area.",
+    "hr": "Ucrtajte najmanje 3 točke i zatvorite parcelu za izračun površine."
+  },
+  "land_closed_hint": {
+    "en": "Parcel is closed. Drag points to fine-tune boundaries.",
+    "hr": "Parcela je zatvorena. Povucite točke za finu korekciju granica."
+  },
+  "land_self_intersect": {
+    "en": "Lines cross each other. Adjust points and close the parcel again.",
+    "hr": "Linije se presijecaju. Pomjerite točke pa ponovno zatvorite parcelu."
+  },
+  "land_area_m2": {
+    "en": "Area (m²)",
+    "hr": "Površina (m²)"
+  },
+  "land_area_ha": {
+    "en": "Area (ha)",
+    "hr": "Površina (ha)"
+  },
+  "land_perimeter": {
+    "en": "Perimeter",
+    "hr": "Opseg"
+  },
+  "land_undo_point": {
+    "en": "Undo last point",
+    "hr": "Poništi zadnju točku"
+  },
+  "land_clear": {
+    "en": "Clear",
+    "hr": "Očisti"
+  },
+  "land_save": {
+    "en": "Save parcel",
+    "hr": "Spremi parcelu"
+  },
+  "land_save_title": {
+    "en": "Save parcel",
+    "hr": "Spremi parcelu"
+  },
+  "land_parcel_name": {
+    "en": "Parcel name",
+    "hr": "Naziv parcele"
+  },
+  "land_unnamed_parcel": {
+    "en": "Unnamed parcel",
+    "hr": "Parcela bez naziva"
+  },
+  "land_save_success": {
+    "en": "Parcel saved.",
+    "hr": "Parcela je spremljena."
+  },
+  "land_min_points": {
+    "en": "At least 3 points are required.",
+    "hr": "Potrebne su najmanje 3 točke za parcelu."
+  },
+  "land_saved_parcels": {
+    "en": "Saved parcels",
+    "hr": "Spremljene parcele"
+  },
+  "land_no_parcels": {
+    "en": "No saved parcels yet.",
+    "hr": "Još nema spremljenih parcela."
+  },
+  "scanner_quota_bonus": {
+    "en": "including {bonus} purchased scans",
+    "hr": "uključujući {bonus} kupljenih skenova"
+  },
+  "paywall_pharmacy_benefit_scanner": {
+    "en": "AI Plant Scanner — {count} scans per month",
+    "hr": "AI Plant Scanner — {count} scans per month",
+    "fix": true
+  },
+  "account_deletion_title": {
+    "en": "Delete account?",
+    "hr": "Obrisati račun?",
+    "fix": true
+  },
+  "account_deletion_confirm_body": {
+    "en": "This will permanently delete your profile, payment methods, and listings.\n\nIf you have an active subscription, your account will remain until the end of the current billing period. Premium stays active until then; cancel renewal separately in Google Play if needed.\n\nThis action cannot be undone after deletion completes.",
+    "hr": "Ovo će trajno obrisati vaš profil, načine plaćanja i proizvode u izlogu.\n\nAko imate aktivnu pretplatu, račun ostaje do kraja tekućeg obračunskog razdoblja. Premium funkcije tada i dalje možete koristiti; za otkaz obnove idite u Google Play.\n\nNakon završetka brisanja akcija se ne može poništiti.",
+    "fix": true
+  },
+  "account_deletion_confirm_action": {
+    "en": "Delete account",
+    "hr": "Obriši račun",
+    "fix": true
+  },
+  "account_deletion_tile_title": {
+    "en": "Delete account",
+    "hr": "Obriši račun",
+    "fix": true
+  },
+  "account_deletion_tile_subtitle": {
+    "en": "Permanently remove your profile and data",
+    "hr": "Trajno ukloni profil i podatke",
+    "fix": true
+  },
+  "account_deletion_tile_pending": {
+    "en": "Deletion is scheduled",
+    "hr": "Brisanje je zakazano",
+    "fix": true
+  },
+  "account_deletion_pending_generic": {
+    "en": "Your account is scheduled for deletion after your subscription ends.",
+    "hr": "Račun je zakazan za brisanje nakon isteka pretplate.",
+    "fix": true
+  },
+  "account_deletion_pending_until": {
+    "en": "Your account will be permanently deleted on {date}. Until then you can still use Premium features you paid for.",
+    "hr": "Račun će biti trajno obrisan {date}. Do tada možete koristiti Premium funkcije koje ste platili.",
+    "fix": true
+  },
+  "account_deletion_scheduled_snackbar": {
+    "en": "Account scheduled for deletion on {date}.",
+    "hr": "Brisanje računa zakazano za {date}.",
+    "fix": true
+  },
+  "account_deletion_failed": {
+    "en": "Could not delete account. Please try again.",
+    "hr": "Brisanje računa nije uspjelo. Pokušajte ponovo.",
+    "fix": true
+  },
+  "account_deletion_already_requested": {
+    "en": "Account deletion has already been requested.",
+    "hr": "Brisanje računa je već zatraženo.",
+    "fix": true
+  },
+  "account_deletion_admin_blocked": {
+    "en": "Admin accounts cannot be deleted from the app.",
+    "hr": "Admin računi se ne mogu obrisati iz aplikacije.",
+    "fix": true
+  },
+  "account_deletion_login_required": {
+    "en": "Please sign in again to delete your account.",
+    "hr": "Prijavite se ponovo da biste obrisali račun.",
+    "fix": true
+  },
+  "privacy_policy_title": {
+    "en": "Privacy Policy",
+    "hr": "Politika privatnosti",
+    "fix": true
+  },
+  "privacy_policy_subtitle": {
+    "en": "How My Farmer handles your data",
+    "hr": "Kako My Farmer koristi vaše podatke",
+    "fix": true
+  },
+  "privacy_policy_intro": {
+    "en": "This policy explains what we collect, why we use it, and your rights. My Farmer is a marketplace platform — peer-to-peer payments between buyers and sellers are not processed by us.",
+    "hr": "Ova politika objašnjava što prikupljamo, zašto to radimo i koja su vaša prava. My Farmer je platforma za tržnicu — plaćanja između kupca i prodavača ne procesiramo mi.",
+    "fix": true
+  },
+  "privacy_policy_profile_title": {
+    "en": "Privacy Policy",
+    "hr": "Politika privatnosti",
+    "fix": true
+  },
+  "privacy_policy_profile_subtitle": {
+    "en": "Data collection, location, and your rights",
+    "hr": "Prikupljanje podataka, lokacija i vaša prava",
+    "fix": true
+  },
+  "privacy_policy_open_web": {
+    "en": "Open online version",
+    "hr": "Otvori online verziju",
+    "fix": true
+  },
+  "privacy_policy_web_failed": {
+    "en": "Could not open the privacy policy link.",
+    "hr": "Nije moguće otvoriti link politike privatnosti.",
+    "fix": true
+  },
+  "privacy_policy_footer": {
+    "en": "Last updated: July 2026. We may update this policy; significant changes will be shown in the app.",
+    "hr": "Zadnje ažuriranje: srpanj 2026. Politiku možemo povremeno ažurirati; značajne promjene bit će prikazane u aplikaciji.",
+    "fix": true
+  },
+  "privacy_controller_title": {
+    "en": "1. Data controller",
+    "hr": "1. Voditelj obrade",
+    "fix": true
+  },
+  "privacy_controller_body": {
+    "en": "My Farmer (com.myfarmer.network) operates this app. For privacy requests contact us at the email below.",
+    "hr": "My Farmer (com.myfarmer.network) upravlja ovom aplikacijom. Za zahtjeve vezane uz privatnost kontaktirajte nas na email ispod.",
+    "fix": true
+  },
+  "privacy_data_title": {
+    "en": "2. Data we collect",
+    "hr": "2. Podaci koje prikupljamo",
+    "fix": true
+  },
+  "privacy_data_body": {
+    "en": "Account: name, email, phone, address, role, farm or business details.\n\nUsage: products, orders, chat messages, animal records, land parcels, scan history, payment methods you save (PayPal email, masked card digits, IBAN).\n\nDevice: FCM token for notifications, device ID for trial scan limits.\n\nMedia & sensors: photos you upload, camera for plant scanner, GPS for marketplace pricing and farm location.",
+    "hr": "Račun: ime, email, telefon, adresa, uloga, podaci o gospodarstvu ili firmi.\n\nKorištenje: proizvodi, narudžbe, chat poruke, kartoni životinja, parcele, povijest skeniranja, načini plaćanja koje spremite (PayPal email, zadnje 4 znamenke kartice, IBAN).\n\nUređaj: FCM token za obavijesti, ID uređaja za limite probnih skenova.\n\nMediji i senzori: fotografije koje uploadate, kamera za AI skener, GPS za cijene na tržnici i lokaciju farme.",
+    "fix": true
+  },
+  "privacy_purpose_title": {
+    "en": "3. Why we use data",
+    "hr": "3. Svrha obrade",
+    "fix": true
+  },
+  "privacy_purpose_body": {
+    "en": "To provide the marketplace, chat, vet services, plant scanner, satellite parcel tools, weather alerts, Premium subscriptions via Google Play, and to prevent abuse. We do not sell your personal data.",
+    "hr": "Za pružanje tržnice, chata, veterinarskih usluga, AI skenera, satelitskih alata, vremenskih upozorenja, Premium pretplata putem Google Playa i sprječavanja zloupotrebe. Vaše osobne podatke ne prodajemo.",
+    "fix": true
+  },
+  "privacy_location_title": {
+    "en": "4. Location data",
+    "hr": "4. Podaci o lokaciji",
+    "fix": true
+  },
+  "privacy_location_body": {
+    "en": "GPS is used to show nearby products, correct currency/pricing for your region, and farm coordinates you choose to share. You can deny location permission; some features will be limited.",
+    "hr": "GPS koristimo za prikaz obližnjih proizvoda, ispravnu valutu/cijene za vašu regiju i koordinate farme koje sami odaberete. Možete odbiti dozvolu za lokaciju; neke funkcije tada neće raditi.",
+    "fix": true
+  },
+  "privacy_third_parties_title": {
+    "en": "5. Third-party services",
+    "hr": "5. Treće strane",
+    "fix": true
+  },
+  "privacy_third_parties_body": {
+    "en": "We use Google Firebase (auth, database, storage, push), Google Play / RevenueCat (subscriptions), Google Maps, Open-Meteo (weather), Plant.id and Sentinel Hub (via our servers for scans and NIRS). Each provider has its own privacy terms.",
+    "hr": "Koristimo Google Firebase (auth, baza, storage, push), Google Play / RevenueCat (pretplate), Google Maps, Open-Meteo (vrijeme), Plant.id i Sentinel Hub (preko naših servera za sken i NIRS). Svaki pružatelj ima vlastite uvjete privatnosti.",
+    "fix": true
+  },
+  "privacy_retention_title": {
+    "en": "6. Retention",
+    "hr": "6. Pohrana podataka",
+    "fix": true
+  },
+  "privacy_retention_body": {
+    "en": "We keep data while your account is active. When you delete your account, personal data is removed or anonymized; some order records may be kept briefly for dispute resolution. Active subscriptions delay full deletion until the paid period ends.",
+    "hr": "Podatke čuvamo dok je račun aktivan. Kad obrišete račun, osobni podaci se uklanjaju ili anonimiziraju; neki zapisi o narudžbama mogu se kratko zadržati radi sporova. Aktivna pretplata odgađa potpuno brisanje do kraja plaćenog razdoblja.",
+    "fix": true
+  },
+  "privacy_rights_title": {
+    "en": "7. Your rights",
+    "hr": "7. Vaša prava",
+    "fix": true
+  },
+  "privacy_rights_body": {
+    "en": "You may access, correct, or delete your data. Use Profile → Delete account, or contact us. EU users have GDPR rights including data portability and objection. You may lodge a complaint with your local supervisory authority.",
+    "hr": "Možete pristupiti, ispraviti ili obrisati svoje podatke. Koristite Profil → Obriši račun ili nas kontaktirajte. Korisnici u EU imaju GDPR prava uključujući prenosivost i prigovor. Možete podnijeti pritužbu nadležnom tijelu.",
+    "fix": true
+  },
+  "privacy_security_title": {
+    "en": "8. Security",
+    "hr": "8. Sigurnost",
+    "fix": true
+  },
+  "privacy_security_body": {
+    "en": "Data is transmitted over HTTPS and stored in Firebase with access rules. Payment card numbers are not stored in full — only masked details you enter for seller profiles. Keep your password confidential.",
+    "hr": "Podaci se prenose preko HTTPS-a i pohranjuju u Firebaseu s pravilima pristupa. Pun broj kartice ne pohranjujemo — samo maskirane podatke koje unesete u profil prodavača. Čuvajte lozinku povjerljivo.",
+    "fix": true
+  },
+  "privacy_contact_title": {
+    "en": "9. Contact",
+    "hr": "9. Kontakt",
+    "fix": true
+  },
+  "privacy_contact_body": {
+    "en": "Privacy questions: {email}",
+    "hr": "Pitanja o privatnosti: {email}",
+    "fix": true
+  },
+  "registration_legal_consent_prefix": {
+    "en": "I accept the",
+    "hr": "Prihvaćam",
+    "fix": true
+  },
+  "registration_legal_consent_required": {
+    "en": "Please accept the Terms of Use and Privacy Policy to register.",
+    "hr": "Prihvatite uvjete korištenja i politiku privatnosti za registraciju.",
+    "fix": true
+  },
+  "registration_legal_terms_link": {
+    "en": "Marketplace Terms",
+    "hr": "Uvjete tržnice",
+    "fix": true
+  },
+  "registration_legal_privacy_link": {
+    "en": "Privacy Policy",
+    "hr": "Politiku privatnosti",
+    "fix": true
+  },
+  "registration_legal_and": {
+    "en": "and",
+    "hr": "i",
+    "fix": true
+  },
+  "beta_guide_screen_title": {
+    "en": "Beta testing guide",
+    "hr": "Beta test vodič",
+    "fix": true
+  },
+  "beta_guide_profile_title": {
+    "en": "Beta testing guide",
+    "hr": "Beta test vodič",
+    "fix": true
+  },
+  "beta_guide_profile_subtitle": {
+    "en": "Instructions for closed testers (PDF)",
+    "hr": "Upute za zatvorene testere (PDF)",
+    "fix": true
+  }
+}

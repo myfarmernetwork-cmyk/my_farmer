@@ -100,6 +100,19 @@ class PremiumGate {
       }
       if (ref.read(premiumAccessProvider).canUse(feature)) {
         onUnlocked();
+        return;
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('premium_activation_syncing'.tr()),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      await ref.read(subscriptionServiceProvider).refreshPremiumStatus();
+      if (!context.mounted) return;
+      if (ref.read(premiumAccessProvider).canUse(feature)) {
+        onUnlocked();
       }
       return;
     }

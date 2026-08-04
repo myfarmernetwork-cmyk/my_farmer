@@ -51,6 +51,25 @@ class CurrencyService {
   static const String rsd = 'RSD';
   static const String try_ = 'TRY';
 
+  /// Stripe zero-decimal currencies — minor unit equals major unit.
+  static const Set<String> stripeZeroDecimalCurrencies = {
+    'BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF',
+    'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF', 'IDR',
+  };
+
+  /// Converts a display amount to Stripe minor units (cent-style integer).
+  static int toStripeMinorUnits(double amount, String currency) {
+    final raw = currency.trim().toUpperCase();
+    if (stripeZeroDecimalCurrencies.contains(raw)) {
+      return amount.round();
+    }
+    final code = normalizeCode(currency);
+    if (stripeZeroDecimalCurrencies.contains(code)) {
+      return amount.round();
+    }
+    return (amount * 100).round();
+  }
+
   /// Euro valuta za jezike EU tržišta (hr, de, pl, es...).
   static bool isEuroLockedLanguage(Locale locale) {
     final lang = locale.languageCode.toLowerCase();
@@ -333,17 +352,12 @@ class CurrencyService {
     String? currencyRegion,
     Locale? locale,
   }) {
-    if (locale != null) {
-      final lang = locale.languageCode.toLowerCase();
-      // Balkan: cijena se uvijek pohranjuje u KM — prikaz prati kupčevu valutu.
-      if (lang == 'hr' || lang == 'bs' || lang == 'sr') {
-        return bam;
-      }
-    }
-    if (currencyRegion == 'bih' || currencyRegion == 'rs') return bam;
+    // Ista valuta koju prodavač vidi u formi (npr. € za hr u EU) — inače se
+    // 3 € pogrešno spremi kao 3 KM, a kupac vidi ~1,53 € nakon konverzije.
     if (locale != null) {
       return resolveBuyerCurrencyCode(locale, currencyRegion: currencyRegion);
     }
+    if (currencyRegion == 'bih' || currencyRegion == 'rs') return bam;
     if (currencyRegion == 'se') return sek;
     if (currencyRegion == 'eu') return eur;
     return eur;

@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../repositories/admin_repository.dart';
+import '../../utils/admin_user_presence.dart';
+import '../chat/chat_screen.dart';
 
 class AdminUserListScreen extends StatefulWidget {
   const AdminUserListScreen({
@@ -105,6 +107,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
     final displayName =
         name?.isNotEmpty == true ? name! : 'Bez imena';
     final isProcessing = _processing.contains(uid);
+    final currentAdminId = FirebaseAuth.instance.currentUser?.uid;
+    final canMessage = currentAdminId != null && currentAdminId != uid;
 
     await showDialog<void>(
       context: context,
@@ -125,17 +129,38 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                 isActive ? 'Aktivan' : 'Blokiran',
               ),
               _detailLine('Registracija', createdAt),
+              _detailLine(
+                'admin_presence_status_label'.tr(),
+                adminPresenceSummary(data),
+              ),
               if (license != null && license.isNotEmpty)
                 _detailLine('Dokument', license),
             ],
           ),
         ),
-        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsAlignment: MainAxisAlignment.end,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Zatvori'),
+            child: Text('cart_cancel'.tr()),
           ),
+          if (canMessage)
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatScreen(
+                      receiverId: uid,
+                      receiverName: displayName,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: Text('admin_send_message'.tr()),
+            ),
           FilledButton.icon(
             onPressed: isProcessing
                 ? null
@@ -228,6 +253,7 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                   AdminRepository.roleLabel(data['role']?.toString());
               final createdAt = _formatDate(data['createdAt']);
               final isActive = _isUserActive(data);
+              final presenceLine = adminPresenceSummary(data);
               final license = data['veterinaryLicense']?.toString() ??
                   data['companyRegistrationNumber']?.toString() ??
                   data['extraInfo']?.toString();
@@ -236,16 +262,26 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                 color: isActive ? null : Colors.red.shade50,
                 child: ListTile(
                   onTap: () => _showUserDialog(doc),
-                  leading: CircleAvatar(
-                    backgroundColor: isActive
-                        ? Colors.purple.shade100
-                        : Colors.red.shade100,
-                    child: Icon(
-                      isActive ? Icons.person : Icons.block,
-                      color: isActive
-                          ? Colors.purple.shade800
-                          : Colors.red.shade800,
-                    ),
+                  leading: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: isActive
+                            ? Colors.purple.shade100
+                            : Colors.red.shade100,
+                        child: Icon(
+                          isActive ? Icons.person : Icons.block,
+                          color: isActive
+                              ? Colors.purple.shade800
+                              : Colors.red.shade800,
+                        ),
+                      ),
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: adminPresenceIndicator(data: data),
+                      ),
+                    ],
                   ),
                   title: Text(
                     name?.isNotEmpty == true ? name! : 'Bez imena',
@@ -255,6 +291,7 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                     [
                       email,
                       'Uloga: $role',
+                      presenceLine,
                       'Registracija: $createdAt',
                       if (!isActive) 'Status: BLOKIRAN',
                       if (widget.filter == AdminUserListFilter.pendingPremium &&

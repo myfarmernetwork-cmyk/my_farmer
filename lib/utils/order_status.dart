@@ -58,4 +58,51 @@ class OrderStatus {
         return 'orders_status_new';
     }
   }
+
+  /// Completed label depends on pickup vs delivery.
+  static String completedLabelKey(String deliveryType) {
+    return deliveryType == 'delivery'
+        ? 'orders_status_ready_delivery'
+        : 'orders_status_ready_pickup';
+  }
+
+  /// Seller action button for advancing from [currentCode].
+  static String? nextActionLabelKey(String currentCode, String deliveryType) {
+    final next = nextCode(currentCode);
+    if (next == null) return null;
+    switch (next) {
+      case preparing:
+        return 'orders_action_accept';
+      case completed:
+        return deliveryType == 'delivery'
+            ? 'orders_action_mark_ready_delivery'
+            : 'orders_action_mark_ready_pickup';
+      default:
+        return 'orders_next_step';
+    }
+  }
+
+  static String flowStepLabelKey(String code) {
+    switch (code) {
+      case newOrder:
+        return 'orders_flow_step_new';
+      case preparing:
+        return 'orders_flow_step_preparing';
+      case completed:
+        return 'orders_flow_step_ready';
+      default:
+        return 'orders_flow_step_new';
+    }
+  }
+
+  static String sellerHintKey(String code) {
+    switch (code) {
+      case newOrder:
+        return 'orders_seller_step_hint_new';
+      case preparing:
+        return 'orders_seller_step_hint_preparing';
+      default:
+        return '';
+    }
+  }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../repositories/admin_repository.dart';
+import '../../utils/admin_user_presence.dart';
 
 class AdminVerificationScreen extends StatefulWidget {
   const AdminVerificationScreen({super.key});
@@ -213,6 +214,25 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
                                     ),
                                   ),
                                 ],
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    adminPresenceIndicator(data: data, size: 8),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        adminPresenceSummary(data),
+                                        style: TextStyle(
+                                          color: isUserCurrentlyInApp(data)
+                                              ? Colors.green.shade700
+                                              : Colors.grey.shade600,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),

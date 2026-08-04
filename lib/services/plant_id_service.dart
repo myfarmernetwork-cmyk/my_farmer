@@ -83,12 +83,18 @@ class PlantIdService {
     try {
       final callable =
           FirebaseFunctions.instance.httpsCallable('identifyPlant');
-      final response = await callable.call<Map<String, dynamic>>({
+      final response = await callable.call({
         'images': [base64Image],
         'language': language,
       });
-      return Map<String, dynamic>.from(response.data);
+      return _normalizeJsonMap(response.data);
     } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'failed-precondition') {
+        throw PlantScannerException('scanner_api_key_invalid');
+      }
+      if (e.code == 'resource-exhausted') {
+        throw PlantScannerException('scanner_api_credits_exhausted');
+      }
       throw PlantScannerException(
         'scanner_api_error',
         namedArgs: {'code': e.code},
@@ -131,5 +137,15 @@ class PlantIdService {
     }
 
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Cloud Functions return nested maps as Map<Object?, Object?> — deep cast.
+  static Map<String, dynamic> _normalizeJsonMap(dynamic value) {
+    final normalized = jsonDecode(jsonEncode(value));
+    if (normalized is Map<String, dynamic>) return normalized;
+    if (normalized is Map) {
+      return Map<String, dynamic>.from(normalized);
+    }
+    throw PlantScannerException('scanner_api_error', namedArgs: {'code': 'parse'});
   }
 }

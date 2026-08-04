@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../config/subscription_limits.dart';
+import '../utils/currency_region_parse.dart';
 import 'subscription_tier.dart';
 
 enum UserRole {
@@ -97,7 +98,7 @@ class AppUser {
       favoriteVetId: data['favoriteVetId'] as String?,
       premiumApprovalStatus: data['premiumApprovalStatus'] as String?,
       requestedPremiumTier: data['requestedPremiumTier'] as String?,
-      currencyRegion: data['currencyRegion'] as String?,
+      currencyRegion: CurrencyRegionParse.normalize(data['currencyRegion']),
       paymentCountryCode: data['paymentCountryCode'] as String?,
       isActive: data['isActive'] as bool? ?? true,
       isAdminAccount: data['isAdmin'] as bool? ?? false,
@@ -302,8 +303,16 @@ class AppUser {
       role == UserRole.veterinarian || role == UserRole.pharmacy;
 
   bool get isInPromotionalPeriod {
-    if (promotionalEndsAt == null) return false;
-    return DateTime.now().isBefore(promotionalEndsAt!.toDate());
+    if (promotionalEndsAt != null) {
+      return DateTime.now().isBefore(promotionalEndsAt!.toDate());
+    }
+    if ((role == UserRole.veterinarian || role == UserRole.pharmacy) &&
+        isPremiumApproved &&
+        verifiedAt != null) {
+      final promoEnds = verifiedAt!.toDate().add(const Duration(days: 90));
+      return DateTime.now().isBefore(promoEnds);
+    }
+    return false;
   }
 
   bool get isFarmerRole =>

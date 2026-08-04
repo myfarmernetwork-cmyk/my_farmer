@@ -6,7 +6,7 @@ class FirestoreCacheService {
   FirestoreCacheService._();
 
   static const _versionKey = 'firestore_role_cache_version';
-  static const _currentVersion = 3;
+  static const _currentVersion = 4;
 
   /// Pozovi jednom pri pokretanju — preskače ako je cache već očišćen.
   static Future<void> clearStaleCacheIfNeeded() async {

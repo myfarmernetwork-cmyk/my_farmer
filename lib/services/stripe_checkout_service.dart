@@ -7,7 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 
 import '../config/payment_config.dart';
-import '../models/payment_method.dart';import '../models/payment_result.dart';
+import '../models/payment_method.dart';
+import '../models/payment_result.dart';
+import '../services/currency_service.dart';
 import '../widgets/simulated_card_entry_sheet.dart';
 
 class PaymentCancelledException implements Exception {
@@ -23,18 +25,20 @@ class StripeCheckoutService {
     required String currency,
     String? sellerId,
   }) async {
-    final amountCents = (amount * 100).round();
-    if (amountCents <= 0) {
+    final normalizedCurrency = CurrencyService.normalizeCode(currency);
+    final amountMinorUnits =
+        CurrencyService.toStripeMinorUnits(amount, normalizedCurrency);
+    if (amountMinorUnits <= 0) {
       throw Exception('Invalid payment amount');
     }
 
     if (PaymentConfig.isStripeSimulated) {
-      return _processSimulatedStripePayment(context, method, amountCents);
+      return _processSimulatedStripePayment(context, method, amountMinorUnits);
     }
 
     final clientSecret = await _createPaymentIntent(
-      amountCents: amountCents,
-      currency: currency.toLowerCase(),
+      amountCents: amountMinorUnits,
+      currency: normalizedCurrency,
       sellerId: sellerId,
     );
 
@@ -45,7 +49,7 @@ class StripeCheckoutService {
         style: ThemeMode.system,
         googlePay: PaymentSheetGooglePay(
           merchantCountryCode: PaymentConfig.merchantCountryCode,
-          currencyCode: currency.toUpperCase(),
+          currencyCode: normalizedCurrency,
           testEnv: kDebugMode,
         ),
         applePay: const PaymentSheetApplePay(
@@ -148,7 +152,7 @@ class StripeCheckoutService {
           FirebaseFunctions.instance.httpsCallable('createPaymentIntent');
       final response = await callable.call<Map<String, dynamic>>({
         'amount': amountCents,
-        'currency': currency,
+        'currency': currency.toLowerCase(),
         if (sellerId != null) 'sellerId': sellerId,
       });
       final clientSecret = response.data['clientSecret']?.toString();
@@ -160,10 +164,20 @@ class StripeCheckoutService {
       if (e.code == 'not-found' || e.code == 'unavailable') {
         return _createSimulatedClientSecret(amountCents, currency);
       }
-      rethrow;
+      throw Exception(_mapFunctionsError(e));
     } catch (_) {
       return _createSimulatedClientSecret(amountCents, currency);
     }
+  }
+
+  String _mapFunctionsError(FirebaseFunctionsException error) {
+    final message = (error.message ?? '').trim();
+    if (message.isNotEmpty &&
+        error.code != 'internal' &&
+        error.code != 'unknown') {
+      return message;
+    }
+    return 'payment_stripe_checkout_failed'.tr();
   }
 
   String _createSimulatedClientSecret(int amountCents, String currency) {

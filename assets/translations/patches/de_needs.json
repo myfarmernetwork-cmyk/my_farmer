@@ -1,0 +1,944 @@
+{
+  "cart_stock_insufficient": {
+    "en": "The farmer no longer has the requested quantity in stock. Cart quantities have been adjusted.",
+    "hr": "Farmer više nema traženu količinu na stanju. Količine u košarici su prilagođene."
+  },
+  "cart_delivery_min_remaining": {
+    "en": "Add {amount} {currency} more to unlock delivery",
+    "hr": "Još {amount} {currency} do minimalnog iznosa za dostavu"
+  },
+  "cart_delivery_ready": {
+    "en": "Minimum reached ({amount} {currency}) — delivery approved",
+    "hr": "Minimum dosegnut ({amount} {currency}) — dostava odobrena"
+  },
+  "animals_name": {
+    "en": "Name",
+    "hr": "Ime",
+    "fix": true
+  },
+  "vet_intake_search_hint": {
+    "en": "Search by animal, owner, or note…",
+    "hr": "Pretraži po životinji, vlasniku ili napomeni…"
+  },
+  "vet_intake_sort_label": {
+    "en": "Sort",
+    "hr": "Sortiraj"
+  },
+  "vet_intake_sort_newest": {
+    "en": "Newest",
+    "hr": "Najnovije"
+  },
+  "vet_intake_sort_animal_az": {
+    "en": "Animal A–Z",
+    "hr": "Životinja A–Z"
+  },
+  "vet_intake_sort_client_az": {
+    "en": "Owner A–Z",
+    "hr": "Vlasnik A–Z"
+  },
+  "vet_intake_sort_unread": {
+    "en": "Unread",
+    "hr": "Nepročitano"
+  },
+  "vet_intake_count_total": {
+    "en": "{count} records",
+    "hr": "{count} kartona"
+  },
+  "vet_intake_count_filtered": {
+    "en": "Showing {visible} of {total}",
+    "hr": "Prikazano {visible} od {total}"
+  },
+  "vet_intake_no_results": {
+    "en": "No records match this search. Try another term.",
+    "hr": "Nema kartona za ovu pretragu. Pokušajte drugi pojam."
+  },
+  "vet_intake_page": {
+    "en": "Page {current} of {total}",
+    "hr": "Stranica {current} od {total}"
+  },
+  "vet_intake_page_range": {
+    "en": "{from}–{to} of {total}",
+    "hr": "{from}–{to} od {total}"
+  },
+  "vet_intake_prev_page": {
+    "en": "Previous page",
+    "hr": "Prethodna stranica"
+  },
+  "vet_intake_next_page": {
+    "en": "Next page",
+    "hr": "Sljedeća stranica"
+  },
+  "vet_response_field_hint": {
+    "en": "Enter your report or instructions here…",
+    "hr": "Upišite nalaz ili uputu ovdje…"
+  },
+  "vet_tab_patient_record": {
+    "en": "Record",
+    "hr": "Karton"
+  },
+  "vet_tab_conversations": {
+    "en": "Messages",
+    "hr": "Razgovori"
+  },
+  "vet_conversations_empty": {
+    "en": "No messages sent yet. Write the first report on the Record tab.",
+    "hr": "Još nema poslanih poruka. Napišite prvi nalaz na kartici Karton."
+  },
+  "vet_conversations_filter_all": {
+    "en": "All",
+    "hr": "Sve"
+  },
+  "vet_conversations_filter_important": {
+    "en": "Important",
+    "hr": "Važno"
+  },
+  "vet_conversations_important_empty": {
+    "en": "No important messages marked. Tap the star on a message.",
+    "hr": "Nema označenih važnih poruka. Dodirnite zvjezdicu uz poruku."
+  },
+  "vet_conversations_mark_important": {
+    "en": "Mark as important",
+    "hr": "Označi kao važno"
+  },
+  "vet_conversations_unmark_important": {
+    "en": "Remove important mark",
+    "hr": "Ukloni oznaku važno"
+  },
+  "add_product_pack_contents": {
+    "en": "Pack contents (e.g. 30 pieces)",
+    "hr": "Sadržaj pakiranja (npr. 30 komada ili vreća od 5 kg)"
+  },
+  "add_product_pack_contents_hint": {
+    "en": "30 pieces, 5 kg bag...",
+    "hr": "30 komada, vreća od 5 kg..."
+  },
+  "add_product_stock": {
+    "en": "Available stock",
+    "hr": "Dostupna zaliha"
+  },
+  "add_product_stock_hint": {
+    "en": "Enter the approximate quantity you have in stock",
+    "hr": "Unesite okvirnu količinu koju imate na skladištu"
+  },
+  "add_product_stock_required": {
+    "en": "Enter available stock",
+    "hr": "Unesite dostupnu zalihu"
+  },
+  "add_product_stock_invalid": {
+    "en": "Enter a valid quantity (0 or more)",
+    "hr": "Unesite valjanu količinu (0 ili više)"
+  },
+  "registration_success": {
+    "en": "Registration successful! Welcome to My Farmer.",
+    "hr": "Registracija uspješna! Dobrodošli u My Farmer.",
+    "fix": true
+  },
+  "vet_tab_digital_intake": {
+    "en": "Digital record intake",
+    "hr": "Digitalni prijem kartona"
+  },
+  "vet_field_report_add": {
+    "en": "New field report",
+    "hr": "Novi terenski nalaz"
+  },
+  "vet_field_report_empty": {
+    "en": "No field reports yet. Tap + to record a farm visit with notes and a photo.",
+    "hr": "Još nema terenskih nalaza. Dodirnite + kako biste zabilježili posjet farmi, bilješke i fotografiju."
+  },
+  "vet_field_report_title_label": {
+    "en": "Report title",
+    "hr": "Naslov nalaza"
+  },
+  "vet_field_report_title_required": {
+    "en": "Enter a report title",
+    "hr": "Unesite naslov nalaza"
+  },
+  "vet_field_report_farmer_label": {
+    "en": "Farmer",
+    "hr": "Farmer"
+  },
+  "vet_field_report_select_farmer": {
+    "en": "Select farmer",
+    "hr": "Odaberite farmera"
+  },
+  "vet_field_report_other_farmer": {
+    "en": "Enter another farmer",
+    "hr": "Unesi drugog farmera"
+  },
+  "vet_field_report_farmer_required": {
+    "en": "Select or enter a farmer",
+    "hr": "Odaberite ili unesite farmera"
+  },
+  "vet_field_report_notes_label": {
+    "en": "Notes",
+    "hr": "Tekst bilješke"
+  },
+  "vet_field_report_photo_btn": {
+    "en": "Take / add photo",
+    "hr": "Uslikaj / dodaj fotografiju"
+  },
+  "vet_field_report_photo_camera": {
+    "en": "Take with camera",
+    "hr": "Uslikaj kamerom"
+  },
+  "vet_field_report_photo_gallery": {
+    "en": "Choose from gallery",
+    "hr": "Izaberi iz galerije"
+  },
+  "vet_field_report_save": {
+    "en": "Save field report",
+    "hr": "Spremi terenski nalaz"
+  },
+  "vet_field_report_saved": {
+    "en": "Field report saved",
+    "hr": "Terenski nalaz je spremljen"
+  },
+  "company_catalog_import_success_detail": {
+    "en": "Imported {count} items ({inserted} new, {updated} updated)",
+    "hr": "Uvezeno {count} artikala ({inserted} novih, {updated} ažurirano)"
+  },
+  "company_catalog_csv_bad_headers": {
+    "en": "Invalid file format. Missing required columns: {columns}. Expected: barkod, naziv, cijena, zaliha, jedinica.",
+    "hr": "Krivi format datoteke. Nedostaju obavezni stupci: {columns}. Očekivano: barkod, naziv, cijena, zaliha, jedinica."
+  },
+  "company_catalog_csv_empty_file": {
+    "en": "The file is empty.",
+    "hr": "Datoteka je prazna."
+  },
+  "company_catalog_csv_no_data_rows": {
+    "en": "CSV has no data rows.",
+    "hr": "CSV nema redova s podacima."
+  },
+  "company_catalog_csv_parse_failed": {
+    "en": "Could not read the file as CSV.",
+    "hr": "Datoteku nije moguće pročitati kao CSV."
+  },
+  "company_catalog_csv_row_price_error": {
+    "en": "Error in row {row}: Price must be a number.",
+    "hr": "Greška u redu {row}: Cijena mora biti broj."
+  },
+  "company_catalog_csv_row_stock_error": {
+    "en": "Error in row {row}: Stock must be a number.",
+    "hr": "Greška u redu {row}: Zaliha mora biti broj."
+  },
+  "company_catalog_csv_row_sku_empty": {
+    "en": "Error in row {row}: SKU is required.",
+    "hr": "Greška u redu {row}: SKU je obavezan."
+  },
+  "company_catalog_csv_row_name_empty": {
+    "en": "Error in row {row}: Name is required.",
+    "hr": "Greška u redu {row}: Naziv je obavezan."
+  },
+  "company_catalog_template_download": {
+    "en": "Download template (.csv)",
+    "hr": "Preuzmi predložak (.csv)"
+  },
+  "company_catalog_template_downloaded": {
+    "en": "Template ready — choose where to save it",
+    "hr": "Predložak spreman — odaberite gdje ga spremiti"
+  },
+  "company_catalog_template_download_failed": {
+    "en": "Could not download the template.",
+    "hr": "Preuzimanje predloška nije uspjelo."
+  },
+  "paywall_title": {
+    "en": "My Farmer Premium",
+    "hr": "My Farmer Premium",
+    "fix": true
+  },
+  "cart_payment_paypal": {
+    "en": "💳 PayPal",
+    "hr": "",
+    "fix": true
+  },
+  "cart_upcoming_card_required": {
+    "en": "Coming-soon products require card payment to secure your reservation.",
+    "hr": "Za proizvode u dolasku obvezno je plaćanje karticom radi osiguranja rezervacije."
+  },
+  "product_upcoming_pro_only": {
+    "en": "\"Coming soon\" is only available to professional farmers with an active Premium subscription.",
+    "hr": "Opcija \"U dolasku\" dostupna je samo profesionalnim farmerima s aktivnom Premium pretplatom."
+  },
+  "product_upcoming_card_payment_hint": {
+    "en": "Reservations must be paid by card (Stripe) only.",
+    "hr": "Rezervacije se plaćaju isključivo karticom (Stripe)."
+  },
+  "order_badge_google_pay": {
+    "en": "GOOGLE PAY",
+    "hr": "GOOGLE PAY",
+    "fix": true
+  },
+  "order_badge_paypal": {
+    "en": "PAYPAL",
+    "hr": "PAYPAL",
+    "fix": true
+  },
+  "payment_simulation_confirm_body": {
+    "en": "Simulation mode: confirm digital payment to complete the order.",
+    "hr": "Simulacijski način: potvrdite digitalnu uplatu za završetak narudžbe."
+  },
+  "payment_simulation_confirm_button": {
+    "en": "Confirm simulation",
+    "hr": "Potvrdi simulaciju"
+  },
+  "payment_option_stripe_live_hint": {
+    "en": "Enter card in Stripe sheet",
+    "hr": "Unos kartice u Stripe prozoru"
+  },
+  "payment_option_paypal_live_hint": {
+    "en": "PayPal sandbox in browser",
+    "hr": "PayPal sandbox u pregledniku"
+  },
+  "payment_stripe_simulation_title": {
+    "en": "Stripe — simulation",
+    "hr": "Stripe — simulacija"
+  },
+  "payment_stripe_simulation_body": {
+    "en": "No card number entry — test only, no real charge.\n\n{reason}\n\nFor real test: run .\\scripts\\run_dev.ps1, set PAYMENT_SIMULATION=false, use test card 4242 4242 4242 4242.",
+    "hr": "Nema unosa broja kartice — ovo je test bez stvarne naplate.\n\n{reason}\n\nZa pravi test kartice: pokrenite .\\scripts\\run_dev.ps1, postavite PAYMENT_SIMULATION=false i koristite test karticu 4242 4242 4242 4242."
+  },
+  "payment_google_pay_simulation_body": {
+    "en": "No Google Pay charge — test only.\n\n{reason}",
+    "hr": "Nema Google Pay naplate — ovo je test bez stvarne naplate.\n\n{reason}"
+  },
+  "payment_paypal_simulation_title": {
+    "en": "PayPal — simulation",
+    "hr": "PayPal — simulacija"
+  },
+  "payment_paypal_simulation_body": {
+    "en": "No PayPal page — test only.\n\n{reason}",
+    "hr": "Nema PayPal stranice — ovo je test bez stvarne naplate.\n\n{reason}"
+  },
+  "payment_simulation_reason_flag": {
+    "en": "Reason: PAYMENT_SIMULATION=true in config.",
+    "hr": "Razlog: PAYMENT_SIMULATION=true u konfiguraciji."
+  },
+  "admin_reported_posts_title": {
+    "en": "Reported posts",
+    "hr": "Prijavljene objave"
+  },
+  "admin_reported_posts_empty": {
+    "en": "No reported posts.",
+    "hr": "Nema prijavljenih objava."
+  },
+  "admin_report_dismiss": {
+    "en": "Keep",
+    "hr": "Zadrži"
+  },
+  "admin_report_delete": {
+    "en": "Delete permanently",
+    "hr": "Obriši trajno"
+  },
+  "admin_report_dismissed": {
+    "en": "Report dismissed — post restored to the community.",
+    "hr": "Prijava uklonjena — objava je vraćena u zajednicu."
+  },
+  "admin_report_delete_title": {
+    "en": "Delete post permanently?",
+    "hr": "Trajno obrisati objavu?"
+  },
+  "admin_report_delete_body": {
+    "en": "The post will be permanently deleted and the author will be blocked from posting in the community.",
+    "hr": "Objava će biti trajno obrisana, a autor neće moći dalje objavljivati u zajednici."
+  },
+  "admin_report_delete_confirm": {
+    "en": "Delete",
+    "hr": "Obriši"
+  },
+  "admin_report_deleted": {
+    "en": "Post deleted and author blocked.",
+    "hr": "Objava obrisana i autor blokiran."
+  },
+  "admin_report_count": {
+    "en": "Reports: {count}",
+    "hr": "Broj prijava: {count}"
+  },
+  "product_paypal_pay": {
+    "en": "Pay via PayPal",
+    "hr": "Plati putem PayPal-a",
+    "fix": true
+  },
+  "product_paypal_account": {
+    "en": "To account: {email}",
+    "hr": "Na račun: {email}",
+    "fix": true
+  },
+  "product_no_paypal": {
+    "en": "Farmer has not set up PayPal — cash only.",
+    "hr": "Farmer nije postavio PayPal — plaćanje samo gotovinom.",
+    "fix": true
+  },
+  "product_order_digital_paid_success": {
+    "en": "Order sent! Digital payment confirmed.",
+    "hr": "Narudžba poslata! Digitalna uplata potvrđena."
+  },
+  "location_install_title": {
+    "en": "Location required",
+    "hr": "Potrebna je lokacija"
+  },
+  "location_install_body": {
+    "en": "My Farmer uses GPS to show prices and currency for the country you are in. Without location, someone in the EU could not use African prices — and vice versa.",
+    "hr": "My Farmer koristi GPS kako bi prikazao cijene i valutu prema zemlji u kojoj se nalazite. Bez lokacije netko u EU ne bi smio koristiti afričke cijene — i obrnuto."
+  },
+  "location_install_enable": {
+    "en": "Enable GPS location",
+    "hr": "Uključi GPS lokaciju"
+  },
+  "location_install_open_settings": {
+    "en": "Open location settings",
+    "hr": "Otvori postavke lokacije"
+  },
+  "location_install_services_off": {
+    "en": "Location services are off. Enable GPS in your phone settings.",
+    "hr": "Usluge lokacije su isključene. Uključite GPS u postavkama telefona."
+  },
+  "location_install_permission_denied": {
+    "en": "Location permission denied. Enable it to continue.",
+    "hr": "Dozvola za lokaciju je odbijena. Omogućite je da biste nastavili."
+  },
+  "location_install_gps_failed": {
+    "en": "We could not verify your location. Try again outdoors.",
+    "hr": "Nismo mogli potvrditi vašu lokaciju. Pokušajte ponovo na otvorenom prostoru."
+  },
+  "location_install_gps_required_pay": {
+    "en": "GPS must be enabled to subscribe — pricing is based on your actual location.",
+    "hr": "Za pretplatu mora biti uključen GPS — cijena se određuje prema vašoj stvarnoj lokaciji."
+  },
+  "profile_payment_methods_title": {
+    "en": "Payment methods",
+    "hr": "Načini plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_add": {
+    "en": "Add payment method",
+    "hr": "Dodaj način plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_empty": {
+    "en": "No saved payment methods",
+    "hr": "Nemate spremljenih načina plaćanja",
+    "fix": true
+  },
+  "profile_payment_methods_empty_hint": {
+    "en": "Add PayPal, a card, or a bank account — you can change or remove them anytime.",
+    "hr": "Dodajte PayPal, karticu ili bankovni račun — možete ih kasnije mijenjati ili ukloniti.",
+    "fix": true
+  },
+  "profile_payment_methods_summary_empty": {
+    "en": "Add PayPal, card, or IBAN",
+    "hr": "Dodajte PayPal, karticu ili IBAN",
+    "fix": true
+  },
+  "profile_payment_methods_loading": {
+    "en": "Loading…",
+    "hr": "Učitavanje…",
+    "fix": true
+  },
+  "profile_payment_methods_saved": {
+    "en": "Payment method saved",
+    "hr": "Način plaćanja spremljen",
+    "fix": true
+  },
+  "profile_payment_methods_default": {
+    "en": "Default",
+    "hr": "Zadano",
+    "fix": true
+  },
+  "profile_payment_methods_set_default": {
+    "en": "Set as default",
+    "hr": "Postavi kao zadano",
+    "fix": true
+  },
+  "profile_payment_methods_delete_title": {
+    "en": "Remove payment method?",
+    "hr": "Ukloniti način plaćanja?",
+    "fix": true
+  },
+  "profile_payment_methods_delete_body": {
+    "en": "This payment method will be removed from your profile. You can add it again anytime.",
+    "hr": "Ovaj način plaćanja bit će uklonjen s vašeg profila. Možete ga ponovo dodati kad god želite.",
+    "fix": true
+  },
+  "profile_payment_methods_delete_confirm": {
+    "en": "Remove",
+    "hr": "Ukloni",
+    "fix": true
+  },
+  "profile_payment_methods_add_paypal_hint": {
+    "en": "Email where you receive PayPal payments",
+    "hr": "Email na koji primate PayPal uplate",
+    "fix": true
+  },
+  "profile_payment_methods_add_card_hint": {
+    "en": "Saved card for faster checkout",
+    "hr": "Spremljena kartica za brže plaćanje",
+    "fix": true
+  },
+  "profile_payment_methods_add_bank_hint": {
+    "en": "IBAN for bank transfers",
+    "hr": "IBAN za bankovne transfere",
+    "fix": true
+  },
+  "profile_payment_methods_bank": {
+    "en": "Bank account",
+    "hr": "Bankovni račun",
+    "fix": true
+  },
+  "profile_payment_methods_bank_name": {
+    "en": "Bank name",
+    "hr": "Naziv banke",
+    "fix": true
+  },
+  "profile_payment_methods_account_holder": {
+    "en": "Account holder",
+    "hr": "Vlasnik računa",
+    "fix": true
+  },
+  "profile_payment_methods_save_card_title": {
+    "en": "Add card",
+    "hr": "Dodaj karticu",
+    "fix": true
+  },
+  "profile_payment_methods_save_card_hint": {
+    "en": "Card is stored masked (last 4 digits only)",
+    "hr": "Kartica se sprema maskirano (samo zadnje 4 znamenke)",
+    "fix": true
+  },
+  "profile_payment_methods_card_security_hint": {
+    "en": "Full card number and CVC are never stored — only last 4 digits and expiry.",
+    "hr": "Puni broj kartice i CVC se ne spremaju — samo zadnje 4 znamenke i datum isteka.",
+    "fix": true
+  },
+  "profile_payment_methods_count_card": {
+    "en": "{count} card(s)",
+    "hr": "{count} kart.",
+    "fix": true
+  },
+  "profile_payment_methods_count_bank": {
+    "en": "{count} bank",
+    "hr": "{count} bank.",
+    "fix": true
+  },
+  "guide_profile_payment_methods_title": {
+    "en": "Payment methods",
+    "hr": "Načini plaćanja",
+    "fix": true
+  },
+  "guide_profile_payment_methods_body": {
+    "en": "Manage PayPal, cards, and bank accounts in one place — add, replace, or remove.",
+    "hr": "Ovdje upravljate PayPalom, karticama i bankovnim računom na jednom mjestu — dodajte, zamijenite ili uklonite.",
+    "fix": true
+  },
+  "profile_payment_methods_error_title": {
+    "en": "Payment methods could not be loaded",
+    "hr": "Načini plaćanja nisu učitani",
+    "fix": true
+  },
+  "profile_payment_methods_error_permission": {
+    "en": "You do not have permission to access payment methods. Sign in again or wait a few minutes and try again.",
+    "hr": "Nemate dozvolu za pristup načinima plaćanja. Prijavite se ponovo ili pričekajte nekoliko minuta pa pokušajte opet.",
+    "fix": true
+  },
+  "profile_payment_methods_error_permission_hint": {
+    "en": "If you are a developer: deploy Firestore rules with firebase deploy --only firestore:rules.",
+    "hr": "Ako ste developer: objavite Firestore pravila naredbom firebase deploy --only firestore:rules.",
+    "fix": true
+  },
+  "profile_payment_methods_error_load": {
+    "en": "Something went wrong while loading. Check your connection and try again.",
+    "hr": "Došlo je do greške pri učitavanju. Provjerite internet vezu i pokušajte ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_offline": {
+    "en": "Cannot reach the server. Check your internet connection and try again.",
+    "hr": "Nema veze s poslužiteljem. Provjerite internet i pokušajte ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_auth": {
+    "en": "Your session has expired. Sign out and sign in again.",
+    "hr": "Sesija je istekla. Odjavite se i prijavite ponovo.",
+    "fix": true
+  },
+  "profile_payment_methods_error_retry": {
+    "en": "Try again",
+    "hr": "Pokušaj ponovo",
+    "fix": true
+  },
+  "profile_payment_methods_peer_hint": {
+    "en": "My Farmer does not process payments — enter details for buyers to pay you directly (PayPal, IBAN). The platform is not responsible for payments between users.",
+    "hr": "My Farmer ne procesira uplate — ovdje unosite podatke na koje vam kupci plaćaju izravno (PayPal, IBAN). Platforma nije odgovorna za plaćanja između korisnika.",
+    "fix": true
+  },
+  "peer_payment_disclaimer": {
+    "en": "My Farmer is not a payment intermediary. You arrange and complete payment directly with the seller. The platform does not guarantee, verify, or accept liability for payments, refunds, or disputes.",
+    "hr": "My Farmer nije platni posrednik. Plaćanje dogovarate i izvršavate izravno s prodavačem. Platforma ne jamči, ne provjerava i ne odgovara za uplate, povrate ili sporove.",
+    "fix": true
+  },
+  "peer_payment_disclaimer_short": {
+    "en": "Payment is directly between buyer and seller. My Farmer is not involved in charging.",
+    "hr": "Plaćanje je izravno između kupca i prodavača. My Farmer ne sudjeluje u naplati.",
+    "fix": true
+  },
+  "peer_payment_accept_checkbox": {
+    "en": "I understand that My Farmer is not a party to the payment and responsibility is solely between me and the seller.",
+    "hr": "Razumijem da My Farmer nije strana u plaćanju i da je odgovornost isključivo između mene i prodavača.",
+    "fix": true
+  },
+  "peer_payment_confirm_order": {
+    "en": "Submit order",
+    "hr": "Pošalji narudžbu",
+    "fix": true
+  },
+  "peer_payment_amount": {
+    "en": "Amount to agree: {amount}",
+    "hr": "Iznos za dogovor: {amount}",
+    "fix": true
+  },
+  "peer_payment_paypal_title": {
+    "en": "PayPal — direct to seller",
+    "hr": "PayPal — izravno prodavaču",
+    "fix": true
+  },
+  "peer_payment_paypal_instruction": {
+    "en": "Pay the seller directly on PayPal (outside the app):",
+    "hr": "Platite izravno na PayPal prodavača (izvan aplikacije):",
+    "fix": true
+  },
+  "peer_payment_bank_title": {
+    "en": "Bank transfer — direct to seller",
+    "hr": "Bankovni transfer — izravno prodavaču",
+    "fix": true
+  },
+  "peer_payment_bank_instruction": {
+    "en": "Transfer directly to the seller's IBAN:",
+    "hr": "Uplatite izravno na IBAN prodavača:",
+    "fix": true
+  },
+  "peer_payment_cash_title": {
+    "en": "Cash",
+    "hr": "Gotovina",
+    "fix": true
+  },
+  "peer_payment_cash_instruction": {
+    "en": "Pay the seller in cash on pickup or delivery.",
+    "hr": "Plaćate gotovinom prodavaču pri preuzimanju ili dostavi.",
+    "fix": true
+  },
+  "peer_payment_option_paypal": {
+    "en": "PayPal to seller",
+    "hr": "PayPal prodavaču",
+    "fix": true
+  },
+  "peer_payment_option_paypal_hint": {
+    "en": "Pay directly to the seller's PayPal email",
+    "hr": "Uplata izravno na PayPal email prodavača",
+    "fix": true
+  },
+  "peer_payment_option_bank": {
+    "en": "Bank transfer",
+    "hr": "Bankovni transfer",
+    "fix": true
+  },
+  "peer_payment_option_bank_hint": {
+    "en": "Pay directly to the seller's IBAN",
+    "hr": "Uplata izravno na IBAN prodavača",
+    "fix": true
+  },
+  "peer_payment_upcoming_required": {
+    "en": "Coming-soon products require payment directly to the seller (PayPal or bank), not through the platform.",
+    "hr": "Za proizvode u dolasku potrebna je uplata izravno prodavaču (PayPal ili banka), ne preko platforme.",
+    "fix": true
+  },
+  "peer_payment_multi_seller": {
+    "en": "For multiple sellers at once, use cash or order from each seller separately.",
+    "hr": "Za više prodavača odjednom koristite gotovinu ili narudžbu po prodavaču.",
+    "fix": true
+  },
+  "peer_payment_seller_missing_title": {
+    "en": "Seller has no payment method set up",
+    "hr": "Prodavač nema postavljen način plaćanja",
+    "fix": true
+  },
+  "peer_payment_seller_missing_paypal": {
+    "en": "The seller has not added PayPal in Payment methods. Choose cash or bank transfer, or contact the seller.",
+    "hr": "Prodavač još nije dodao PayPal u Načine plaćanja. Odaberite gotovinu ili bankovni transfer, ili kontaktirajte prodavača.",
+    "fix": true
+  },
+  "peer_payment_seller_missing_bank": {
+    "en": "The seller has not added a bank account. Choose PayPal or cash.",
+    "hr": "Prodavač još nije dodao bankovni račun. Odaberite PayPal ili gotovinu.",
+    "fix": true
+  },
+  "peer_payment_order_success_paypal": {
+    "en": "Order sent! Pay the seller directly on PayPal.",
+    "hr": "Narudžba poslata! Platite prodavaču izravno na PayPal.",
+    "fix": true
+  },
+  "peer_payment_order_success_bank": {
+    "en": "Order sent! Transfer directly to the seller's IBAN.",
+    "hr": "Narudžba poslata! Uplatite prodavaču izravno na IBAN.",
+    "fix": true
+  },
+  "order_badge_direct_paypal": {
+    "en": "PAYPAL DIRECT",
+    "hr": "PAYPAL DIRECT",
+    "fix": true
+  },
+  "product_reserve_ahead": {
+    "en": "Reserve ahead",
+    "hr": "Rezerviši unaprijed"
+  },
+  "product_upcoming_badge": {
+    "en": "Coming soon",
+    "hr": "U dolasku"
+  },
+  "product_upcoming_toggle": {
+    "en": "Publish as \"Coming soon\"",
+    "hr": "Objavi kao \"U dolasku\""
+  },
+  "product_upcoming_toggle_hint": {
+    "en": "Product will be visible with a countdown until harvest.",
+    "hr": "Proizvod će biti vidljiv s odbrojavanjem do berbe."
+  },
+  "product_upcoming_reserve_hint": {
+    "en": "Reserve ahead — harvest is being planned.",
+    "hr": "Rezervišite unaprijed — berba je u tijeku planiranja."
+  },
+  "harvest_countdown_prefix": {
+    "en": "Harvest in:",
+    "hr": "Berba za:"
+  },
+  "delivery_countdown_prefix": {
+    "en": "Delivery in:",
+    "hr": "Isporuka za:"
+  },
+  "delivery_countdown_days": {
+    "en": "Arrives in: {days} days",
+    "hr": "Stiže za: {days} dana"
+  },
+  "delivery_countdown_hours": {
+    "en": "Arrives in: {hours} h",
+    "hr": "Stiže za: {hours} h"
+  },
+  "delivery_countdown_soon": {
+    "en": "Arriving soon",
+    "hr": "Stiže uskoro"
+  },
+  "delivery_countdown_due": {
+    "en": "Stock is ready!",
+    "hr": "Roba je spremna!"
+  },
+  "delivery_date_label": {
+    "en": "Expected delivery / import date",
+    "hr": "Očekivani datum isporuke / uvoza"
+  },
+  "delivery_manage_title": {
+    "en": "Manage delivery",
+    "hr": "Upravljaj isporukom"
+  },
+  "delivery_final_photo_instruction": {
+    "en": "Upload a photo of the actual product in stock to move it to regular sale.",
+    "hr": "Učitajte fotografiju stvarnog proizvoda na skladištu kako bi prešao u redovnu prodaju."
+  },
+  "product_upcoming_delivery_badge": {
+    "en": "Coming soon",
+    "hr": "Stiže uskoro"
+  },
+  "product_upcoming_company_toggle": {
+    "en": "Publish as \"Coming soon\" (import/delivery)",
+    "hr": "Objavi kao \"U dolasku\" (uvoz/isporuka)"
+  },
+  "product_upcoming_company_toggle_hint": {
+    "en": "Companies can schedule delivery up to {days} days ahead.",
+    "hr": "Firma može planirati isporuku do {days} dana unaprijed."
+  },
+  "product_upcoming_company_premium_only": {
+    "en": "Coming-soon for companies requires an active Premium subscription.",
+    "hr": "Opcija u dolasku za firme dostupna je samo s aktivnom Premium pretplatom."
+  },
+  "product_upcoming_company_max_days": {
+    "en": "Maximum delivery lead time is {days} days.",
+    "hr": "Maksimalni rok isporuke je {days} dana."
+  },
+  "product_upcoming_farmer_max_days": {
+    "en": "Maximum harvest lead time is {days} days.",
+    "hr": "Maksimalni rok berbe je {days} dana."
+  },
+  "product_upcoming_delivery_reserve_hint": {
+    "en": "Reserve ahead — the product is on its way to the warehouse.",
+    "hr": "Rezervišite unaprijed — roba je na putu prema skladištu."
+  },
+  "harvest_countdown_days_hours": {
+    "en": "{days}d {hours}h",
+    "hr": "{days}d {hours}h"
+  },
+  "harvest_countdown_hours_minutes": {
+    "en": "{hours}h {minutes}m",
+    "hr": "{hours}h {minutes}m"
+  },
+  "harvest_countdown_minutes": {
+    "en": "{minutes} min",
+    "hr": "{minutes} min"
+  },
+  "harvest_countdown_due": {
+    "en": "Harvest ready!",
+    "hr": "Berba je spremna!"
+  },
+  "harvest_manage_title": {
+    "en": "Manage harvest",
+    "hr": "Upravljaj berbom"
+  },
+  "harvest_manage_action": {
+    "en": "Manage harvest",
+    "hr": "Upravljaj berbom"
+  },
+  "harvest_date_label": {
+    "en": "Harvest date and time",
+    "hr": "Datum i vrijeme berbe"
+  },
+  "harvest_save_schedule": {
+    "en": "Save harvest schedule",
+    "hr": "Spremi raspored berbe"
+  },
+  "harvest_schedule_saved": {
+    "en": "Harvest schedule updated.",
+    "hr": "Raspored berbe ažuriran."
+  },
+  "harvest_update_development_photo": {
+    "en": "Add new developing fruit photo",
+    "hr": "Dodaj novu sliku ploda u razvoju"
+  },
+  "harvest_complete_action": {
+    "en": "Finish harvest & pick",
+    "hr": "Završi berbu i uberi"
+  },
+  "harvest_complete_confirm_title": {
+    "en": "Finish harvest?",
+    "hr": "Završiti berbu?"
+  },
+  "harvest_complete_confirm_body": {
+    "en": "The product will be hidden until you upload a real photo of the harvested crop.",
+    "hr": "Proizvod će biti privremeno skriven dok ne učitate pravu sliku ubranog ploda."
+  },
+  "harvest_complete_success": {
+    "en": "Harvest finished — upload the final photo.",
+    "hr": "Berba završena — učitajte konačnu sliku."
+  },
+  "harvest_final_photo_alert": {
+    "en": "Please photograph the real harvested product in a crate to move it to regular sale.",
+    "hr": "Molim te uslikaj pravi, ubrani proizvod u gajbi kako bi prešao u redovnu prodaju."
+  },
+  "harvest_awaiting_final_photo_short": {
+    "en": "Awaiting final photo",
+    "hr": "Čeka konačnu sliku"
+  },
+  "harvest_final_photo_instruction": {
+    "en": "Upload a photo of the real harvested product in a crate.",
+    "hr": "Učitajte fotografiju pravog, ubranog proizvoda u gajbi."
+  },
+  "harvest_final_photo_pick": {
+    "en": "Add final harvested product photo",
+    "hr": "Dodaj konačnu sliku ubranog ploda"
+  },
+  "harvest_final_photo_required": {
+    "en": "Select the final photo before publishing.",
+    "hr": "Odaberite konačnu sliku prije objave."
+  },
+  "harvest_publish_final_photo": {
+    "en": "Publish to regular sale",
+    "hr": "Objavi u redovnu prodaju"
+  },
+  "harvest_final_photo_success": {
+    "en": "Product is now available for purchase!",
+    "hr": "Proizvod je sada dostupan za kupnju!"
+  },
+  "weather_alert_title": {
+    "en": "⚠️ Weather warning",
+    "hr": "⚠️ Vremensko upozorenje"
+  },
+  "weather_alert_high_wind": {
+    "en": "Strong wind ({wind} km/h)! Secure greenhouses, nets and tarps before the storm.",
+    "hr": "Jak vjetar ({wind} km/h)! Sigurno učvrstite plastenike, mreže i cerade prije nevremena."
+  },
+  "weather_alert_extreme_heat": {
+    "en": "Extreme heat ({temp}°C)! Irrigate early morning and shade sensitive crops.",
+    "hr": "Ekstremna vrućina ({temp}°C)! Navodnjavajte u ranim jutarnjim satima i zaklonite osjetljive kulture."
+  },
+  "weather_alert_hail": {
+    "en": "Hail risk ({rain}% precipitation)! Cover fruit trees and vegetables; use hail nets if needed.",
+    "hr": "Rizik od tuče ({rain}% padalina)! Pokrijte voćke i povrće, po potrebi koristite anti-tuš mreže."
+  },
+  "weather_alert_frost": {
+    "en": "Frost risk ({temp}°C)! Protect young plants and blossoms with foil or agrotextile.",
+    "hr": "Rizik od mraza ({temp}°C)! Zaštitite mlade biljke i cvjetove folijom ili agrotekstilom."
+  },
+  "weather_alert_storm": {
+    "en": "Thunderstorm alert! Pause field work if needed, secure tarps and protect equipment.",
+    "hr": "Grmljavina i nepogoda! Po potrebi prekinite rad na polju, učvrstite cerade i zaštitite strojeve."
+  },
+  "weather_alert_heavy_rain": {
+    "en": "Heavy rain ({rain}% precipitation)! Check drainage, protect crops and delay spraying.",
+    "hr": "Jaka kiša ({rain}% padalina)! Provjerite odvodnju, zaštitite usjeve i odložite prskanje."
+  },
+  "guide_add_product_image_title": {
+    "en": "Product photo",
+    "hr": "Slika proizvoda"
+  },
+  "guide_add_product_image_body": {
+    "en": "Add a clear photo — buyers see the image first.",
+    "hr": "Dodajte jasnu fotografiju — kupci prvo vide sliku, zatim odlučuju."
+  },
+  "guide_add_product_details_title": {
+    "en": "Basic details",
+    "hr": "Osnovni podaci"
+  },
+  "guide_add_product_details_body": {
+    "en": "Enter name, description, category, and other product details.",
+    "hr": "Unesite naziv, opis, kategoriju i ostale detalje proizvoda."
+  },
+  "guide_add_product_submit_title": {
+    "en": "Publish",
+    "hr": "Objava"
+  },
+  "guide_add_product_submit_body": {
+    "en": "When everything is ready, publish the product to the marketplace.",
+    "hr": "Kada je sve spremno, objavite proizvod na tržnicu."
+  },
+  "forum_cat_crops": {
+    "en": "Field crops",
+    "hr": ""
+  },
+  "forum_cat_mechanization": {
+    "en": "Mechanization",
+    "hr": ""
+  },
+  "land_nirs_analysis_date": {
+    "en": "Analysis run at",
+    "hr": ""
+  },
+  "land_nirs_cloud_cover": {
+    "en": "Cloud cover on scene",
+    "hr": ""
+  },
+  "land_nirs_cloud_cover_value": {
+    "en": "{percent}%",
+    "hr": ""
+  },
+  "land_nirs_imagery_stale": {
+    "en": "Satellite imagery is {days} days old. Sentinel-2 revisits the same area about every 5 days — run again later for a fresher scene.",
+    "hr": ""
+  },
+  "land_nirs_basemap_note": {
+    "en": "The Google Maps satellite background may be older than the NIRS overlay data.",
+    "hr": ""
+  },
+  "scanner_quota_bonus": {
+    "en": "including {bonus} purchased scans",
+    "hr": "uključujući {bonus} kupljenih skenova"
+  },
+  "paywall_pharmacy_benefit_scanner": {
+    "en": "AI Plant Scanner — {count} scans per month",
+    "hr": "AI Plant Scanner — {count} scans per month",
+    "fix": true
+  }
+}

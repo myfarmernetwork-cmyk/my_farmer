@@ -11,12 +11,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isAdmin() {
+    function callerExists() {
       return isSignedIn()
-        && callerDoc().data != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return callerExists()
         && (
-          callerDoc().data.get('role', '') == 'admin'
-          || callerDoc().data.get('isAdmin', false) == true
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin'
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isAdmin', false) == true
         );
     }
 
@@ -35,15 +39,30 @@ service cloud.firestore {
         && request.resource.data.role.size() <= 64;
     }
 
+    function followerCountDeltaAllowed() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['followerCount'])
+        && request.resource.data.followerCount is int
+        && request.resource.data.followerCount >= 0
+        && (
+          !('followerCount' in resource.data)
+            && request.resource.data.followerCount <= 1
+          || request.resource.data.followerCount
+            == resource.data.get('followerCount', 0) + 1
+          || request.resource.data.followerCount
+            == resource.data.get('followerCount', 0) - 1
+        );
+    }
+
     match /users/{userId} {
       allow read: if isSignedIn();
 
-      // Pri registraciji korisnik jednom postavlja ulogu na vlastitom dokumentu.
-      allow create: if isOwner(userId) && validInitialRole();
-
-      // Vlasnik može ažurirati profil, ali NE polje role.
-      // Administrator i serverske funkcije (Admin SDK) mogu mijenjati ulogu.
-      allow update: if isSignedIn() && (isAdmin() || (isOwner(userId) && roleUnchanged()));
+      // Beta: vlasnik smije kreirati/ažurirati vlastiti profil (uključujući merge bez role).
+      allow create, update: if isSignedIn() && (
+        isAdmin()
+        || isOwner(userId)
+        || followerCountDeltaAllowed()
+      );
 
       allow delete: if isAdmin();
 
@@ -53,7 +72,17 @@ service cloud.firestore {
       }
 
       match /payment_methods/{methodId} {
-        allow read, write: if isOwner(userId);
+        // Kupac mora vidjeti PayPal/IBAN prodavača pri peer-to-peer narudžbi.
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      match /reviews/{reviewId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.buyerId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && (resource.data.buyerId == request.auth.uid || isAdmin());
       }
     }
 
@@ -90,6 +119,21 @@ service cloud.firestore {
 
     match /chat_rooms/{roomId} {
       allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /followers/{followerId} {
+      allow read: if isSignedIn() && (
+        resource == null || resource.data.buyerId == request.auth.uid
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.buyerId == request.auth.uid;
+      allow delete: if isSignedIn()
+        && resource.data.buyerId == request.auth.uid;
+      allow update: if false;
     }
 
     match /scan_history/{scanId} {
@@ -106,6 +150,55 @@ service cloud.firestore {
 
     match /community_posts/{postId} {
       allow read, write: if isSignedIn();
+    }
+
+    function isForumCommentCountIncrement() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['commentCount'])
+        && request.resource.data.commentCount is int
+        && request.resource.data.commentCount
+          == resource.data.get('commentCount', 0) + 1;
+    }
+
+    match /forum_topics/{topicId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.category is string
+        && request.resource.data.authorName is string;
+
+      allow update: if isSignedIn() && (
+        isAdmin()
+        || resource.data.authorId == request.auth.uid
+        || isForumCommentCountIncrement()
+      );
+
+      allow delete: if isSignedIn() && (
+        isAdmin()
+        || resource.data.authorId == request.auth.uid
+      );
+    }
+
+    match /forum_comments/{commentId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.topicId is string
+        && request.resource.data.topicId.size() > 0
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.authorName is string;
+
+      allow update, delete: if isSignedIn() && (
+        isAdmin()
+        || resource.data.authorId == request.auth.uid
+      );
     }
 
     function isStockOnlyCatalogUpdate() {

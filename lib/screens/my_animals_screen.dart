@@ -18,6 +18,7 @@ import '../repositories/animal_repository.dart';
 import '../repositories/veterinary_request_repository.dart';
 import '../widgets/farmer_helper_button.dart';
 import '../widgets/farmer_help_widgets.dart';
+import '../widgets/medical_attachment_viewer.dart';
 import '../widgets/vet_first_aid_dialog.dart';
 
 const _animalsListPageSize = 25;
@@ -256,7 +257,9 @@ class _MyAnimalsScreenState extends ConsumerState<MyAnimalsScreen> {
           label: Text('animals_add'.tr()),
         ),
       ),
-      body: animalsAsync.when(
+      body: SafeArea(
+        top: false,
+        child: animalsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Text('common_error'.tr(namedArgs: {'error': '$error'})),
@@ -372,6 +375,7 @@ class _MyAnimalsScreenState extends ConsumerState<MyAnimalsScreen> {
           );
         },
       ),
+      ),
     );
   }
 
@@ -395,108 +399,19 @@ class AnimalDetailScreen extends ConsumerWidget {
     WidgetRef ref,
     AnimalRecord animal,
   ) async {
-    final noteController = TextEditingController();
-    final attachments = <MedicalAttachment>[];
-    final picker = ImagePicker();
-
-    Future<void> pickImage() async {
-      final picked = await picker.pickImage(source: ImageSource.gallery);
-      if (picked == null) return;
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final uploaded = await ref.read(animalRepositoryProvider).uploadMedicalAttachment(
-            file: File(picked.path),
-            userId: user.uid,
-            animalId: animal.id,
-          );
-      if (uploaded != null) attachments.add(uploaded);
-    }
-
-    Future<void> pickPdf() async {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
-      if (result == null || result.files.single.path == null) return;
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final uploaded = await ref.read(animalRepositoryProvider).uploadMedicalAttachment(
-            file: File(result.files.single.path!),
-            userId: user.uid,
-            animalId: animal.id,
-          );
-      if (uploaded != null) attachments.add(uploaded);
-    }
-
-    await showDialog(
+    await showDialog<void>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setLocalState) => AlertDialog(
-          title: Text('animals_add_history'.tr()),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: noteController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    labelText: 'animals_history_note'.tr(),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () async {
-                        await pickImage();
-                        setLocalState(() {});
-                      },
-                      icon: const Icon(Icons.image_outlined),
-                      label: Text('animals_add_image'.tr()),
-                    ),
-                    TextButton.icon(
-                      onPressed: () async {
-                        await pickPdf();
-                        setLocalState(() {});
-                      },
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      label: Text('animals_attachment_pdf'.tr()),
-                    ),
-                  ],
-                ),
-                if (attachments.isNotEmpty)
-                  Text(
-                    'animals_attachments_count'.tr(
-                      namedArgs: {'count': '${attachments.length}'},
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text('cart_cancel'.tr()),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (noteController.text.trim().isEmpty) return;
-                await ref.read(animalRepositoryProvider).addMedicalHistoryEntry(
-                      animalId: animal.id,
-                      note: noteController.text.trim(),
-                      attachments: attachments,
-                    );
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Text('profile_save'.tr()),
-            ),
-          ],
-        ),
+      builder: (ctx) => _AddHistoryEntryDialog(
+        animal: animal,
+        onSaved: () {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('animals_history_saved'.tr())),
+            );
+          }
+        },
       ),
     );
-    noteController.dispose();
   }
 
   @override
@@ -565,9 +480,11 @@ class AnimalDetailScreen extends ConsumerWidget {
         icon: const Icon(Icons.medical_services_outlined),
         label: Text(farmerGuideTr(context, 'first_aid_button')),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
           if (answeredRequest != null) ...[
             Card(
               elevation: 2,
@@ -705,6 +622,30 @@ class AnimalDetailScreen extends ConsumerWidget {
             ...current.sortedMedicalHistory.map(
               (entry) => _MedicalHistoryTile(entry: entry),
             ),
+          if (current.medicalDocuments.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text(
+              'animals_documents_section'.tr(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.green[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final doc in current.medicalDocuments)
+                    MedicalAttachmentListTile(attachment: doc),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: () => _showAddHistoryEntry(context, ref, current),
@@ -746,6 +687,7 @@ class AnimalDetailScreen extends ConsumerWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -768,6 +710,228 @@ class AnimalDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AddHistoryEntryDialog extends ConsumerStatefulWidget {
+  const _AddHistoryEntryDialog({
+    required this.animal,
+    required this.onSaved,
+  });
+
+  final AnimalRecord animal;
+  final VoidCallback onSaved;
+
+  @override
+  ConsumerState<_AddHistoryEntryDialog> createState() =>
+      _AddHistoryEntryDialogState();
+}
+
+class _AddHistoryEntryDialogState extends ConsumerState<_AddHistoryEntryDialog> {
+  final _noteController = TextEditingController();
+  final _picker = ImagePicker();
+  final _pendingFiles = <File>[];
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked == null || !mounted) return;
+    setState(() => _pendingFiles.add(File(picked.path)));
+  }
+
+  Future<void> _pickPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+    if (result == null || result.files.single.path == null || !mounted) return;
+    setState(() => _pendingFiles.add(File(result.files.single.path!)));
+  }
+
+  void _removePendingFile(int index) {
+    setState(() => _pendingFiles.removeAt(index));
+  }
+
+  Future<void> _save() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty && _pendingFiles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('animals_history_save_requires'.tr())),
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final repo = ref.read(animalRepositoryProvider);
+      final attachments = <MedicalAttachment>[];
+
+      for (final file in _pendingFiles) {
+        final uploaded = await repo.uploadMedicalAttachment(
+          file: file,
+          userId: user.uid,
+          animalId: widget.animal.id,
+        );
+        if (uploaded == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('animals_upload_failed'.tr())),
+            );
+          }
+          return;
+        }
+        attachments.add(uploaded);
+      }
+
+      await repo.addMedicalHistoryEntry(
+        animalId: widget.animal.id,
+        note: note,
+        attachments: attachments,
+      );
+
+      if (!mounted) return;
+      widget.onSaved();
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${'animals_save_error'.tr()}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Widget _buildPendingPreview(File file) {
+    final name = file.path.split(Platform.pathSeparator).last;
+    final isPdf = name.toLowerCase().endsWith('.pdf');
+
+    return InkWell(
+      onTap: () => openPendingMedicalFile(context, file),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green[200]!),
+        ),
+        child: isPdf
+            ? Icon(Icons.picture_as_pdf, color: Colors.red[700], size: 32)
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Image.file(file, fit: BoxFit.cover),
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('animals_add_history'.tr()),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _noteController,
+              maxLines: 4,
+              enabled: !_isSaving,
+              decoration: InputDecoration(
+                labelText: 'animals_history_note'.tr(),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: _isSaving ? null : _pickImage,
+                  icon: const Icon(Icons.image_outlined),
+                  label: Text('animals_add_image'.tr()),
+                ),
+                TextButton.icon(
+                  onPressed: _isSaving ? null : _pickPdf,
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: Text('animals_attachment_pdf'.tr()),
+                ),
+              ],
+            ),
+            if (_pendingFiles.isNotEmpty) ...[
+              Text(
+                'animals_attachments_count'.tr(
+                  namedArgs: {'count': '${_pendingFiles.length}'},
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (var i = 0; i < _pendingFiles.length; i++)
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _buildPendingPreview(_pendingFiles[i]),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: InkWell(
+                            onTap: _isSaving ? null : () => _removePendingFile(i),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: Text('cart_cancel'.tr()),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _save,
+          child: _isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text('profile_save'.tr()),
+        ),
+      ],
     );
   }
 }
@@ -804,34 +968,11 @@ class _MedicalHistoryTile extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 6),
-          Text(entry.note),
+          if (entry.note.trim().isNotEmpty) Text(entry.note),
           if (entry.attachments.isNotEmpty) ...[
             const SizedBox(height: 8),
             ...entry.attachments.map(
-              (attachment) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    Icon(
-                      attachment.type == 'pdf'
-                          ? Icons.picture_as_pdf
-                          : Icons.image_outlined,
-                      size: 18,
-                      color: Colors.green[700],
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        attachment.name.isEmpty
-                            ? attachment.url
-                            : attachment.name,
-                        style: const TextStyle(fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              (attachment) => MedicalAttachmentListTile(attachment: attachment),
             ),
           ],
         ],
@@ -1059,6 +1200,7 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
     required String label,
     required Widget preview,
     required VoidCallback onRemove,
+    VoidCallback? onOpen,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1066,17 +1208,21 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: Colors.green[50],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green[200]!),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(9),
-                child: preview,
+            InkWell(
+              onTap: onOpen,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green[200]!),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: preview,
+                ),
               ),
             ),
             Positioned(
@@ -1131,6 +1277,7 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
                   ? Icon(Icons.picture_as_pdf, color: Colors.red[700], size: 36)
                   : Image.network(doc.url, fit: BoxFit.cover),
               onRemove: () => _removeSavedDocument(index),
+              onOpen: () => openMedicalAttachment(context, doc),
             );
           }),
           ...List.generate(_pendingDocumentFiles.length, (index) {
@@ -1143,6 +1290,7 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
                   ? Icon(Icons.picture_as_pdf, color: Colors.red[700], size: 36)
                   : Image.file(file, fit: BoxFit.cover),
               onRemove: () => _removePendingDocument(index),
+              onOpen: () => openPendingMedicalFile(context, file),
             );
           }),
         ],
@@ -1251,9 +1399,11 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
               label: Text(farmerGuideTr(context, 'first_aid_button')),
             )
           : null,
-      body: Form(
-        key: _formKey,
-        child: ListView(
+      body: SafeArea(
+        top: false,
+        child: Form(
+          key: _formKey,
+          child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             KeyedSubtree(
@@ -1425,6 +1575,7 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -1532,12 +1683,15 @@ class _VeterinarianAnimalsHubScreenState
               child: const Icon(Icons.add),
             )
           : null,
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _VetDigitalIntakePanel(),
-          const VeterinarFieldReportsTab(),
-        ],
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _VetDigitalIntakePanel(),
+            const VeterinarFieldReportsTab(),
+          ],
+        ),
       ),
     );
   }
@@ -2328,9 +2482,11 @@ class _VetPatientRequestDetailScreenState
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _detailTabController,
-        children: [
+      body: SafeArea(
+        top: false,
+        child: TabBarView(
+          controller: _detailTabController,
+          children: [
           Form(
             key: _formKey,
             child: ListView(
@@ -2343,6 +2499,7 @@ class _VetPatientRequestDetailScreenState
             request: request,
           ),
         ],
+        ),
       ),
     );
   }

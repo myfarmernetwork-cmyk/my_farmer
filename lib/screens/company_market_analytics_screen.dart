@@ -23,9 +23,11 @@ class CompanyMarketAnalyticsScreen extends StatelessWidget {
         backgroundColor: Colors.deepPurple.shade700,
         foregroundColor: Colors.white,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
           Icon(
             Icons.bar_chart_rounded,
             size: 72,
@@ -63,6 +65,7 @@ class CompanyMarketAnalyticsScreen extends StatelessWidget {
             stats: _aiStats,
           ),
         ],
+        ),
       ),
     );
   }

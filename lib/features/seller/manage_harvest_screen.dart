@@ -216,9 +216,11 @@ class _ManageHarvestScreenState extends ConsumerState<ManageHarvestScreen> {
         backgroundColor: Colors.orange.shade800,
         foregroundColor: Colors.white,
       ),
-      body: _isSaving
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+      body: SafeArea(
+        top: false,
+        child: _isSaving
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 if (awaitingFinal) _FinalPhotoBanner(),
@@ -378,6 +380,7 @@ class _ManageHarvestScreenState extends ConsumerState<ManageHarvestScreen> {
                 ],
               ],
             ),
+      ),
     );
   }
 }

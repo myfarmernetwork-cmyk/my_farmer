@@ -81,6 +81,7 @@ class ForumRepository {
     required String authorId,
     required String authorName,
     String? imageUrl,
+    String? linkUrl,
   }) async {
     final doc = await _topicsRef.add({
       'title': title.trim(),
@@ -89,10 +90,67 @@ class ForumRepository {
       'authorId': authorId,
       'authorName': authorName,
       if (imageUrl != null && imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+      if (linkUrl != null && linkUrl.trim().isNotEmpty) 'linkUrl': linkUrl.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'commentCount': 0,
     });
     return doc.id;
+  }
+
+  Future<void> updateTopic({
+    required String topicId,
+    required String title,
+    required String body,
+    String? imageUrl,
+    String? linkUrl,
+    bool clearImage = false,
+    bool clearLink = false,
+  }) async {
+    final updates = <String, dynamic>{
+      'title': title.trim(),
+      'body': body.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (clearImage) {
+      updates['imageUrl'] = FieldValue.delete();
+    } else if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      updates['imageUrl'] = imageUrl.trim();
+    }
+
+    if (clearLink) {
+      updates['linkUrl'] = FieldValue.delete();
+    } else if (linkUrl != null && linkUrl.trim().isNotEmpty) {
+      updates['linkUrl'] = linkUrl.trim();
+    }
+
+    await _topicsRef.doc(topicId).update(updates);
+  }
+
+  Future<void> deleteTopic(String topicId) async {
+    final comments = await _commentsRef
+        .where('topicId', isEqualTo: topicId)
+        .limit(200)
+        .get();
+
+    final batch = _firestore.batch();
+    for (final doc in comments.docs) {
+      batch.delete(doc.reference);
+    }
+    batch.delete(_topicsRef.doc(topicId));
+    await batch.commit();
+  }
+
+  Future<void> deleteComment({
+    required String commentId,
+    required String topicId,
+  }) async {
+    final batch = _firestore.batch();
+    batch.delete(_commentsRef.doc(commentId));
+    batch.update(_topicsRef.doc(topicId), {
+      'commentCount': FieldValue.increment(-1),
+    });
+    await batch.commit();
   }
 
   Future<void> addComment({
@@ -100,6 +158,8 @@ class ForumRepository {
     required String text,
     required String authorId,
     required String authorName,
+    String? imageUrl,
+    String? linkUrl,
   }) async {
     final batch = _firestore.batch();
     final commentRef = _commentsRef.doc();
@@ -109,6 +169,9 @@ class ForumRepository {
       'text': text.trim(),
       'authorId': authorId,
       'authorName': authorName,
+      if (imageUrl != null && imageUrl.trim().isNotEmpty)
+        'imageUrl': imageUrl.trim(),
+      if (linkUrl != null && linkUrl.trim().isNotEmpty) 'linkUrl': linkUrl.trim(),
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -117,5 +180,33 @@ class ForumRepository {
     });
 
     await batch.commit();
+  }
+
+  Future<void> updateComment({
+    required String commentId,
+    required String text,
+    String? imageUrl,
+    String? linkUrl,
+    bool clearImage = false,
+    bool clearLink = false,
+  }) async {
+    final updates = <String, dynamic>{
+      'text': text.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (clearImage) {
+      updates['imageUrl'] = FieldValue.delete();
+    } else if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      updates['imageUrl'] = imageUrl.trim();
+    }
+
+    if (clearLink) {
+      updates['linkUrl'] = FieldValue.delete();
+    } else if (linkUrl != null && linkUrl.trim().isNotEmpty) {
+      updates['linkUrl'] = linkUrl.trim();
+    }
+
+    await _commentsRef.doc(commentId).update(updates);
   }
 }

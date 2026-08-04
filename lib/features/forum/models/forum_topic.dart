@@ -11,7 +11,9 @@ class ForumTopic {
     required this.authorId,
     required this.authorName,
     this.imageUrl,
+    this.linkUrl,
     this.createdAt,
+    this.updatedAt,
     this.commentCount = 0,
   });
 
@@ -22,8 +24,14 @@ class ForumTopic {
   final String authorId;
   final String authorName;
   final String? imageUrl;
+  final String? linkUrl;
   final Timestamp? createdAt;
+  final Timestamp? updatedAt;
   final int commentCount;
+
+  bool get hasImage => imageUrl != null && imageUrl!.trim().isNotEmpty;
+
+  bool get hasLink => linkUrl != null && linkUrl!.trim().isNotEmpty;
 
   factory ForumTopic.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -37,7 +45,9 @@ class ForumTopic {
       authorId: data['authorId']?.toString() ?? '',
       authorName: data['authorName']?.toString() ?? '',
       imageUrl: data['imageUrl']?.toString(),
+      linkUrl: data['linkUrl']?.toString(),
       createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
       commentCount: (data['commentCount'] as num?)?.toInt() ?? 0,
     );
   }

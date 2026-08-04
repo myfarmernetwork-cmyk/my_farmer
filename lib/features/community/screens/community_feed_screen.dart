@@ -11,6 +11,7 @@ import '../models/community_post.dart';
 import '../repositories/community_post_repository.dart';
 import '../services/community_author_service.dart';
 import '../widgets/community_post_card.dart';
+import '../widgets/community_post_composer_sheet.dart';
 import '../../../models/screen_guide_step.dart';
 import '../../../widgets/farmer_helper_button.dart';
 
@@ -33,7 +34,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
 
   bool _isUploading = false;
   int _currentPage = 1;
-  final TextEditingController _descriptionController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final CommunityAuthorService _authorService = CommunityAuthorService();
   final CommunityPostRepository _postRepository = CommunityPostRepository();
@@ -63,7 +63,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
 
   @override
   void dispose() {
-    _descriptionController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -194,80 +193,26 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     );
   }
 
-  Future<void> _showDescriptionDialog(File imageFile) async {
-    return showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-        return AnimatedPadding(
-          padding: EdgeInsets.only(bottom: bottomInset),
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          child: AlertDialog(
-            title: Text('community_add_description'.tr()),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      imageFile,
-                      height: 150,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _descriptionController,
-                    decoration: InputDecoration(
-                      hintText: 'community_description_hint'.tr(),
-                    ),
-                    maxLines: 3,
-                    textInputAction: TextInputAction.done,
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  _descriptionController.clear();
-                  Navigator.pop(context);
-                },
-                child: Text('cart_cancel'.tr()),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _performUpload(imageFile);
-                },
-                child: Text('community_publish'.tr()),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile =
-        await picker.pickImage(source: ImageSource.gallery, imageQuality: 75);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
 
-    if (pickedFile != null) {
-      _showDescriptionDialog(File(pickedFile.path));
-    }
+    if (pickedFile == null || !mounted) return;
+
+    final draft = await showCommunityPostComposer(
+      context: context,
+      initialImage: File(pickedFile.path),
+    );
+    if (draft == null || !mounted) return;
+
+    await _performUpload(draft.imageFile, draft.description);
   }
 
-  Future<void> _performUpload(File file) async {
+  Future<void> _performUpload(File file, String description) async {
     setState(() => _isUploading = true);
-    final description = _descriptionController.text.trim();
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
     try {
@@ -289,7 +234,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
         userId: userId!,
       );
 
-      _descriptionController.clear();
       if (mounted) {
         setState(() => _currentPage = 1);
         ScaffoldMessenger.of(context).showSnackBar(

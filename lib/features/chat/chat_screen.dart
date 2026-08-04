@@ -227,6 +227,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _viewerLanguage = context.locale.languageCode;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,76 +245,91 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         backgroundColor: Colors.green[700],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chat_rooms')
-                  .doc(_chatRoomId)
-                  .collection('messages')
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('chat_rooms')
+                    .doc(_chatRoomId)
+                    .collection('messages')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                return ListView.builder(
-                  reverse: true,
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    final data = snapshot.data!.docs[index].data()
-                        as Map<String, dynamic>;
-                    final isMe = data['senderId'] == currentUser!.uid;
-                    final messageType =
-                        data['messageType'] as String? ?? 'text';
+                  return ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.only(top: 8, bottom: 4),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final data = snapshot.data!.docs[index].data()
+                          as Map<String, dynamic>;
+                      final isMe = data['senderId'] == currentUser!.uid;
+                      final messageType =
+                          data['messageType'] as String? ?? 'text';
 
-                    return ChatMessageBubble(
-                      message: data['message'] as String? ?? '',
-                      originalMessage: data['originalMessage'] as String?,
-                      messageType: messageType,
-                      sourceLanguage:
-                          data['sourceLanguage'] as String? ?? 'auto',
-                      viewerLanguage: _viewerLanguage,
-                      isMe: isMe,
-                    );
-                  },
-                );
-              },
+                      return ChatMessageBubble(
+                        message: data['message'] as String? ?? '',
+                        originalMessage: data['originalMessage'] as String?,
+                        messageType: messageType,
+                        sourceLanguage:
+                            data['sourceLanguage'] as String? ?? 'auto',
+                        viewerLanguage: _viewerLanguage,
+                        isMe: isMe,
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-          if (_isSendingCard)
-            const LinearProgressIndicator(minHeight: 2),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.medical_services_outlined,
-                      color: Colors.green),
-                  tooltip: 'chat_send_medical_title'.tr(),
-                  onPressed: _isSendingCard ? null : _showMedicalCardPicker,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                    decoration: InputDecoration(
-                      hintText: 'chat_hint'.tr(),
-                      border: const OutlineInputBorder(),
+            if (_isSendingCard)
+              const LinearProgressIndicator(minHeight: 2),
+            Material(
+              elevation: 8,
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.medical_services_outlined,
+                          color: Colors.green),
+                      tooltip: 'chat_send_medical_title'.tr(),
+                      onPressed: _isSendingCard ? null : _showMedicalCardPicker,
                     ),
-                  ),
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
+                        minLines: 1,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          hintText: 'chat_hint'.tr(),
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.green),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.green),
-                  onPressed: _sendMessage,
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

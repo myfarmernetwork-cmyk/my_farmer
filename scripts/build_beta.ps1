@@ -69,7 +69,8 @@ if ($privacyUrl.Trim().Length -eq 0) {
 Push-Location $root
 try {
   Write-Host "Building appbundle (closed beta)..."
-  flutter build appbundle --release @defines
+  $cmd = @("flutter", "build", "appbundle", "--release") + $defines
+  & $cmd[0] $cmd[1..($cmd.Length - 1)]
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   Write-Host ""
   Write-Host "OK: build\app\outputs\bundle\release\app-release.aab"

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 
 import '../services/product_upload_service.dart';
+import '../utils/firestore_parse.dart';
 import '../utils/product_categories.dart';
 
 import '../utils/production_types.dart';
@@ -231,133 +232,78 @@ class Product {
 
 
 
+  static ({double lat, double lng}) _readLocation(dynamic raw) {
+    if (raw == null) return (lat: 0.0, lng: 0.0);
+    if (raw is GeoPoint) {
+      return (lat: raw.latitude, lng: raw.longitude);
+    }
+    if (raw is Map) {
+      final latValue = raw['lat'] ?? raw['latitude'];
+      final lngValue = raw['lng'] ?? raw['longitude'];
+      return (
+        lat: _readCoordinate(latValue),
+        lng: _readCoordinate(lngValue),
+      );
+    }
+    return (lat: 0.0, lng: 0.0);
+  }
+
+  static double _readCoordinate(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
   factory Product.fromFirestore(DocumentSnapshot doc) {
+    final data = FirestoreParse.documentData(doc) ?? <String, dynamic>{};
 
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final parsedPrice = FirestoreParse.doubleOr(data['price']);
+    final parsedStock = FirestoreParse.doubleOr(data['stock'], fallback: 999.0);
 
+    final location = _readLocation(data['location']);
+    final parsedLat = location.lat;
+    final parsedLng = location.lng;
 
-
-    double parsedPrice = 0.0;
-
-    var rawPrice = data['price'];
-
-    if (rawPrice is num) {
-
-      parsedPrice = rawPrice.toDouble();
-
-    } else if (rawPrice is String) {
-
-      parsedPrice = double.tryParse(rawPrice) ?? 0.0;
-
-    }
-
-
-
-    double parsedStock = 999.0;
-
-    final rawStock = data['stock'];
-
-    if (rawStock is num) {
-
-      parsedStock = rawStock.toDouble();
-
-    } else if (rawStock is String) {
-
-      parsedStock = double.tryParse(rawStock) ?? 999.0;
-
-    }
-
-
-
-    double parsedLat = 0.0;
-
-    double parsedLng = 0.0;
-
-    if (data['location'] != null) {
-
-      parsedLat = (data['location']['lat'] ?? 0.0).toDouble();
-
-      parsedLng = (data['location']['lng'] ?? 0.0).toDouble();
-
-    }
-
-
-
-    final isService = data['isService'] as bool? ?? false;
-
-
+    final isService = FirestoreParse.boolOr(data['isService']);
 
     return Product(
-
       id: doc.id,
-
-      name: data['name'] ?? '',
-
-      description: data['description'] ?? '',
-
-      skuCode: data['skuCode'] as String?,
-
-      productDescription: data['productDescription'] as String?,
-
+      name: FirestoreParse.stringOrEmpty(data['name']),
+      description: FirestoreParse.stringOrEmpty(data['description']),
+      skuCode: FirestoreParse.optionalString(data['skuCode']),
+      productDescription:
+          FirestoreParse.optionalString(data['productDescription']),
       price: parsedPrice,
-
       originalCurrency: CurrencyService.normalizeCode(
-
-        data['originalCurrency'] as String?,
-
+        FirestoreParse.optionalString(data['originalCurrency']),
       ),
-
-      unit: ProductUnits.normalize(data['unit'] as String? ?? 'kom'),
-
+      unit: ProductUnits.normalize(
+        FirestoreParse.stringOrEmpty(data['unit'], fallback: 'kom'),
+      ),
       servicePriceUnit: ProductUnits.normalize(
-
-        data['servicePriceUnit'] as String? ?? '',
-
+        FirestoreParse.stringOrEmpty(data['servicePriceUnit']),
       ),
-
-      unitDescription: data['unitDescription'] as String? ?? '',
-
-      imageUrl: data['imageUrl'] ?? '',
-
+      unitDescription: FirestoreParse.stringOrEmpty(data['unitDescription']),
+      imageUrl: FirestoreParse.stringOrEmpty(data['imageUrl']),
       category: _resolveStoredCategory(data['category']),
-
-      subCategory: data['subCategory'] as String?,
-
-      searchTags: (data['searchTags'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          const [],
-
+      subCategory: FirestoreParse.optionalString(data['subCategory']),
+      searchTags: FirestoreParse.stringListOrEmpty(data['searchTags']),
       productionType: ProductionTypes.normalize(data['productionType']),
-
-      sellerId: data['sellerId'] ?? '',
-
-      sellerName: data['sellerName'] ?? 'Farmer',
-
+      sellerId: FirestoreParse.stringOrEmpty(data['sellerId']),
+      sellerName:
+          FirestoreParse.stringOrEmpty(data['sellerName'], fallback: 'Farmer'),
       lat: parsedLat,
-
       lng: parsedLng,
-
       isService: isService,
-
       stock: parsedStock,
-
-      isSoldOut: data['isSoldOut'] as bool? ?? false,
-
-      isUpcoming: data['isUpcoming'] as bool? ?? false,
-
+      isSoldOut: FirestoreParse.boolOr(data['isSoldOut']),
+      isUpcoming: FirestoreParse.boolOr(data['isUpcoming']),
       harvestDateTime: _parseDateTime(data['harvestDateTime']),
-
       upcomingMode: UpcomingProductHelper.normalizeMode(
-        data['upcomingMode'] as String?,
+        FirestoreParse.optionalString(data['upcomingMode']),
       ),
-
-      requiresFinalPhoto: data['requiresFinalPhoto'] as bool? ?? false,
-
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-
+      requiresFinalPhoto: FirestoreParse.boolOr(data['requiresFinalPhoto']),
+      createdAt: FirestoreParse.timestampOrNow(data['createdAt']),
     );
-
   }
 
 

@@ -44,6 +44,9 @@ class FarmerShopLocalization {
   }
 
   static String deliveryZones(FarmerShopSettings settings) {
+    if (!settings.hasDeliveryZonesConfigured) {
+      return 'shop_not_specified'.tr();
+    }
     return 'shop_delivery_zones_detail'.tr(namedArgs: {
       'km1': settings.deliveryZone1MaxKm.toStringAsFixed(0),
       'min1': settings.deliveryZone1MinOrder.toStringAsFixed(0),
@@ -58,14 +61,16 @@ class FarmerShopLocalization {
     final options = <String>[];
     if (settings.offersPickup) options.add('cart_pickup'.tr());
     if (settings.offersDelivery) {
-      final maxKm = settings.maxDeliveryDistanceKm > 0
-          ? settings.maxDeliveryDistanceKm
-          : settings.deliveryZone2MaxKm;
-      options.add(
-        'shop_delivery_up_to_km'.tr(
-          namedArgs: {'km': maxKm.toStringAsFixed(0)},
-        ),
-      );
+      final maxKm = settings.effectiveMaxDeliveryDistanceKm;
+      if (maxKm > 0) {
+        options.add(
+          'shop_delivery_up_to_km'.tr(
+            namedArgs: {'km': maxKm.toStringAsFixed(0)},
+          ),
+        );
+      } else {
+        options.add('cart_delivery'.tr());
+      }
     }
     if (options.isEmpty) return 'shop_not_specified'.tr();
     return options.join(' · ');

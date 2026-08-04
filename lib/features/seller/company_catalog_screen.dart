@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -13,7 +14,9 @@ import '../../models/screen_guide_step.dart';
 import '../../repositories/company_catalog_repository.dart';
 import '../../services/company_catalog_csv_parser.dart';
 import '../../services/currency_service.dart';
+import '../../utils/firestore_error_helper.dart';
 import '../../widgets/company_catalog_guide.dart';
+import '../../widgets/firestore_error_panel.dart';
 import '../../widgets/farmer_screen_guide.dart';
 import 'add_product_screen.dart';
 
@@ -73,12 +76,24 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv', 'txt'],
-      withData: true,
+      // Android 9 (Motorola X4): withData:true često vrati null — čitamo s path/stream.
+      withData: false,
     );
     if (result == null || result.files.isEmpty) return;
 
-    final bytes = result.files.single.bytes;
-    if (bytes == null) return;
+    final picked = result.files.single;
+    final bytes = await _readPickedFileBytes(picked);
+    if (bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('company_catalog_import_failed'.tr()),
+            backgroundColor: Colors.red.shade700,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() => _importing = true);
     try {
@@ -127,6 +142,35 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
     } finally {
       if (mounted) setState(() => _importing = false);
     }
+  }
+
+  /// Na Androidu 9+ [PlatformFile.bytes] često je null — čitamo s diska ili streama.
+  Future<List<int>?> _readPickedFileBytes(PlatformFile file) async {
+    if (file.bytes != null && file.bytes!.isNotEmpty) {
+      return file.bytes!;
+    }
+
+    final path = file.path;
+    if (path != null && path.isNotEmpty) {
+      try {
+        return await File(path).readAsBytes();
+      } catch (_) {
+        // Nastavi na readStream (content:// URI na starijem Androidu).
+      }
+    }
+
+    final stream = file.readStream;
+    if (stream != null) {
+      try {
+        final chunks = await stream.toList();
+        if (chunks.isEmpty) return null;
+        return chunks.expand((chunk) => chunk).toList(growable: false);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
   }
 
   Future<void> _publishItem(CompanyCatalogItem item) async {
@@ -220,6 +264,15 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
       body: StreamBuilder<List<CompanyCatalogItem>>(
         stream: itemsAsync,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return FirestoreErrorPanel(error: snapshot.error!);
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
           final items = snapshot.data ?? [];
           final hasCatalogItems = items.isNotEmpty;
           final hasPublishedItems = items.any((i) => i.isPublished);

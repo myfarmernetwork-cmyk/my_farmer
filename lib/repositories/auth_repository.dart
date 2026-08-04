@@ -105,45 +105,21 @@ class AuthRepository {
     _lastSyncedUser = user;
   }
 
-  /// Prisilno povlači profil iz Firestore-a (server-first kad je potrebno).
-  Future<AppUser?> syncRoleFromServer() async {
-    final firebaseUser = _auth.currentUser;
-    if (firebaseUser == null) {
-      clearSessionCache();
-      return null;
-    }
-
-    var data = await _pullUserDocumentFromFirestore(
-      uid: firebaseUser.uid,
-      email: firebaseUser.email ?? '',
-      forceServer: true,
-    );
-
-    if (!_isUserActive(data)) {
-      await _handleBlockedAccount();
-      clearSessionCache();
-      return null;
-    }
-
-    data = await _sanitizeUserDocument(
-      uid: firebaseUser.uid,
-      data: data,
-      email: firebaseUser.email ?? '',
-    );
-
-    data = await _restoreRoleIfCorrupted(data: data);
-
-    final appUser = AppUser.fromMap(firebaseUser.uid, data);
-    publishSyncedUser(appUser);
-    return appUser;
+  Future<void> _ensureAuthTokenReady(User user) async {
+    await user.getIdToken(true);
   }
 
-  Stream<AppUser?> authStateChanges() {
-    return _auth.authStateChanges().asyncMap((firebaseUser) async {
-      if (firebaseUser == null) {
-        clearSessionCache();
-        return null;
-      }
+  Future<void> _resetBrokenSession() async {
+    stopWatchingAccount();
+    clearSessionCache();
+    try {
+      await _auth.signOut();
+    } catch (_) {}
+  }
+
+  Future<AppUser?> _loadAuthenticatedUser(User firebaseUser) async {
+    try {
+      await _ensureAuthTokenReady(firebaseUser);
 
       var data = await _pullUserDocumentFromFirestore(
         uid: firebaseUser.uid,
@@ -152,8 +128,8 @@ class AuthRepository {
       );
 
       if (!_isUserActive(data)) {
-        await _handleBlockedAccount();
-        clearSessionCache();
+        await _handleBlockedAccount(data);
+        await _resetBrokenSession();
         return null;
       }
 
@@ -168,6 +144,39 @@ class AuthRepository {
       final appUser = AppUser.fromMap(firebaseUser.uid, data);
       publishSyncedUser(appUser);
       return appUser;
+    } on AuthException {
+      await _resetBrokenSession();
+      return null;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied' ||
+          e.code == 'unauthenticated' ||
+          e.code == 'failed-precondition') {
+        await _resetBrokenSession();
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  /// Prisilno povlači profil iz Firestore-a (server-first kad je potrebno).
+  Future<AppUser?> syncRoleFromServer() async {
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      clearSessionCache();
+      return null;
+    }
+
+    return _loadAuthenticatedUser(firebaseUser);
+  }
+
+  Stream<AppUser?> authStateChanges() {
+    return _auth.authStateChanges().asyncMap((firebaseUser) async {
+      if (firebaseUser == null) {
+        clearSessionCache();
+        return null;
+      }
+
+      return _loadAuthenticatedUser(firebaseUser);
     });
   }
 
@@ -176,11 +185,32 @@ class AuthRepository {
     required String email,
     bool forceServer = false,
   }) async {
-    final doc = await _firestore.collection('users').doc(uid).get(
-          GetOptions(
-            source: forceServer ? Source.server : Source.serverAndCache,
-          ),
-        );
+    final firebaseUser = _auth.currentUser;
+    if (firebaseUser != null) {
+      await _ensureAuthTokenReady(firebaseUser);
+    }
+
+    Future<DocumentSnapshot<Map<String, dynamic>>> readDoc({
+      required bool fromServer,
+    }) {
+      return _firestore.collection('users').doc(uid).get(
+            GetOptions(
+              source: fromServer ? Source.server : Source.serverAndCache,
+            ),
+          );
+    }
+
+    DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await readDoc(fromServer: forceServer);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied' && firebaseUser != null) {
+        await _ensureAuthTokenReady(firebaseUser);
+        doc = await readDoc(fromServer: true);
+      } else {
+        rethrow;
+      }
+    }
 
     if (!doc.exists || doc.data() == null) {
       final retry = await _fetchUserDoc(uid);
@@ -193,7 +223,7 @@ class AuthRepository {
         );
       }
       throw AuthException(
-        'Korisnički profil nije pronađen u bazi. Kontaktirajte podršku.',
+        'Korisnički profil nije pronađen u bazi. Registrujte se ponovo.',
       );
     }
 
@@ -307,10 +337,7 @@ class AuthRepository {
     }
 
     if (updates.isNotEmpty) {
-      await _firestore.collection('users').doc(uid).set(
-            updates,
-            SetOptions(merge: true),
-          );
+      // Samo in-memory — ne piši u Firestore pri loginu (izbjegava permission-denied).
       data.addAll(updates);
     }
 
@@ -374,10 +401,7 @@ class AuthRepository {
     }
 
     if (updates.isNotEmpty) {
-      await _firestore.collection('users').doc(uid).set(
-            updates,
-            SetOptions(merge: true),
-          );
+      // Samo in-memory — ne piši u Firestore pri loginu.
     }
 
     return sanitized;

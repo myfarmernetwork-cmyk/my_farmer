@@ -1,17 +1,18 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/locale_settings_provider.dart';
-import 'repositories/auth_repository.dart';
 import 'screens/auth_gate.dart';
-import 'services/auth_service.dart';
 import 'services/firestore_cache_service.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'services/payment_service.dart';
 import 'services/subscription_service.dart';
+import 'config/beta_config.dart';
 import 'config/revenuecat_config.dart';
 import 'config/nirs_monitoring_config.dart';
 import 'config/plant_scanner_config.dart';
@@ -27,24 +28,9 @@ void main() async {
   );
 
   NotificationService().setNavigatorKey(navigatorKey);
-  await NotificationService().initNotifications();
-  RevenueCatConfig.assertProductionBillingReady();
-  NirsMonitoringConfig.assertProductionReady();
-  PlantScannerConfig.assertProductionReady();
-  await SubscriptionService().configure();
-  await PaymentService.initialize();
-
-  // Motorola/telefon drži stari Firestore cache — Studio pri flutter run uvijek instalira iznova.
-  await FirestoreCacheService.clearStaleCacheIfNeeded();
-
-  // Prisilna sinkronizacija uloge iz Firestore-a pri cold startu (dijeljeni singleton).
-  if (FirebaseAuth.instance.currentUser != null) {
-    await AuthService(repository: AuthRepository.instance).syncRoleFromServer();
-  }
 
   runApp(
     EasyLocalization(
-      // hr, sr, de, zh, bs + regional variants — uklj. Locale('bs') → assets/translations/bs.json
       supportedLocales: supportedEasyLocales,
       path: 'assets/translations',
       fallbackLocale: const Locale('en'),
@@ -55,6 +41,41 @@ void main() async {
       ),
     ),
   );
+
+  // Prvo nacrtaj UI (skini Android splash), tek onda teški init u pozadini.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_completeStartup());
+  });
+}
+
+Future<void> _completeStartup() async {
+  await Future<void>.delayed(const Duration(milliseconds: 400));
+
+  try {
+    await NotificationService().initNotifications();
+  } catch (e, stack) {
+    debugPrint('Notification init skipped: $e\n$stack');
+  }
+
+  try {
+    RevenueCatConfig.assertProductionBillingReady();
+    NirsMonitoringConfig.assertProductionReady();
+    PlantScannerConfig.assertProductionReady();
+
+    if (!BetaConfig.closedTestFreePremium) {
+      await SubscriptionService()
+          .configure()
+          .timeout(const Duration(seconds: 12), onTimeout: () {});
+      await PaymentService.initialize().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {},
+      );
+    }
+
+    await FirestoreCacheService.clearStaleCacheIfNeeded();
+  } catch (e, stack) {
+    debugPrint('Billing/services startup issue: $e\n$stack');
+  }
 }
 
 class MyApp extends StatelessWidget {

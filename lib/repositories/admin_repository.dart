@@ -184,6 +184,10 @@ class AdminRepository {
 
       'verifiedAt': FieldValue.serverTimestamp(),
 
+      'promotionalEndsAt': Timestamp.fromDate(
+        DateTime.now().add(const Duration(days: 90)),
+      ),
+
       'role': role,
 
     });

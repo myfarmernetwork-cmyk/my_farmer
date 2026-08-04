@@ -18,7 +18,6 @@ import '../../utils/farmer_shop_localization.dart';
 import '../../utils/localized_title.dart';
 import '../../models/product_units.dart';
 import '../../widgets/product_price_text.dart';
-import '../../widgets/translated_text.dart';
 import '../../models/screen_guide_step.dart';
 import '../../widgets/farmer_helper_button.dart';
 import '../../widgets/premium_gate.dart';
@@ -27,6 +26,8 @@ import '../../services/currency_service.dart';
 import '../../services/payment_service.dart';
 import '../../services/peer_marketplace_payment_service.dart';
 import '../../config/marketplace_payment_config.dart';
+import '../../models/saved_payment_method.dart';
+import '../../repositories/payment_methods_repository.dart';
 import '../../widgets/quantity_stepper.dart';
 import 'cart_provider.dart';
 
@@ -900,7 +901,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     if (!mounted) return;
 
     PaymentResult paymentResult;
-    if (MarketplacePaymentConfig.peerToPeerOnly) {
+    if (selectedMethod.requiresDigitalProcessing) {
+      final converted = _cartConvertedTotal(items);
+      final paymentOutcome = await ref.read(paymentServiceProvider).processPayment(
+            context: context,
+            method: selectedMethod,
+            amount: converted.displayAmount,
+            currency: converted.displayCurrency,
+            sellerId: items.length == 1 ? items.first.sellerId : null,
+          );
+      if (!mounted || paymentOutcome == null) return;
+      paymentResult = paymentOutcome;
+    } else if (MarketplacePaymentConfig.peerToPeerOnly) {
       final converted = _cartConvertedTotal(items);
       final amountLabel =
           '${converted.displayAmount.toStringAsFixed(2)} ${converted.displayCurrency}';
@@ -913,17 +925,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         seller: seller,
         amountLabel: amountLabel,
       );
-      if (!mounted || paymentOutcome == null) return;
-      paymentResult = paymentOutcome;
-    } else if (selectedMethod.requiresDigitalProcessing) {
-      final converted = _cartConvertedTotal(items);
-      final paymentOutcome = await ref.read(paymentServiceProvider).processPayment(
-            context: context,
-            method: selectedMethod,
-            amount: converted.displayAmount,
-            currency: converted.displayCurrency,
-            sellerId: items.length == 1 ? items.first.sellerId : null,
-          );
       if (!mounted || paymentOutcome == null) return;
       paymentResult = paymentOutcome;
     } else {
@@ -1031,12 +1032,26 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Widget _buildPaymentMethodSection(List<CartItem> cartItems) {
     final requiresDigitalPayment = cartRequiresDigitalPayment(cartItems);
+    final savedMethods = ref.watch(userPaymentMethodsProvider).valueOrNull ?? [];
+    SavedPaymentMethod? savedCard;
+    for (final method in savedMethods) {
+      if (method.type == SavedPaymentMethodType.card) {
+        savedCard = method;
+        if (method.isDefault) break;
+      }
+    }
+    final stripeLabel = savedCard != null
+        ? 'cart_payment_stripe_saved'.tr(
+            namedArgs: {'last4': savedCard.cardLast4 ?? '????'},
+          )
+        : 'cart_payment_stripe'.tr();
 
     if (requiresDigitalPayment && _paymentMethod == 'cash') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          setState(() => _paymentMethod =
-              CartPaymentMethod.directPaypal.firestoreValue);
+          setState(() => _paymentMethod = isPlatformCardPaymentAvailable()
+              ? CartPaymentMethod.stripe.firestoreValue
+              : CartPaymentMethod.directPaypal.firestoreValue);
         }
       });
     }
@@ -1140,6 +1155,15 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               color: Colors.green.shade700,
             ),
           if (!requiresDigitalPayment) const SizedBox(height: 8),
+          if (isPlatformCardPaymentAvailable()) ...[
+            _buildFixedPaymentCard(
+              value: 'stripe',
+              label: stripeLabel,
+              icon: Icons.credit_card,
+              color: Colors.indigo.shade700,
+            ),
+            const SizedBox(height: 8),
+          ],
           _buildFixedPaymentCard(
             value: 'direct_paypal',
             label: 'peer_payment_option_paypal'.tr(),
@@ -1574,7 +1598,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  TranslatedText(
+                  Text(
                     item.name,
                     style: const TextStyle(
                       fontSize: 16,
