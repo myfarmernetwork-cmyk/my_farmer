@@ -152,7 +152,7 @@
   <header>
     <div class="wrap">
       <h1>My Farmer</h1>
-      <p><strong>Privacy Policy</strong> · <strong>Politika privatnosti</strong></p>
+      <p><strong>Datenschutzerklärung</strong> · <strong>Privacy Policy</strong> · <strong>Politika privatnosti</strong></p>
       <p class="meta">Android package: <code>com.myfarmer.network</code> · Firebase: <code>my-farmer-552a3</code></p>
       <p class="meta" id="updated-line">Last updated: 28 July 2026</p>
     </div>
@@ -160,6 +160,7 @@
 
   <nav class="lang" aria-label="Language selection">
     <div class="lang-inner">
+      <button type="button" id="btn-de" onclick="setLang('de')">Deutsch</button>
       <button type="button" id="btn-en" class="active" onclick="setLang('en')">English</button>
       <button type="button" id="btn-hr" onclick="setLang('hr')">Hrvatski</button>
     </div>
@@ -298,6 +299,141 @@
       <section class="card">
         <h2>12. Changes</h2>
         <p>We may update this policy. Material changes will be reflected here and in the app where appropriate.</p>
+      </section>
+    </article>
+
+    <!-- GERMAN -->
+    <article id="panel-de" class="lang-panel" lang="de">
+      <section class="card notice">
+        <h2>Einleitung</h2>
+        <p>
+          Diese Datenschutzerklärung beschreibt, wie <strong>My Farmer</strong> („wir“, „uns“) personenbezogene Daten verarbeitet,
+          wenn Sie unsere mobile Anwendung <strong>My Farmer</strong> (Android-Paket <code>com.myfarmer.network</code>) nutzen.
+        </p>
+        <p>
+          My Farmer ist ein landwirtschaftlicher Marktplatz. Zahlungen für Produkte zwischen Käufern und Verkäufern erfolgen
+          <strong>peer-to-peer</strong> (Barzahlung, direktes PayPal, Überweisung) — wir verarbeiten keine Marktplatz-Zahlungen.
+          Optionale Premium-Funktionen werden über <strong>Google Play</strong> abgerechnet und mit <strong>RevenueCat</strong> verwaltet.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>1. Verantwortlicher</h2>
+        <p>Betreiber der My-Farmer-App ist Verantwortlicher im Sinne der EU-DSGVO.</p>
+        <ul>
+          <li><strong>App:</strong> My Farmer (<code>com.myfarmer.network</code>)</li>
+          <li><strong>Kontakt:</strong> <a href="mailto:myfarmer.network@gmail.com">myfarmer.network@gmail.com</a></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>2. Welche Daten wir erheben</h2>
+        <ul>
+          <li><strong>Konto:</strong> Name, E-Mail, Telefon, Adresse, Rolle, Hof- oder Firmendaten</li>
+          <li><strong>Nutzung:</strong> Produkte, Bestellungen, Chat, Tierakten, Flurstücke, Scan-Verlauf</li>
+          <li><strong>Zahlungsprofile:</strong> PayPal-E-Mail, maskierte Kartendaten, IBAN (freiwillig, für Verkäuferprofile)</li>
+          <li><strong>Gerät:</strong> FCM-Push-Token, Geräte-ID für Test-Scan-Limits</li>
+          <li><strong>Medien:</strong> hochgeladene Fotos; Kameraeingabe für den Pflanzenscanner</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>3. Standortdaten &amp; OpenWeather API</h2>
+        <p>
+          Mit Ihrer Einwilligung greifen wir auf <strong>GPS-Standort</strong> zu, um Marktplatz-Angebote in der Nähe anzuzeigen,
+          passende Währung/Preise für Ihre Region anzuwenden und von Ihnen freigegebene Hofkoordinaten zu speichern.
+        </p>
+        <p>
+          Für Wetterwarnungen und Farmer-Widgets können wir Ihre Koordinaten (Breite/Länge) an
+          <strong>OpenWeather</strong> und/oder <strong>Open-Meteo</strong> senden, um Prognosedaten abzurufen.
+          Wir verkaufen keine Standortdaten. Sie können die Standortberechtigung verweigern; einige Funktionen sind dann eingeschränkt.
+        </p>
+        <p>
+          Rechtsgrundlage: Einwilligung (Android-Standortberechtigung) und/oder Vertragserfüllung für von Ihnen genutzte Funktionen (DSGVO Art. 6 Abs. 1 lit. a/b).
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>4. Pflanzenscanner — Kameranutzung</h2>
+        <p>
+          Der KI-Pflanzenscanner benötigt <strong>Kamerazugriff</strong> (oder Fotos aus der Galerie).
+          Bilder werden an unser Backend (Firebase Cloud Functions) und an <strong>Plant.id</strong> zur Bestimmung gesendet.
+          Bilder dienen nur dem Scan-Ergebnis und werden nicht für Werbung genutzt.
+        </p>
+        <p>Rechtsgrundlage: Einwilligung beim Öffnen des Scanners oder Auswählen eines Fotos (Art. 6 Abs. 1 lit. a).</p>
+      </section>
+
+      <section class="card">
+        <h2>5. Firebase (Google)</h2>
+        <p>Wir nutzen <strong>Google Firebase</strong> (Projekt <code>my-farmer-552a3</code>):</p>
+        <ul>
+          <li>Authentifizierung, Firestore-Datenbank, Cloud Storage, Cloud Messaging (Push)</li>
+          <li>Cloud Functions (Kontolöschung, Plant.id-Proxy, Wetterwarnungen, Satellitendaten)</li>
+        </ul>
+        <p>
+          Siehe <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">Firebase Datenschutz</a> und
+          <a href="https://policies.google.com/privacy?hl=de" target="_blank" rel="noopener">Google Datenschutzerklärung</a>.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>6. Premium-Abonnements — RevenueCat &amp; Google Play</h2>
+        <p>
+          Premium-Abonnements und Lizenzen werden über <strong>Google Play Billing</strong> gekauft.
+          Wir nutzen <strong>RevenueCat, Inc.</strong>, um Berechtigungen zu prüfen und den Abo-Status mit Firestore zu synchronisieren.
+        </p>
+        <ul>
+          <li>Verarbeitet werden: Kauf-Tokens, Abo aktiv/Ablauf, Rechnungsland, App-Benutzer-ID</li>
+          <li>Bei uns gespeichert: <code>premiumActive</code>, <code>subscriptionTier</code>, <code>subscriptionExpiresAt</code></li>
+        </ul>
+        <p>
+          Marktplatz-Produktzahlungen laufen <strong>nicht</strong> über RevenueCat.
+          Kündigen Sie Verlängerungen in Google Play → Abos. Erstattungen gemäß Google-Play-Bedingungen.
+        </p>
+        <p>RevenueCat: <a href="https://www.revenuecat.com/privacy/" target="_blank" rel="noopener">revenuecat.com/privacy</a></p>
+      </section>
+
+      <section class="card">
+        <h2>7. Kontolöschung</h2>
+        <p>Sie können Ihr Konto in der App löschen: <strong>Profil → Konto löschen</strong>, oder per E-Mail an
+          <a href="mailto:myfarmer.network@gmail.com">myfarmer.network@gmail.com</a>.</p>
+        <h3>Ohne aktives Abonnement</h3>
+        <p>Konto und personenbezogene Daten werden umgehend gelöscht (Firebase Auth, Profil, Zahlungsmethoden, ausgeblendete Anzeigen).</p>
+        <h3>Mit aktivem Premium-Abo</h3>
+        <p>
+          Die Löschung ist für das <strong>Ende des laufenden Abrechnungszeitraums</strong> vorgesehen (Ablauf laut Google Play / RevenueCat).
+          Bis dahin können Sie das bezahlte Premium nutzen; Ihr öffentliches Profil ist ausgeblendet. Nach Ablauf werden die Daten dauerhaft entfernt.
+        </p>
+        <p><strong>Hinweis:</strong> Kontolöschung kündigt Google Play nicht automatisch — Abo bitte separat im Play Store beenden.</p>
+      </section>
+
+      <section class="card">
+        <h2>8. Weitere Drittanbieter</h2>
+        <ul>
+          <li>Google Maps — Karten und Geokodierung</li>
+          <li>Sentinel Hub / Copernicus — Satelliten-NIRS/NDVI (über unsere Server)</li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h2>9. Ihre Rechte (DSGVO)</h2>
+        <p>Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch und Beschwerde bei einer Aufsichtsbehörde.</p>
+        <p>Kontakt: <a href="mailto:myfarmer.network@gmail.com">myfarmer.network@gmail.com</a></p>
+      </section>
+
+      <section class="card">
+        <h2>10. Sicherheit &amp; Aufbewahrung</h2>
+        <p>HTTPS-Verschlüsselung, Firebase-Sicherheitsregeln. Daten werden gespeichert, solange das Konto aktiv ist; nach Löschung entfernt oder anonymisiert, sofern das Gesetz keine längere Aufbewahrung verlangt.</p>
+      </section>
+
+      <section class="card">
+        <h2>11. Kinder</h2>
+        <p>Nicht für Kinder unter 16 Jahren bestimmt. Kontaktieren Sie uns, wenn ein Kind Daten übermittelt hat.</p>
+      </section>
+
+      <section class="card">
+        <h2>12. Änderungen</h2>
+        <p>Wir können diese Erklärung aktualisieren. Wesentliche Änderungen werden hier und in der App veröffentlicht, wo angemessen.</p>
       </section>
     </article>
 
@@ -443,20 +579,34 @@
 
   <script>
     function setLang(lang) {
+      document.getElementById('panel-de').classList.toggle('active', lang === 'de');
       document.getElementById('panel-en').classList.toggle('active', lang === 'en');
       document.getElementById('panel-hr').classList.toggle('active', lang === 'hr');
+      document.getElementById('btn-de').classList.toggle('active', lang === 'de');
       document.getElementById('btn-en').classList.toggle('active', lang === 'en');
       document.getElementById('btn-hr').classList.toggle('active', lang === 'hr');
       document.documentElement.lang = lang;
-      document.getElementById('updated-line').textContent =
-        lang === 'hr' ? 'Zadnje ažuriranje: 28. srpnja 2026.' : 'Last updated: 28 July 2026';
+      var updated = document.getElementById('updated-line');
+      if (lang === 'de') {
+        updated.textContent = 'Zuletzt aktualisiert: 28. Juli 2026.';
+      } else if (lang === 'hr') {
+        updated.textContent = 'Zadnje ažuriranje: 28. srpnja 2026.';
+      } else {
+        updated.textContent = 'Last updated: 28 July 2026.';
+      }
       try { localStorage.setItem('myfarmer-privacy-lang', lang); } catch (e) {}
     }
 
     (function () {
       try {
         var saved = localStorage.getItem('myfarmer-privacy-lang');
-        if (saved === 'hr' || saved === 'en') setLang(saved);
+        if (saved === 'de' || saved === 'hr' || saved === 'en') {
+          setLang(saved);
+          return;
+        }
+        var nav = (navigator.language || '').toLowerCase();
+        if (nav.indexOf('de') === 0) setLang('de');
+        else if (nav.indexOf('hr') === 0) setLang('hr');
       } catch (e) {}
     })();
   </script>
