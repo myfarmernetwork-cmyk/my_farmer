@@ -10,6 +10,7 @@ import '../providers/locale_settings_provider.dart';
 import '../models/app_user.dart';
 import '../screens/paywall_screen.dart';
 import '../services/payment_service.dart';
+import '../utils/company_scan_copy.dart';
 import 'farmer_help_widgets.dart';
 import 'premium_gate_dialog.dart'
     show
@@ -93,7 +94,7 @@ class PremiumGate {
     }
 
     final storePremium = ref.read(isPremiumProvider).value ?? false;
-    if (userAlreadySubscribed(user: user, storePremium: storePremium)) {
+    if (readUserAlreadySubscribed(ref)) {
       if (!context.mounted) return;
       if (user?.isPremiumPending == true) {
         showSubscriptionPendingNotice(context);
@@ -435,7 +436,16 @@ class PremiumLockedView extends ConsumerWidget {
                             )
                           else
                             Text(
-                              descriptionKey.tr(),
+                              descriptionKey == 'paywall_buyer_features'
+                                  ? buyerFeaturesForContext(
+                                      context,
+                                      currencyRegion: ref
+                                              .watch(currencyRegionProvider) ??
+                                          user?.currencyRegion,
+                                      paymentCountryCode:
+                                          user?.paymentCountryCode,
+                                    )
+                                  : descriptionKey.tr(),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 15,

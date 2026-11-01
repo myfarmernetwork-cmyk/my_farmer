@@ -1,29 +1,43 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../buyer/farmer_storefront_screen.dart';
 import '../models/community_post.dart';
 import '../models/post_author.dart';
 import '../repositories/community_post_repository.dart';
 import '../services/community_author_service.dart';
+import '../services/community_post_actions.dart';
 import '../utils/community_formatters.dart';
+import '../utils/community_image_layout.dart';
 import '../utils/community_location_launcher.dart';
 import '../../../widgets/profile_avatar.dart';
+import '../../../providers/subscription_provider.dart';
+import '../../../theme/agro_accent_colors.dart';
 import 'community_applause_bar.dart';
+import 'community_gallery_image.dart';
 
-class CommunityPostCard extends StatelessWidget {
+class CommunityPostCard extends ConsumerWidget {
   const CommunityPostCard({
     super.key,
     required this.post,
     required this.authorService,
     required this.postRepository,
     this.onReported,
+    this.onDeleted,
   });
 
   final CommunityPost post;
   final CommunityAuthorService authorService;
   final CommunityPostRepository postRepository;
   final VoidCallback? onReported;
+  final VoidCallback? onDeleted;
+
+  bool get _isOwnPost {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    return uid != null && uid.isNotEmpty && post.authorId == uid;
+  }
 
   Future<void> _reportPost(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -88,13 +102,36 @@ class CommunityPostCard extends StatelessWidget {
     }
   }
 
+  Future<void> _editPost(BuildContext context) async {
+    await CommunityPostActions.editPost(context, post, postRepository);
+  }
+
+  Future<void> _deletePost(BuildContext context, {required bool asAdmin}) async {
+    if (asAdmin) {
+      await CommunityPostActions.deletePostAsAdmin(context, post, postRepository);
+    } else {
+      await CommunityPostActions.deletePost(context, post, postRepository);
+    }
+    onDeleted?.call();
+  }
+
   @override
-  Widget build(BuildContext context) {
-    return Card(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isAdmin = ref.watch(adminPremiumBypassProvider);
+    const chipGreen = AgroAccentColors.marketplaceChipGreen;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
       clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 20),
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
+        ),
+        side: BorderSide(color: chipGreen.withValues(alpha: 0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,45 +149,35 @@ class CommunityPostCard extends StatelessWidget {
                 ),
                 isLoading: snapshot.connectionState == ConnectionState.waiting &&
                     author == null,
+                isOwnPost: _isOwnPost,
+                canAdminDelete: isAdmin && !_isOwnPost,
                 onReport: () => _reportPost(context),
+                onEdit: () => _editPost(context),
+                onDelete: () => _deletePost(
+                  context,
+                  asAdmin: isAdmin && !_isOwnPost,
+                ),
               );
             },
           ),
           if (post.imageUrl.isNotEmpty)
-            SizedBox(
-              width: double.infinity,
-              height: 250,
-              child: Image.network(
-                post.imageUrl,
-                width: double.infinity,
-                height: 250,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
-                    color: Colors.grey.shade200,
-                    alignment: Alignment.center,
-                    child: CircularProgressIndicator(
-                      value: progress.expectedTotalBytes != null
-                          ? progress.cumulativeBytesLoaded /
-                              progress.expectedTotalBytes!
-                          : null,
-                      color: Colors.green.shade700,
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => Container(
+            CommunityFeedImage(
+              imageUrl: post.imageUrl,
+              storedAspectRatio: post.imageAspectRatio,
+              errorBuilder: (_, __, ___) => AspectRatio(
+                aspectRatio: CommunityImageLayout.defaultAspectRatio,
+                child: ColoredBox(
                   color: Colors.grey.shade200,
-                  alignment: Alignment.center,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.broken_image, color: Colors.grey.shade500, size: 40),
+                      Icon(Icons.broken_image,
+                          color: Colors.grey.shade500, size: 40),
                       const SizedBox(height: 8),
                       Text(
                         'community_image_load_error'.tr(),
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 13),
                       ),
                     ],
                   ),
@@ -163,9 +190,10 @@ class CommunityPostCard extends StatelessWidget {
               post.description.isNotEmpty
                   ? post.description
                   : 'community_no_description'.tr(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
+                color: Colors.grey.shade800,
               ),
             ),
           ),
@@ -174,6 +202,7 @@ class CommunityPostCard extends StatelessWidget {
             postRepository: postRepository,
           ),
         ],
+      ),
       ),
     );
   }
@@ -185,14 +214,22 @@ class _AuthorHeader extends StatelessWidget {
     required this.authorId,
     required this.postedAt,
     required this.isLoading,
+    required this.isOwnPost,
+    required this.canAdminDelete,
     required this.onReport,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final PostAuthor? author;
   final String? authorId;
   final String postedAt;
   final bool isLoading;
+  final bool isOwnPost;
+  final bool canAdminDelete;
   final VoidCallback onReport;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   Future<void> _openLocationOnMap(BuildContext context) async {
     final location = author?.location?.trim();
@@ -210,6 +247,13 @@ class _AuthorHeader extends StatelessWidget {
     }
   }
 
+  void _openAuthorProfile(BuildContext context) {
+    final id = authorId?.trim();
+    if (id == null || id.isEmpty) return;
+    if (!CommunityFormatters.hasPublicProfile(author?.role)) return;
+    openSellerProfile(context, id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final role = author?.role;
@@ -218,14 +262,17 @@ class _AuthorHeader extends StatelessWidget {
     final displayName = author?.displayName ?? 'common_user'.tr();
     final location = author?.location?.trim();
     final canOpenLocation = author?.hasMapLocation == true;
+    final canOpenProfile = CommunityFormatters.hasPublicProfile(role);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: Colors.grey.shade50,
         border: Border(
-          bottom: BorderSide(color: Colors.green.shade100),
+          bottom: BorderSide(
+            color: AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.15),
+          ),
         ),
       ),
       child: isLoading
@@ -236,7 +283,10 @@ class _AuthorHeader extends StatelessWidget {
                 child: SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AgroAccentColors.marketplaceChipGreen,
+                ),
                 ),
               ),
             )
@@ -245,12 +295,21 @@ class _AuthorHeader extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(right: 10, top: 2),
-                  child: ProfileAvatar(
-                    imageUrl: author?.profileImageUrl,
-                    radius: 20,
-                    backgroundColor: roleColor.withValues(alpha: 0.15),
-                    iconColor: roleColor,
-                    iconSize: 22,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: canOpenProfile
+                          ? () => _openAuthorProfile(context)
+                          : null,
+                      customBorder: const CircleBorder(),
+                      child: ProfileAvatar(
+                        imageUrl: author?.profileImageUrl,
+                        radius: 20,
+                        backgroundColor: roleColor.withValues(alpha: 0.15),
+                        iconColor: roleColor,
+                        iconSize: 22,
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -260,13 +319,33 @@ class _AuthorHeader extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              displayName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: canOpenProfile
+                                    ? () => _openAuthorProfile(context)
+                                    : null,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 2),
+                                  child: Text(
+                                    displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: canOpenProfile
+                                          ? AgroAccentColors.marketplaceChipGreen
+                                          : Colors.grey.shade800,
+                                      decoration: canOpenProfile
+                                          ? TextDecoration.underline
+                                          : null,
+                                      decorationColor:
+                                          AgroAccentColors.marketplaceChipGreen,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -278,28 +357,106 @@ class _AuthorHeader extends StatelessWidget {
                             ),
                             icon: Icon(
                               Icons.more_vert,
-                              color: Colors.grey.shade700,
+                              color: AgroAccentColors.marketplaceChipGreen,
                               size: 22,
                             ),
                             onSelected: (value) {
-                              if (value == 'report') onReport();
+                              switch (value) {
+                                case 'edit':
+                                  onEdit();
+                                  break;
+                                case 'delete':
+                                  onDelete();
+                                  break;
+                                case 'report':
+                                  onReport();
+                                  break;
+                              }
                             },
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                value: 'report',
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.flag_outlined,
-                                      color: Colors.red.shade700,
-                                      size: 20,
+                            itemBuilder: (context) {
+                              if (isOwnPost) {
+                                return [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.edit_outlined,
+                                          color: AgroAccentColors.marketplaceChipGreen,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text('community_edit_post'.tr()),
+                                      ],
                                     ),
-                                    const SizedBox(width: 8),
-                                    Text('community_report_post'.tr()),
-                                  ],
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.red.shade700,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text('community_delete_post'.tr()),
+                                      ],
+                                    ),
+                                  ),
+                                ];
+                              }
+
+                              if (canAdminDelete) {
+                                return [
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline,
+                                          color: Colors.red.shade700,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text('community_admin_delete_post'.tr()),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'report',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.flag_outlined,
+                                          color: Colors.red.shade700,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text('community_report_post'.tr()),
+                                      ],
+                                    ),
+                                  ),
+                                ];
+                              }
+
+                              return [
+                                PopupMenuItem(
+                                  value: 'report',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.flag_outlined,
+                                        color: Colors.red.shade700,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text('community_report_post'.tr()),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ];
+                            },
                           ),
                         ],
                       ),
@@ -346,7 +503,7 @@ class _AuthorHeader extends StatelessWidget {
                                     Icons.location_on_outlined,
                                     size: 16,
                                     color: canOpenLocation
-                                        ? Colors.green.shade700
+                                        ? AgroAccentColors.marketplaceChipGreen
                                         : Colors.grey.shade600,
                                   ),
                                   const SizedBox(width: 4),
@@ -357,12 +514,13 @@ class _AuthorHeader extends StatelessWidget {
                                         fontSize: 13,
                                         height: 1.35,
                                         color: canOpenLocation
-                                            ? Colors.green.shade800
+                                            ? AgroAccentColors.marketplaceChipGreen
                                             : Colors.grey.shade700,
                                         decoration: canOpenLocation
                                             ? TextDecoration.underline
                                             : null,
-                                        decorationColor: Colors.green.shade600,
+                                        decorationColor:
+                                            AgroAccentColors.marketplaceChipGreen,
                                       ),
                                     ),
                                   ),
@@ -370,7 +528,7 @@ class _AuthorHeader extends StatelessWidget {
                                     Icon(
                                       Icons.open_in_new,
                                       size: 14,
-                                      color: Colors.green.shade700,
+                                      color: AgroAccentColors.marketplaceChipGreen,
                                     ),
                                 ],
                               ),

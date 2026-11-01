@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/subscription_provider.dart';
+import '../../theme/agro_accent_colors.dart';
 import '../../models/farmer_shop_settings.dart';
 import '../../models/company_catalog_item.dart';
 import '../../models/product.dart';
@@ -10,9 +12,12 @@ import '../../repositories/product_repository.dart';
 import '../../services/currency_service.dart';
 import '../../utils/firestore_error_helper.dart';
 import '../../utils/production_types.dart';
+import '../../utils/scroll_bottom_padding.dart';
+import '../../widgets/farmer_review_prompt.dart';
 import '../../widgets/farmer_shop_info_card.dart';
 import '../../widgets/firestore_error_panel.dart';
 import '../../widgets/follow_farmer_button.dart';
+import '../../widgets/navigate_to_farmer_button.dart';
 import '../../widgets/product_card.dart';
 import '../../widgets/profile_avatar.dart';
 import 'product_details_screen.dart';
@@ -39,6 +44,28 @@ class FarmerStorefrontScreen extends ConsumerStatefulWidget {
 
   final String sellerId;
 
+  static const _priceYellow = Color(0xFFFFEB3B);
+  static const _unifiedGreen = AgroAccentColors.marketplaceUnifiedGreen;
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+
+  static AppBar _appBar({String? title, List<Widget>? actions}) {
+    return AppBar(
+      backgroundColor: _unifiedGreen,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      actions: actions,
+      title: title == null
+          ? null
+          : Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+    );
+  }
+
   @override
   ConsumerState<FarmerStorefrontScreen> createState() =>
       _FarmerStorefrontScreenState();
@@ -54,12 +81,8 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
     String? title,
   }) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.green.shade700,
-        foregroundColor: Colors.white,
-        title: Text(title ?? 'storefront_products'.tr()),
-      ),
+      backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+      appBar: FarmerStorefrontScreen._appBar(title: title),
       body: SizedBox.expand(
         child: FirestoreErrorPanel(
           error: error,
@@ -75,12 +98,8 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
 
     if (authAsync.isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: Colors.green.shade700,
-          foregroundColor: Colors.white,
-          title: Text('storefront_products'.tr()),
-        ),
+        backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+        appBar: FarmerStorefrontScreen._appBar(title: 'storefront_products'.tr()),
         body: const StorefrontProfileLoadingView(),
       );
     }
@@ -106,24 +125,24 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
         if (sellerSnapshot.connectionState == ConnectionState.waiting &&
             !sellerSnapshot.hasData) {
           return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-              title: Text('storefront_products'.tr()),
-            ),
+            backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+            appBar: FarmerStorefrontScreen._appBar(title: 'storefront_products'.tr()),
             body: const StorefrontProfileLoadingView(),
           );
         }
 
         if (!sellerSnapshot.hasData || sellerSnapshot.data == null) {
           return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
+            backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+            appBar: FarmerStorefrontScreen._appBar(),
+            body: Center(
+              child: Text(
+                'storefront_profile_hidden'.tr(),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.88),
+                ),
+              ),
             ),
-            body: Center(child: Text('storefront_profile_hidden'.tr())),
           );
         }
 
@@ -132,17 +151,17 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
 
         if (!seller.isPublicProfile) {
           return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              backgroundColor: Colors.green.shade700,
-              foregroundColor: Colors.white,
-            ),
+            backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+            appBar: FarmerStorefrontScreen._appBar(),
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
                   'storefront_profile_hidden'.tr(),
                   textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.88),
+                  ),
                 ),
               ),
             ),
@@ -152,18 +171,30 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
         final shopSettings = FarmerShopSettings.fromMap(seller.raw);
         final farmerName = seller.name;
         final tabConfig = StorefrontTabConfig.fromSellerData(seller.raw);
-        final showCompanyCatalog = tabConfig.canonicalRole == 'pharmacy';
+        final isAdmin = ref.watch(adminPremiumBypassProvider);
+        final showCompanyCatalog =
+            tabConfig.canonicalRole == 'pharmacy' && isAdmin;
+        final currentUid = ref.watch(currentAuthUidProvider);
+        final canRateFarmer =
+            currentUid != null && currentUid.trim() != widget.sellerId.trim();
 
         return Scaffold(
-          backgroundColor: Colors.white,
-          appBar: AppBar(
-            backgroundColor: Colors.green.shade700,
-            foregroundColor: Colors.white,
-            title: Text(
-              farmerName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+          backgroundColor: FarmerStorefrontScreen._unifiedGreen,
+          appBar: FarmerStorefrontScreen._appBar(
+            title: farmerName,
+            actions: canRateFarmer
+                ? [
+                    IconButton(
+                      icon: const Icon(Icons.star_outline),
+                      tooltip: 'product_rate_farmer'.tr(),
+                      onPressed: () => showFarmerReviewPrompt(
+                        context,
+                        ref,
+                        sellerId: widget.sellerId,
+                      ),
+                    ),
+                  ]
+                : null,
           ),
           body: _StorefrontScrollBody(
             sellerId: widget.sellerId,
@@ -176,6 +207,7 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
               farmerName: farmerName,
               sellerId: widget.sellerId,
               shopSettings: shopSettings,
+              canRateFarmer: canRateFarmer,
             ),
           ),
         );
@@ -184,21 +216,31 @@ class _FarmerStorefrontScreenState extends ConsumerState<FarmerStorefrontScreen>
   }
 }
 
-class _StorefrontHeaderSection extends StatelessWidget {
+class _StorefrontHeaderSection extends ConsumerWidget {
   const _StorefrontHeaderSection({
     required this.seller,
     required this.farmerName,
     required this.sellerId,
     required this.shopSettings,
+    required this.canRateFarmer,
   });
 
   final StorefrontSellerData seller;
   final String farmerName;
   final String sellerId;
   final FarmerShopSettings shopSettings;
+  final bool canRateFarmer;
+
+  void _openReview(BuildContext context, WidgetRef ref) {
+    showFarmerReviewPrompt(
+      context,
+      ref,
+      sellerId: sellerId,
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -212,22 +254,58 @@ class _StorefrontHeaderSection extends StatelessWidget {
             _RatingChip(
               avgRating: seller.avgRating,
               reviewCount: seller.reviewCount,
+              onTap: canRateFarmer ? () => _openReview(context, ref) : null,
             ),
             const SizedBox(width: 12),
             FollowFarmerButton(
               farmerId: sellerId,
               farmerName: farmerName,
+              marketplaceStyle: true,
             ),
           ],
         ),
+        if (canRateFarmer) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _openReview(context, ref),
+              icon: const Icon(Icons.star_outline, size: 18),
+              label: Text('product_rate_farmer'.tr()),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.85)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
-        FarmerShopInfoCard(settings: shopSettings, compact: true),
+        FarmerShopInfoCard(
+          settings: shopSettings,
+          compact: true,
+          marketplaceStyle: true,
+        ),
+        if (NavigateToFarmerButton.canNavigateSeller(
+          seller: seller,
+          settings: shopSettings,
+        )) ...[
+          const SizedBox(height: 12),
+          NavigateToFarmerButton(
+            name: farmerName,
+            address: seller.address,
+            lat: shopSettings.farmLat,
+            lng: shopSettings.farmLng,
+            marketplaceStyle: true,
+          ),
+        ],
         const SizedBox(height: 16),
         Text(
           'storefront_products'.tr(),
           style: const TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
         const SizedBox(height: 8),
@@ -282,7 +360,11 @@ class _StorefrontScrollBody extends StatelessWidget {
               );
             },
           ),
-        const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+        SliverPadding(
+          padding: EdgeInsets.only(
+            bottom: ScrollBottomPadding.insetFullScreen(context),
+          ),
+        ),
       ],
     );
   }
@@ -373,6 +455,7 @@ class _StorefrontScrollBody extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             );
@@ -407,10 +490,15 @@ class _CompanyCatalogTile extends ConsumerWidget {
       orderCurrency.isNotEmpty ? orderCurrency : CurrencyService.bam,
     );
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: FarmerStorefrontScreen._chipGreen,
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -426,6 +514,7 @@ class _CompanyCatalogTile extends ConsumerWidget {
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
+                      color: Colors.white,
                     ),
                   ),
                   if (item.skuCode.trim().isNotEmpty) ...[
@@ -434,7 +523,7 @@ class _CompanyCatalogTile extends ConsumerWidget {
                       item.skuCode,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: Colors.white.withValues(alpha: 0.82),
                       ),
                     ),
                   ],
@@ -445,9 +534,9 @@ class _CompanyCatalogTile extends ConsumerWidget {
               price: item.price,
               originalCurrency: currency,
               unit: item.unit,
-              style: TextStyle(
-                color: Colors.green.shade700,
-                fontWeight: FontWeight.w600,
+              style: const TextStyle(
+                color: FarmerStorefrontScreen._priceYellow,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -473,8 +562,8 @@ class _SellerProfileHeader extends StatelessWidget {
         ProfileAvatar(
           imageUrl: seller.profileImageUrl,
           radius: 32,
-          backgroundColor: Colors.green.shade50,
-          iconColor: Colors.green.shade800,
+          backgroundColor: Colors.white.withValues(alpha: 0.18),
+          iconColor: Colors.white.withValues(alpha: 0.96),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -488,6 +577,7 @@ class _SellerProfileHeader extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
               if (seller.address.isNotEmpty) ...[
@@ -496,7 +586,10 @@ class _SellerProfileHeader extends StatelessWidget {
                   seller.address,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ],
@@ -511,38 +604,65 @@ class _RatingChip extends StatelessWidget {
   const _RatingChip({
     required this.avgRating,
     required this.reviewCount,
+    this.onTap,
   });
 
   final double avgRating;
   final int reviewCount;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Flexible(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.amber.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.amber.shade300),
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: FarmerStorefrontScreen._chipGreen,
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.star, color: Colors.amber, size: 18),
-            const SizedBox(width: 4),
-            Text(
-              avgRating > 0 ? avgRating.toStringAsFixed(1) : 'N/A',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            if (reviewCount > 0)
-              Text(
-                ' ($reviewCount)',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-          ],
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.star,
+            color: FarmerStorefrontScreen._priceYellow,
+            size: 18,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            avgRating > 0 ? avgRating.toStringAsFixed(1) : 'N/A',
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          if (reviewCount > 0)
+            Text(
+              ' ($reviewCount)',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.82),
+                fontSize: 12,
+              ),
+            ),
+        ],
+      ),
+    );
+
+    return Flexible(
+      child: onTap == null
+          ? chip
+          : Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(
+                  AgroAccentColors.marketplaceCornerRadius,
+                ),
+                child: chip,
+              ),
+            ),
     );
   }
 }
@@ -554,12 +674,19 @@ class _EmptyProductsHint extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Column(
         children: [
-          Icon(Icons.storefront_outlined, size: 56, color: Colors.grey.shade400),
+          Icon(
+            Icons.storefront_outlined,
+            size: 56,
+            color: Colors.white.withValues(alpha: 0.55),
+          ),
           const SizedBox(height: 12),
           Text(
             'storefront_no_products'.tr(),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 15,
+            ),
           ),
         ],
       ),
@@ -587,18 +714,17 @@ class _PublicProductTile extends ConsumerWidget {
         width: imageSize,
         height: imageSize,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
           product.isService ? Icons.build : Icons.image_outlined,
-          color: Colors.grey.shade500,
+          color: Colors.white.withValues(alpha: 0.88),
         ),
       );
     } else {
       leading = ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: ProductCardImage(
           isUnavailable: product.isUnavailable,
           child: Image.network(
@@ -609,20 +735,26 @@ class _PublicProductTile extends ConsumerWidget {
             errorBuilder: (_, __, ___) => Container(
               width: imageSize,
               height: imageSize,
-              color: Colors.grey.shade100,
-              child: Icon(Icons.broken_image, color: Colors.grey.shade500),
+              color: Colors.white.withValues(alpha: 0.18),
+              child: Icon(
+                Icons.broken_image,
+                color: Colors.white.withValues(alpha: 0.88),
+              ),
             ),
           ),
         ),
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Material(
+      color: FarmerStorefrontScreen._chipGreen,
+      borderRadius: BorderRadius.circular(
+        AgroAccentColors.marketplaceCornerRadius,
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
+        ),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -631,50 +763,62 @@ class _PublicProductTile extends ConsumerWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.all(10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              leading,
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    ProductCardPriceText(
-                      price: product.price,
-                      originalCurrency: product.originalCurrency,
-                      unit: product.displayUnit,
-                      style: TextStyle(
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      productionLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: leading,
                 ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey.shade400),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ProductCardPriceText(
+                        price: product.price,
+                        originalCurrency: product.originalCurrency,
+                        unit: product.displayUnit,
+                        style: const TextStyle(
+                          color: FarmerStorefrontScreen._priceYellow,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        productionLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.82),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: Colors.white.withValues(alpha: 0.88),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/community_post.dart';
 
@@ -18,7 +20,11 @@ class CommunityPostRepository {
       _firestore.collection(collection);
 
   Timestamp get _feedCutoffTimestamp => Timestamp.fromDate(
-        DateTime.now().subtract(const Duration(days: feedRetentionDays)),
+        DateTime(
+          DateTime.now().year,
+          DateTime.now().month,
+          DateTime.now().day,
+        ).subtract(const Duration(days: feedRetentionDays)),
       );
 
   bool _isVisibleInFeed(Map<String, dynamic> data) {
@@ -42,27 +48,45 @@ class CommunityPostRepository {
       }
       final posts = merged.values.toList(growable: false);
       posts.sort(_compareNewestFirst);
-      controller.add(posts);
+      if (!controller.isClosed) {
+        controller.add(posts);
+      }
     }
 
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? legacySub;
     final subscriptions = <StreamSubscription<dynamic>>[
       _postsRef
           .where('timestamp', isGreaterThan: cutoff)
           .orderBy('timestamp', descending: true)
           .snapshots()
-          .listen((snapshot) {
-        primary = snapshot;
-        emitMerged();
-      }),
-      _firestore
+          .listen(
+        (snapshot) {
+          primary = snapshot;
+          emitMerged();
+        },
+        onError: (_) {
+          if (!controller.isClosed) {
+            controller.add(const []);
+          }
+        },
+      ),
+      legacySub = _firestore
           .collection(legacyCollection)
           .where('timestamp', isGreaterThan: cutoff)
           .orderBy('timestamp', descending: true)
           .snapshots()
-          .listen((snapshot) {
-        legacy = snapshot;
-        emitMerged();
-      }),
+          .listen(
+        (snapshot) {
+          legacy = snapshot;
+          emitMerged();
+        },
+        onError: (_) {
+          // Legacy "posts" može biti zatvoren pravilima — prekini listener da ne opterećuje UI.
+          unawaited(legacySub?.cancel());
+          legacySub = null;
+          emitMerged();
+        },
+      ),
     ];
 
     controller.onCancel = () {
@@ -119,18 +143,24 @@ class CommunityPostRepository {
           .collection(legacyCollection)
           .where('userId', isEqualTo: userId)
           .snapshots()
-          .listen((snapshot) {
-        legacyByUserId = snapshot;
-        emitMerged();
-      }),
+          .listen(
+        (snapshot) {
+          legacyByUserId = snapshot;
+          emitMerged();
+        },
+        onError: (_) => emitMerged(),
+      ),
       _firestore
           .collection(legacyCollection)
           .where('authorId', isEqualTo: userId)
           .snapshots()
-          .listen((snapshot) {
-        legacyByAuthorId = snapshot;
-        emitMerged();
-      }),
+          .listen(
+        (snapshot) {
+          legacyByAuthorId = snapshot;
+          emitMerged();
+        },
+        onError: (_) => emitMerged(),
+      ),
     ];
 
     controller.onCancel = () {
@@ -142,10 +172,21 @@ class CommunityPostRepository {
     return controller.stream;
   }
 
+  Future<String> uploadPostImage(File file) async {
+    final fileName = 'ljepote/${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final task = FirebaseStorage.instance.ref().child(fileName).putFile(
+          file,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+    final snapshot = await task;
+    return snapshot.ref.getDownloadURL();
+  }
+
   Future<void> publishPost({
     required String imageUrl,
     required String description,
     required String userId,
+    double? imageAspectRatio,
   }) async {
     final userDoc = await _firestore.collection('users').doc(userId).get();
     if (userDoc.data()?['communityPostingBlocked'] == true) {
@@ -161,7 +202,77 @@ class CommunityPostRepository {
       'isReported': false,
       'reportedBy': <String>[],
       'applaudedBy': <String>[],
+      if (imageAspectRatio != null && imageAspectRatio > 0)
+        'imageAspectRatio': imageAspectRatio,
     });
+  }
+
+  Future<void> updateOwnPost({
+    required String postId,
+    required String userId,
+    required String description,
+    String? imageUrl,
+    double? imageAspectRatio,
+  }) async {
+    final ref = await _findPostRef(postId);
+    if (ref == null) throw Exception('community_post_not_found');
+
+    final data = (await ref.get()).data();
+    if (data == null) throw Exception('community_post_not_found');
+
+    final authorId = (data['authorId'] ?? data['userId'])?.toString().trim();
+    if (authorId != userId) throw Exception('community_post_forbidden');
+
+    final updates = <String, dynamic>{'description': description};
+    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      updates['imageUrl'] = imageUrl.trim();
+    }
+    if (imageAspectRatio != null && imageAspectRatio > 0) {
+      updates['imageAspectRatio'] = imageAspectRatio;
+    }
+    await ref.update(updates);
+  }
+
+  Future<void> deleteOwnPost({
+    required String postId,
+    required String userId,
+    String? imageUrl,
+  }) async {
+    final ref = await _findPostRef(postId);
+    if (ref == null) throw Exception('community_post_not_found');
+
+    final data = (await ref.get()).data();
+    if (data == null) throw Exception('community_post_not_found');
+
+    final authorId = (data['authorId'] ?? data['userId'])?.toString().trim();
+    if (authorId != userId) throw Exception('community_post_forbidden');
+
+    await ref.delete();
+    await _deleteStorageImageIfPossible(imageUrl ?? data['imageUrl']?.toString());
+  }
+
+  Future<DocumentReference<Map<String, dynamic>>?> _findPostRef(
+    String postId,
+  ) async {
+    final primary = _postsRef.doc(postId);
+    if ((await primary.get()).exists) return primary;
+
+    final legacy = _firestore.collection(legacyCollection).doc(postId);
+    if ((await legacy.get()).exists) return legacy;
+
+    return null;
+  }
+
+  Future<void> deleteStorageImage(String? imageUrl) =>
+      _deleteStorageImageIfPossible(imageUrl);
+
+  Future<void> _deleteStorageImageIfPossible(String? imageUrl) async {
+    final url = imageUrl?.trim();
+    if (url == null || url.isEmpty) return;
+
+    try {
+      await FirebaseStorage.instance.refFromURL(url).delete();
+    } catch (_) {}
   }
 
   Future<void> toggleApplause({
@@ -199,7 +310,12 @@ class CommunityPostRepository {
     required String postId,
     String? authorId,
   }) async {
-    await _postsRef.doc(postId).delete();
+    final ref = await _findPostRef(postId);
+    if (ref == null) return;
+
+    final data = (await ref.get()).data();
+    await _deleteStorageImageIfPossible(data?['imageUrl']?.toString());
+    await ref.delete();
 
     if (authorId != null && authorId.isNotEmpty) {
       await blockAuthorFromCommunity(authorId);

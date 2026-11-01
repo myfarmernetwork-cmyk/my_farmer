@@ -128,17 +128,21 @@ class ForumRepository {
   }
 
   Future<void> deleteTopic(String topicId) async {
-    final comments = await _commentsRef
-        .where('topicId', isEqualTo: topicId)
-        .limit(200)
-        .get();
+    while (true) {
+      final comments = await _commentsRef
+          .where('topicId', isEqualTo: topicId)
+          .limit(400)
+          .get();
+      if (comments.docs.isEmpty) break;
 
-    final batch = _firestore.batch();
-    for (final doc in comments.docs) {
-      batch.delete(doc.reference);
+      final batch = _firestore.batch();
+      for (final doc in comments.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
     }
-    batch.delete(_topicsRef.doc(topicId));
-    await batch.commit();
+
+    await _topicsRef.doc(topicId).delete();
   }
 
   Future<void> deleteComment({

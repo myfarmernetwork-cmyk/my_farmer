@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/auth_provider.dart';
 
 class ChatRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -34,9 +35,22 @@ class ChatRepository {
     await _firestore.collection('chat_rooms').doc(roomId).set(
       {
         'unreadCounts.$userId': 0,
+        'lastSeenAt.$userId': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),
     );
+  }
+
+  static DateTime? lastSeenAtForUser(
+    Map<String, dynamic>? roomData,
+    String userId,
+  ) {
+    if (roomData == null || userId.isEmpty) return null;
+    final map = roomData['lastSeenAt'];
+    if (map is! Map) return null;
+    final value = map[userId];
+    if (value is Timestamp) return value.toDate();
+    return null;
   }
 
   Stream<int> watchUnreadTotal(String userId) {
@@ -66,7 +80,7 @@ final chatRepositoryProvider = Provider<ChatRepository>(
 );
 
 final unreadMessagesCountProvider = StreamProvider.autoDispose<int>((ref) {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(currentAuthUidProvider);
   if (uid == null) return Stream.value(0);
   return ref.watch(chatRepositoryProvider).watchUnreadTotal(uid);
 });

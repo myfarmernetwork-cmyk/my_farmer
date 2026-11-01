@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../config/subscription_limits.dart';
 import '../models/subscription_tier.dart';
 import 'company_catalog_pdf_fonts.dart';
+import 'payment_service.dart';
 
 /// PDF vodič: sve uloge — besplatno vs. plaćena pretplata.
 class RolesSubscriptionPdfGuide {
@@ -14,6 +15,8 @@ class RolesSubscriptionPdfGuide {
   static Future<Uint8List> build({
     required PdfPageFormat format,
     String languageCode = 'hr',
+    String? countryCode,
+    String? currencyRegion,
   }) async {
     final fonts = await CompanyCatalogPdfFonts.load(languageCode);
 
@@ -112,6 +115,19 @@ class RolesSubscriptionPdfGuide {
     final companyPrice =
         '${SubscriptionLimits.monthlyPriceEur(SubscriptionTier.pharmacyLicense).toStringAsFixed(2).replaceAll('.', ',')} €/mj';
 
+    final buyerScanCap = PaymentService.resolveSubscriptionMonthlyScanCap(
+      tier: SubscriptionTier.buyerPremium,
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+      countryCode: countryCode,
+    );
+    final hobbyScanCap = PaymentService.resolveSubscriptionMonthlyScanCap(
+      tier: SubscriptionTier.hobbyFarmerPremium,
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+      countryCode: countryCode,
+    );
+
     final doc = pw.Document(
       title: 'My Farmer — Uloge i pretplate',
       author: 'My Farmer',
@@ -163,7 +179,7 @@ class RolesSubscriptionPdfGuide {
               'Forum i zajednica',
             ],
             paidItems: [
-              '${SubscriptionLimits.buyerPremiumMonthlyScans} AI skeniranja mjesečno',
+              '$buyerScanCap AI skeniranja mjesečno',
               'Do ${SubscriptionLimits.buyerPremiumMaxAnimals} životinja u digitalnom kartonu',
               'Rezervacija robe u dolasku i plaćanje karticom',
               'Premium chat (ukl. automatski prijevod)',
@@ -181,7 +197,7 @@ class RolesSubscriptionPdfGuide {
               'Narudžbe s tržnice (kao kupac)',
             ],
             paidItems: [
-              '${SubscriptionLimits.hobbyPremiumMonthlyScans} AI skeniranja mjesečno',
+              '$hobbyScanCap AI skeniranja mjesečno',
               'Satelitsko mjerenje parcela — do ${SubscriptionLimits.hobbyPremiumMaxParcels} parcela',
               'NIRS/NDVI nadzor — ${SubscriptionLimits.hobbyPremiumNirsMonthlyLoads} učitavanja/mj',
               'Do ${SubscriptionLimits.hobbyPremiumMaxAnimals} životinja u kartonu',

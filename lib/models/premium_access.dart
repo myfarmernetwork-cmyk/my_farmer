@@ -51,6 +51,15 @@ class PremiumAccess {
   /// Zatvoreno testiranje — pun premium bez plaćanja (samo BETA_FREE_PREMIUM build).
   final bool closedTestFreePremium;
 
+  /// Firestore — chat besplatni za sve u testiranju.
+  final bool closedTestingFreeChat;
+
+  /// Firestore — AI skener besplatan u testiranju (sve uloge).
+  final bool closedTestingFreeAiScanner;
+
+  /// Firestore — kartoteka pacijenata besplatna za veterinare u testiranju.
+  final bool closedTestingFreeVetIntake;
+
   final UserRole effectiveRole;
 
   final String languageCode;
@@ -66,6 +75,12 @@ class PremiumAccess {
     this.isAdminBypass = false,
 
     this.closedTestFreePremium = false,
+
+    this.closedTestingFreeChat = false,
+
+    this.closedTestingFreeAiScanner = false,
+
+    this.closedTestingFreeVetIntake = false,
 
     this.effectiveRole = UserRole.buyer,
 
@@ -275,6 +290,8 @@ class PremiumAccess {
 
       case PremiumFeature.chat:
 
+        if (closedTestingFreeChat) return true;
+
         return _hasBuyerPremium || isPremium || user!.isFarmerRole ||
 
             user!.needsAdminVerification;
@@ -282,8 +299,6 @@ class PremiumAccess {
 
 
       case PremiumFeature.animalRecords:
-
-        if (role == UserRole.veterinarian) return false;
 
         return SubscriptionLimits.maxAnimals(
 
@@ -301,10 +316,19 @@ class PremiumAccess {
 
       case PremiumFeature.aiScanner:
 
+        if (closedTestingFreeAiScanner) return true;
+
         if (_hasIntroScansLeft) return true;
 
         if (role == UserRole.veterinarian) {
           return (_hasVetLicense && user!.isPremiumApproved) ||
+              isInPromoPeriod ||
+              isPremium;
+        }
+
+        if (role == UserRole.pharmacy) {
+          return (_hasPharmacyLicense && user!.isPremiumApproved) ||
+              hasPaidOrPromoAccess ||
               isInPromoPeriod ||
               isPremium;
         }
@@ -365,6 +389,10 @@ class PremiumAccess {
 
       case PremiumFeature.digitalMedicalIntake:
 
+        if (closedTestingFreeVetIntake && role == UserRole.veterinarian) {
+          return true;
+        }
+
         return role == UserRole.veterinarian &&
 
             user!.isPremiumApproved &&
@@ -413,13 +441,37 @@ class PremiumAccess {
           hasPaidPremium: hasPaidOrPromoAccess,
         );
 
-  int get monthlyNirsLimit => grantsFullPremium
-      ? 999
-      : SubscriptionLimits.monthlyNirsLoadsForTier(
-          role: role,
-          tier: _effectiveTier,
-          hasPaidPremium: hasPaidOrPromoAccess,
-        );
+  int get monthlyNirsLimit {
+    if (grantsFullPremium) return 999;
+    final euCap = SubscriptionLimits.monthlyNirsLoadsForTier(
+      role: role,
+      tier: _effectiveTier,
+      hasPaidPremium: hasPaidOrPromoAccess,
+    );
+    if (euCap <= 0) return 0;
+    final tier = _effectiveTier;
+    if (tier != null &&
+        user != null &&
+        _isConsumerSubscriptionTier(tier) &&
+        (role == UserRole.hobbyFarmer || role == UserRole.professionalFarmer)) {
+      return _resolveConsumerNirsCap(tier);
+    }
+    return euCap;
+  }
+
+  /// Regionalni NIRS cap za paywall / preview (bez obzira je li pretplata aktivna).
+  int get regionalMonthlyNirsCapPreview {
+    final tier = _consumerTierForRole();
+    if (tier == null) return 0;
+    if (user == null) {
+      return SubscriptionLimits.monthlyNirsLoadsForTier(
+        role: role,
+        tier: tier,
+        hasPaidPremium: true,
+      );
+    }
+    return _resolveConsumerNirsCap(tier);
+  }
 
 
 
@@ -449,6 +501,26 @@ class PremiumAccess {
   }
 
   int _resolveConsumerScanCap(SubscriptionTier tier) {
+    final billing = _consumerBillingContext();
+    return PaymentService.resolveSubscriptionMonthlyScanCap(
+      tier: tier,
+      currencyRegion: billing.region,
+      languageCode: languageCode,
+      countryCode: billing.country,
+    );
+  }
+
+  int _resolveConsumerNirsCap(SubscriptionTier tier) {
+    final billing = _consumerBillingContext();
+    return PaymentService.resolveSubscriptionMonthlyNirsCap(
+      tier: tier,
+      currencyRegion: billing.region,
+      languageCode: languageCode,
+      countryCode: billing.country,
+    );
+  }
+
+  ({String? country, String? region}) _consumerBillingContext() {
     final u = user!;
     final billingCountry = PaymentService.resolveBillingCountryForPricing(
       paymentCountryCode: u.paymentCountryCode ??
@@ -462,12 +534,7 @@ class PremiumAccess {
           PaymentService.cachedPaymentCountryCode,
       role: u.role,
     );
-    return PaymentService.resolveSubscriptionMonthlyScanCap(
-      tier: tier,
-      currencyRegion: region,
-      languageCode: languageCode,
-      countryCode: billingCountry,
-    );
+    return (country: billingCountry, region: region);
   }
 
   int monthlyScanLimit() {

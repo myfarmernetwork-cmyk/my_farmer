@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/app_user.dart';
 import '../../repositories/admin_repository.dart';
+import '../../utils/admin_user_attribution.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import 'admin_orders_list_screen.dart';
 import 'admin_user_list_screen.dart';
 import 'widgets/admin_stats_charts.dart';
@@ -127,6 +129,8 @@ class AdminStatsScreen extends StatelessWidget {
             firms: firms,
             admins: admins,
           );
+          final countryCounts =
+              AdminUserAttribution.countsByCountry(userDocs);
 
           return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: firestore.collection('orders').snapshots(),
@@ -144,12 +148,20 @@ class AdminStatsScreen extends StatelessWidget {
                   );
 
                   return ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: ScrollBottomPadding.list(context),
                     children: [
                       AdminChartCard(
                         title: 'Dijagram korisnika',
                         subtitle: 'Raspodjela po ulogama',
                         child: AdminUserPieChart(slices: roleSlices),
+                      ),
+                      AdminChartCard(
+                        title: 'Korisnici po zemlji',
+                        subtitle:
+                            'Signup / zadnji ulazak u app (GPS uređaja, Play ne šalje adresu)',
+                        child: AdminSignupCountryChart(
+                          countries: countryCounts,
+                        ),
                       ),
                       AdminChartCard(
                         title: 'Dijagram korištenja',

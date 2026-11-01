@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/profile/payment_methods_screen.dart';
 import '../models/saved_payment_method.dart';
 import '../repositories/payment_methods_repository.dart';
+import '../theme/agro_accent_colors.dart';
 import '../utils/payment_methods_error_helper.dart';
+import 'agro_glass_chrome.dart';
 
 /// Kartica na profilu — ulaz u upravljanje načinima plaćanja.
 class ProfilePaymentMethodsTile extends ConsumerWidget {
@@ -19,40 +21,31 @@ class ProfilePaymentMethodsTile extends ConsumerWidget {
 
     return KeyedSubtree(
       key: guideKey,
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.green.shade200),
+      child: ProfileCreamListTile(
+        leading: CircleAvatar(
+          backgroundColor: AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.15),
+          child: const Icon(Icons.payments_outlined, color: AgroAccentColors.marketplaceChipGreen),
         ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: CircleAvatar(
-            backgroundColor: Colors.green.shade50,
-            child: Icon(Icons.payments_outlined, color: Colors.green.shade800),
+        title: Text(
+          'profile_payment_methods_title'.tr(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: methodsAsync.when(
+          loading: () => Text('profile_payment_methods_loading'.tr()),
+          error: (e, _) => Text(
+            paymentMethodsErrorMessage(e),
+            style: TextStyle(color: Colors.red.shade700, fontSize: 12),
           ),
-          title: Text(
-            'profile_payment_methods_title'.tr(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: methodsAsync.when(
-            loading: () => Text('profile_payment_methods_loading'.tr()),
-            error: (e, _) => Text(
-              paymentMethodsErrorMessage(e),
-              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+          data: (methods) => Text(_summary(methods)),
+        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const PaymentMethodsScreen(),
             ),
-            data: (methods) => Text(_summary(methods)),
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const PaymentMethodsScreen(),
-              ),
-            );
-          },
-        ),
+          );
+        },
       ),
     );
   }

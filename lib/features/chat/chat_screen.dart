@@ -7,9 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/animal_record.dart';
 import '../../models/medical_history_entry.dart';
 import '../../providers/locale_settings_provider.dart';
+import '../../theme/agro_accent_colors.dart';
+import '../../utils/chat_time_formatter.dart';
 import '../../repositories/animal_repository.dart';
 import '../../repositories/chat_repository.dart';
 import '../../services/translation_service.dart';
+import '../../widgets/agro_glass_chrome.dart';
+import '../../widgets/chat_day_separator.dart';
 import '../../widgets/chat_message_bubble.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -123,6 +127,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _messageController.clear();
   }
 
+  Future<void> _confirmAndSendMedicalCard(
+    AnimalRecord animal, {
+    List<MedicalHistoryEntry>? selectedEntries,
+  }) async {
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('chat_medical_confirm_title'.tr()),
+        content: Text(
+          'chat_medical_confirm_body'.tr(
+            namedArgs: {
+              'name': animal.name,
+              'receiver': widget.receiverName,
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AgroAccentColors.marketplaceChipGreen,
+            ),
+            child: Text('chat_medical_confirm_send'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await _sendMedicalCard(animal, selectedEntries: selectedEntries);
+    }
+  }
+
   Future<void> _sendMedicalCard(
     AnimalRecord animal, {
     List<MedicalHistoryEntry>? selectedEntries,
@@ -173,7 +216,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('chat_medical_sent'.tr()),
-            backgroundColor: Colors.green[700],
+            backgroundColor: AgroAccentColors.headerGreenDark,
           ),
         );
       }
@@ -216,7 +259,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         animals: animals,
         onSend: (animal, selectedEntries) {
           Navigator.pop(ctx);
-          _sendMedicalCard(animal, selectedEntries: selectedEntries);
+          _confirmAndSendMedicalCard(animal, selectedEntries: selectedEntries);
         },
       ),
     );
@@ -228,7 +271,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -238,49 +283,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.normal,
-                color: Colors.white.withValues(alpha: 0.9),
+                color: Colors.white.withValues(alpha: 0.85),
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.green[700],
       ),
-      body: SafeArea(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: SafeArea(
         top: false,
         child: Column(
           children: [
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
+              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 stream: FirebaseFirestore.instance
                     .collection('chat_rooms')
                     .doc(_chatRoomId)
-                    .collection('messages')
-                    .orderBy('timestamp', descending: true)
                     .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+                builder: (context, roomSnapshot) {
+                  final peerLastSeen = ChatRepository.lastSeenAtForUser(
+                    roomSnapshot.data?.data(),
+                    widget.receiverId,
+                  );
 
-                  return ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.only(top: 8, bottom: 4),
-                    itemCount: snapshot.data!.docs.length,
-                    itemBuilder: (context, index) {
-                      final data = snapshot.data!.docs[index].data()
-                          as Map<String, dynamic>;
-                      final isMe = data['senderId'] == currentUser!.uid;
-                      final messageType =
-                          data['messageType'] as String? ?? 'text';
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('chat_rooms')
+                        .doc(_chatRoomId)
+                        .collection('messages')
+                        .orderBy('timestamp', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return Center(
+                          child: CircularProgressIndicator(
+                            color: AgroAccentColors.marketplaceChipGreen,
+                          ),
+                        );
+                      }
 
-                      return ChatMessageBubble(
-                        message: data['message'] as String? ?? '',
-                        originalMessage: data['originalMessage'] as String?,
-                        messageType: messageType,
-                        sourceLanguage:
-                            data['sourceLanguage'] as String? ?? 'auto',
-                        viewerLanguage: _viewerLanguage,
-                        isMe: isMe,
+                      final docs = snapshot.data!.docs;
+                      return ListView.builder(
+                        reverse: true,
+                        padding: const EdgeInsets.only(top: 8, bottom: 4),
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final data =
+                              docs[index].data() as Map<String, dynamic>;
+                          final isMe = data['senderId'] == currentUser!.uid;
+                          final messageType =
+                              data['messageType'] as String? ?? 'text';
+                          final messageTime =
+                              (data['timestamp'] as Timestamp?)?.toDate();
+                          final olderMessageTime = index < docs.length - 1
+                              ? (docs[index + 1].data()
+                                      as Map<String, dynamic>)['timestamp']
+                                  as Timestamp?
+                              : null;
+                          final showDaySeparator = messageTime != null &&
+                              (index == docs.length - 1 ||
+                                  !ChatTimeFormatter.isSameDay(
+                                    messageTime,
+                                    olderMessageTime?.toDate(),
+                                  ));
+
+                          return Column(
+                            children: [
+                              if (showDaySeparator)
+                                ChatDaySeparator(date: messageTime),
+                              ChatMessageBubble(
+                                message: data['message'] as String? ?? '',
+                                originalMessage:
+                                    data['originalMessage'] as String?,
+                                messageType: messageType,
+                                sourceLanguage:
+                                    data['sourceLanguage'] as String? ?? 'auto',
+                                viewerLanguage: _viewerLanguage,
+                                isMe: isMe,
+                                messageTime: messageTime,
+                                isSeenByPeer: isMe &&
+                                    messageTime != null &&
+                                    peerLastSeen != null &&
+                                    !messageTime.isAfter(peerLastSeen),
+                              ),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
@@ -288,47 +379,73 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
             if (_isSendingCard)
-              const LinearProgressIndicator(minHeight: 2),
-            Material(
-              elevation: 8,
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.medical_services_outlined,
-                          color: Colors.green),
-                      tooltip: 'chat_send_medical_title'.tr(),
-                      onPressed: _isSendingCard ? null : _showMedicalCardPicker,
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _sendMessage(),
-                        minLines: 1,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          hintText: 'chat_hint'.tr(),
-                          border: const OutlineInputBorder(),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
+              LinearProgressIndicator(
+                minHeight: 2,
+                color: AgroAccentColors.marketplaceChipGreen,
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Material(
+                color: Colors.white,
+                elevation: 3,
+                shadowColor: Colors.black.withValues(alpha: 0.18),
+                shape: const StadiumBorder(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 4, 4, 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.medical_services_outlined,
+                          color: AgroAccentColors.marketplaceChipGreen,
+                        ),
+                        tooltip: 'chat_send_medical_title'.tr(),
+                        onPressed:
+                            _isSendingCard ? null : _showMedicalCardPicker,
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendMessage(),
+                          minLines: 1,
+                          maxLines: 4,
+                          style: const TextStyle(
+                            color: AgroAccentColors.marketplaceChipGreen,
+                            fontSize: 15,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'chat_hint'.tr(),
+                            hintStyle: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 15,
+                            ),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send, color: Colors.green),
-                      onPressed: _sendMessage,
-                    ),
-                  ],
+                      IconButton(
+                        icon: Icon(
+                          Icons.send_rounded,
+                          color: AgroAccentColors.marketplaceChipGreen,
+                        ),
+                        onPressed: _sendMessage,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -498,7 +615,7 @@ class _MedicalCardPickerSheetState extends State<_MedicalCardPickerSheet> {
                     icon: const Icon(Icons.send),
                     label: Text('chat_send_selected'.tr()),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
+                      backgroundColor: AgroAccentColors.forestGreen,
                       foregroundColor: Colors.white,
                     ),
                   ),

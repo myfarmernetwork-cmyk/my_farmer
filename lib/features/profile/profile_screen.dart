@@ -8,12 +8,14 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../config/app_version.dart';
-import '../../screens/login_screen.dart';
 import '../../models/app_user.dart';
 import '../../models/premium_access.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_role_preview_provider.dart';
+import '../../providers/navigation_badges_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../repositories/chat_repository.dart';
+import '../../repositories/order_repository.dart';
 import '../admin/widgets/admin_role_switcher.dart';
 import '../../widgets/premium_gate_dialog.dart';
 import '../../widgets/farmer_help_widgets.dart';
@@ -24,6 +26,7 @@ import '../../screens/my_animals_screen.dart';
 import '../../utils/upcoming_product_helper.dart';
 import '../../utils/farmer_guide_access.dart';
 import '../community/widgets/user_community_gallery_grid.dart';
+import '../notifications/notifications_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../../models/farmer_shop_settings.dart';
 import '../../providers/locale_settings_provider.dart';
@@ -33,17 +36,19 @@ import '../../services/payment_service.dart';
 import '../../utils/currency_region_parse.dart';
 import '../../utils/firestore_error_helper.dart';
 import '../../utils/farmer_shop_localization.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import '../../utils/role_helpers.dart';
 import '../../utils/weekday_localization.dart';
 import '../../models/screen_guide_step.dart';
+import '../../theme/agro_accent_colors.dart';
+import '../../widgets/agro_glass_chrome.dart';
 import '../../widgets/farmer_helper_button.dart';
 import '../../widgets/firestore_error_panel.dart';
 import '../../widgets/profile_subscription_card.dart';
+import '../../widgets/profile_notification_settings_card.dart';
 import '../../widgets/profile_payment_methods_tile.dart';
 import '../../widgets/profile_delete_account_tile.dart';
 import '../../widgets/farmer_follower_count_badge.dart';
-import '../../screens/roles_subscription_pdf_screen.dart';
-import '../../screens/beta_test_pdf_screen.dart';
 import '../legal/marketplace_terms_screen.dart';
 import '../legal/privacy_policy_screen.dart';
 
@@ -716,12 +721,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Future<void> _signOut() async {
     await ref.read(authServiceProvider).logoutAndClearCache();
     invalidateAuthSessionCache(ref);
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
-    }
+    invalidateNavigationSessionCache(ref);
+    ref.invalidate(sellerOrdersProvider);
+    ref.invalidate(buyerOrdersProvider);
+    ref.invalidate(unreadMessagesCountProvider);
+    // AuthGate prebacuje na LoginScreen kad authState postane null.
   }
 
   bool _showCurrencyRegionPicker(UserRole role) {
@@ -930,9 +934,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   String _currencyDisplayLabel(CurrencyInfo currency) {
-    final translated = 'selected_currency'.tr();
-    if (translated != 'selected_currency') return translated;
-
     switch (currency.code) {
       case CurrencyService.eur:
         return 'Euro - EUR (€)';
@@ -1050,34 +1051,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       currencyRegion: _effectiveCurrencyRegion(role),
     );
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.green[200]!),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.language, color: Colors.green[800], size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'profile_language'.tr(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.green[900],
-                    ),
-                    overflow: TextOverflow.ellipsis,
+    return ProfileCreamCard(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.language, color: AgroAccentColors.marketplaceChipGreen, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'profile_language'.tr(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: AgroAccentColors.textDark,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
             const SizedBox(height: 12),
             KeyedSubtree(
               key: _guideLanguageKey,
@@ -1085,9 +1080,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 key: ValueKey('profile_lang_dropdown_$resolvedKey'),
                 isExpanded: true,
                 value: resolvedKey,
-                decoration: InputDecoration(
+                decoration: marketplaceFormInputDecoration(
                   labelText: 'profile_language'.tr(),
-                  border: const OutlineInputBorder(),
                   prefixIcon: Padding(
                     padding: const EdgeInsets.only(left: 12, right: 4),
                     child: Text(
@@ -1095,15 +1089,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       style: const TextStyle(fontSize: 20),
                     ),
                   ),
-                  prefixIconConstraints: const BoxConstraints(
-                    minWidth: 0,
-                    minHeight: 0,
-                  ),
-                  filled: true,
-                  fillColor: Colors.green[50],
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 8),
-                  isDense: true,
                 ),
                 selectedItemBuilder: (context) {
                   return supportedAppLocales
@@ -1133,14 +1118,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
                   value: _resolveCurrencyRegionDropdownValue(role),
-                  decoration: InputDecoration(
+                  decoration: marketplaceFormInputDecoration(
                     labelText: 'profile_currency_region'.tr(),
-                    border: const OutlineInputBorder(),
                     prefixIcon:
                         const Icon(Icons.payments_outlined, size: 22),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    isDense: true,
                   ),
                   items: [
                     for (final regionCode in allowedCurrencyRegionsForPicker(
@@ -1169,14 +1150,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.green[50],
+                    color: AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     _currencyDisplayLabel(currency),
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: Colors.green[900],
+                      color: AgroAccentColors.textDark,
                     ),
                   ),
                 ),
@@ -1184,7 +1165,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -1317,32 +1297,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     });
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text(
           _selectedTabIndex == 0
               ? 'profile_title'.tr()
               : 'profile_tab_gallery'.tr(),
         ),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
         bottom: _userData == null
             ? null
             : PreferredSize(
-                preferredSize: const Size.fromHeight(96),
+                preferredSize: const Size.fromHeight(56),
                 child: KeyedSubtree(
                   key: _guideTabsKey,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 20,
-                      horizontal: 14,
-                    ),
-                    color: Colors.green[700],
-                    child: TabBar(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: marketplaceTabBar(
                       controller: _tabController,
-                      indicatorColor: Colors.white,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.white70,
                       tabs: [
                         Tab(text: 'profile_title'.tr()),
                         Tab(text: 'profile_tab_gallery'.tr()),
@@ -1352,6 +1324,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 ),
               ),
         actions: [
+          const NotificationsBellButton(),
           FarmerHelperIconButton(
             enabled: profileGuideEnabled && !_profileGuideTourSuppressed,
             guideSteps: profileGuideSteps,
@@ -1373,29 +1346,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ),
         ],
       ),
-      body: _profileLoadErrorObject != null
-          ? FirestoreErrorPanel(
-              error: _profileLoadErrorObject!,
-              onRetry: _loadUserData,
-            )
-          : _isLoadingProfile || _userData == null
-              ? const Center(child: CircularProgressIndicator())
-              : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildProfileInfoTab(
-                  user: user,
-                  parsedRole: parsedRole,
-                  isAdmin: isAdmin,
-                  profileImageUrl: profileImageUrl,
-                  role: role,
-                  roleLabel: roleLabel,
-                  shopSettings: shopSettings,
-                  isFarmer: isFarmer,
-                ),
-                UserCommunityGalleryGrid(userId: user!.uid),
-              ],
-            ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: _profileLoadErrorObject != null
+            ? FirestoreErrorPanel(
+                error: _profileLoadErrorObject!,
+                onRetry: _loadUserData,
+              )
+            : _isLoadingProfile || _userData == null
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: AgroAccentColors.marketplaceChipGreen,
+                    ),
+                  )
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildProfileInfoTab(
+                        user: user,
+                        parsedRole: parsedRole,
+                        isAdmin: isAdmin,
+                        profileImageUrl: profileImageUrl,
+                        role: role,
+                        roleLabel: roleLabel,
+                        shopSettings: shopSettings,
+                        isFarmer: isFarmer,
+                      ),
+                      UserCommunityGalleryGrid(
+                        userId: user!.uid,
+                        profileTab: true,
+                      ),
+                    ],
+                  ),
+      ),
     );
   }
 
@@ -1410,20 +1395,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     required bool isFarmer,
   }) {
     return ListView(
-        padding: const EdgeInsets.all(16),
+        padding: ScrollBottomPadding.list(
+          context,
+          base: const EdgeInsets.all(16),
+          mainTab: true,
+        ),
         children: [
           const SizedBox(height: 8),
 
           KeyedSubtree(
             key: _guideFarmerIdentityKey,
-            child: Column(
+            child: ProfileCreamCard(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+              child: Column(
               children: [
                 Center(
                   child: Stack(
                     children: [
                       CircleAvatar(
                         radius: 60,
-                        backgroundColor: Colors.green[100],
+                        backgroundColor:
+                            AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.12),
                         backgroundImage: _image != null
                             ? FileImage(_image!) as ImageProvider
                             : (profileImageUrl != null
@@ -1431,10 +1423,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 : null),
                         child: (_image == null && profileImageUrl == null)
                             ? Icon(Icons.person,
-                                size: 60, color: Colors.green[700])
+                                size: 60, color: AgroAccentColors.marketplaceChipGreen)
                             : (_isUploading
                                 ? const CircularProgressIndicator(
-                                    color: Colors.white)
+                                    color: AgroAccentColors.marketplaceChipGreen)
                                 : null),
                       ),
                       Positioned(
@@ -1447,7 +1439,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.green[700],
+                              color: AgroAccentColors.marketplaceChipGreen,
                               shape: BoxShape.circle,
                               border: Border.all(
                                   color: Colors.white, width: 2),
@@ -1465,7 +1457,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   child: Text(
                     _userData?['name'] ?? user?.email ?? 'common_user'.tr(),
                     style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AgroAccentColors.textDark,
+                    ),
                   ),
                 ),
                 if (isFarmer && user != null) ...[
@@ -1480,8 +1475,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: _getRoleColor(role).withOpacity(0.15),
+                      color: AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: _getRoleColor(role).withValues(alpha: 0.35),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1505,14 +1503,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    user?.email ?? '',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              user?.email ?? '',
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
             ),
           ),
           if (isAdmin) ...[
@@ -1538,23 +1540,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
             ),
           ],
-          const SizedBox(height: 30),
-          const Divider(),
+          const SizedBox(height: 24),
+          Divider(color: Colors.white.withValues(alpha: 0.22), height: 32),
           _buildLanguageSettingsCard(parsedRole),
           const SizedBox(height: 16),
-          const Divider(),
+          const ProfileNotificationSettingsCard(),
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.22), height: 32),
 
           // EDIT MODE
           if (_isEditing) ...[
             Text('profile_edit_section'.tr(),
                 style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AgroAccentColors.textDark,
+                )),
             const SizedBox(height: 16),
+            ProfileCreamCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
             TextField(
               controller: _nameController,
-              decoration: InputDecoration(
+              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                 labelText: 'full_name'.tr(),
-                border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.person_outline),
               ),
             ),
@@ -1564,9 +1576,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               child: TextField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
+                style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                   labelText: 'phone'.tr(),
-                  border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.phone_outlined),
                 ),
               ),
@@ -1576,9 +1588,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               key: _guideAddressKey,
               child: TextField(
                 controller: _addressController,
-                decoration: InputDecoration(
+                style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                   labelText: 'address'.tr(),
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.location_on_outlined),
                 ),
               ),
@@ -1589,7 +1601,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             if (isFarmer) ...[
               Text(
                 'profile_shop_section'.tr(),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AgroAccentColors.textDark,
+                ),
               ),
               const SizedBox(height: 12),
               KeyedSubtree(
@@ -1604,7 +1620,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           ? 'profile_available'.tr()
                           : 'profile_unavailable'.tr()),
                       value: _isAvailable,
-                      activeColor: Colors.green[700],
+                      activeTrackColor:
+                          AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.45),
+                      activeThumbColor: AgroAccentColors.marketplaceChipGreen,
                       onChanged: (value) =>
                           setState(() => _isAvailable = value),
                     ),
@@ -1631,18 +1649,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               }
                             });
                           },
-                          selectedColor: Colors.green[100],
-                          checkmarkColor: Colors.green[800],
+                          selectedColor:
+                              AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.2),
+                          checkmarkColor: AgroAccentColors.marketplaceChipGreen,
                         );
                       }).toList(),
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: _workingHoursController,
-                      decoration: InputDecoration(
+                      style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                         labelText: 'profile_working_hours'.tr(),
                         hintText: 'profile_working_hours_hint'.tr(),
-                        border: const OutlineInputBorder(),
                         prefixIcon: const Icon(Icons.access_time),
                       ),
                     ),
@@ -1659,10 +1678,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       child: TextField(
                         controller: _minOrderController,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
+                        style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                           labelText: 'profile_min_order'.tr(),
                           hintText: 'npr. 25',
-                          border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.local_shipping_outlined),
                         ),
                       ),
@@ -1680,9 +1699,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             setState(() => _orderCurrency = value);
                           }
                         },
-                        decoration: InputDecoration(
+                        style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                           labelText: 'profile_currency'.tr(),
-                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -1692,21 +1711,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               const SizedBox(height: 20),
               Text(
                 'profile_delivery_options'.tr(),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AgroAccentColors.textDark,
+                ),
               ),
               const SizedBox(height: 8),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('cart_pickup'.tr()),
                 value: _offersPickup,
-                activeColor: Colors.green[700],
+                activeTrackColor:
+                    AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.45),
+                activeThumbColor: AgroAccentColors.marketplaceChipGreen,
                 onChanged: (value) => setState(() => _offersPickup = value),
               ),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('cart_delivery'.tr()),
                 value: _offersDelivery,
-                activeColor: Colors.green[700],
+                activeTrackColor:
+                    AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.45),
+                activeThumbColor: AgroAccentColors.marketplaceChipGreen,
                 onChanged: (value) => setState(() => _offersDelivery = value),
               ),
               if (_offersDelivery) ...[
@@ -1714,10 +1741,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 TextField(
                   controller: _maxDeliveryController,
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
+                  style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                     labelText: 'profile_max_delivery_km'.tr(),
                     hintText: 'npr. 15',
-                    border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.map_outlined),
                   ),
                 ),
@@ -1738,10 +1765,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             child: TextField(
                               controller: _zone1MaxController,
                               keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_zone1_km'.tr(),
                                 hintText: '5',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1750,11 +1777,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             child: TextField(
                               controller: _zone1MinController,
                               keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_min_order_short'.tr(),
                                 hintText: '20',
                                 suffixText: _orderCurrency,
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1767,10 +1794,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             child: TextField(
                               controller: _zone2MaxController,
                               keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_zone2_km'.tr(),
                                 hintText: '10',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1779,11 +1806,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             child: TextField(
                               controller: _zone2MinController,
                               keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_min_order_short'.tr(),
                                 hintText: '30',
                                 suffixText: _orderCurrency,
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1820,8 +1847,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 }
                               });
                             },
-                            selectedColor: Colors.green[100],
-                            checkmarkColor: Colors.green[800],
+                            selectedColor:
+                                AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.2),
+                            checkmarkColor: AgroAccentColors.marketplaceChipGreen,
                           );
                         }).toList(),
                       ),
@@ -1831,10 +1859,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           Expanded(
                             child: TextField(
                               controller: _deliveryFromController,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_delivery_from'.tr(),
                                 hintText: '08:00',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1842,10 +1870,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           Expanded(
                             child: TextField(
                               controller: _deliveryToController,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_delivery_to'.tr(),
                                 hintText: '17:00',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1897,8 +1925,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                                 }
                               });
                             },
-                            selectedColor: Colors.green[100],
-                            checkmarkColor: Colors.green[800],
+                            selectedColor:
+                                AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.2),
+                            checkmarkColor: AgroAccentColors.marketplaceChipGreen,
                           );
                         }).toList(),
                       ),
@@ -1908,10 +1937,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           Expanded(
                             child: TextField(
                               controller: _pickupFromController,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_pickup_from'.tr(),
                                 hintText: '08:00',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1919,10 +1948,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           Expanded(
                             child: TextField(
                               controller: _pickupToController,
-                              decoration: InputDecoration(
+                              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                                 labelText: 'profile_pickup_to'.tr(),
                                 hintText: '17:00',
-                                border: const OutlineInputBorder(),
                               ),
                             ),
                           ),
@@ -1934,24 +1963,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ],
               const SizedBox(height: 20),
             ],
-            ElevatedButton(
+            FilledButton(
               onPressed: _isUploading ? null : _saveUserData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[700],
+              style: FilledButton.styleFrom(
+                backgroundColor: AgroAccentColors.marketplaceChipGreen,
+                foregroundColor: const Color(0xFFFFEB3B),
                 minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(
+                    AgroAccentColors.marketplacePillRadius,
+                  ),
+                ),
               ),
               child: _isUploading
-                  ? const CircularProgressIndicator(
-                  color: Colors.white)
+                  ? const CircularProgressIndicator(color: Color(0xFFFFEB3B))
                   : Text('profile_save'.tr(),
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold)),
+                      style: const TextStyle(
+                          color: Color(0xFFFFEB3B),
+                          fontWeight: FontWeight.bold)),
+            ),
+                ],
+              ),
             ),
             const SizedBox(height: 20),
-            const Divider(),
+            Divider(color: Colors.white.withValues(alpha: 0.22), height: 32),
           ] else ...[
             // PRIKAZ PODATAKA
             KeyedSubtree(
@@ -1971,31 +2006,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             if (isFarmerRole(role) || isProfessionalFarmer(role)) ...[
               KeyedSubtree(
                 key: _guideLandKey,
-                child: Card(
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: Colors.green[200]!),
+                child: ProfileCreamListTile(
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.15),
+                    child: const Icon(Icons.satellite_alt,
+                        color: AgroAccentColors.marketplaceChipGreen),
                   ),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Colors.green[100],
-                      child:
-                          Icon(Icons.satellite_alt, color: Colors.green[800]),
-                    ),
-                    title: Text(
-                      farmerGuideTr(context, 'land_profile_title'),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Text(
-                      farmerGuideTr(context, 'land_profile_subtitle'),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LandMeasurementScreen(),
-                      ),
+                  title: Text(
+                    farmerGuideTr(context, 'land_profile_title'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    farmerGuideTr(context, 'land_profile_subtitle'),
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LandMeasurementScreen(),
                     ),
                   ),
                 ),
@@ -2008,37 +2036,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               const SizedBox(height: 12),
               const CompanyCatalogPdfProfileTile(),
               const SizedBox(height: 16),
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.deepPurple.shade200),
+              ProfileCreamListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.deepPurple.shade50,
+                  child: Icon(
+                    Icons.bar_chart_rounded,
+                    color: Colors.deepPurple.shade700,
+                  ),
                 ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.deepPurple.shade50,
-                    child: Icon(
-                      Icons.bar_chart_rounded,
-                      color: Colors.deepPurple.shade700,
-                    ),
-                  ),
-                  title: Text(
-                    'company_b2b_analytics_title'.tr(),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'company_b2b_analytics_subtitle'.tr(),
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => CompanyPremiumGateDialog.showForCompany(
+                title: Text(
+                  'company_b2b_analytics_title'.tr(),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  'company_b2b_analytics_subtitle'.tr(),
+                ),
+                onTap: () => CompanyPremiumGateDialog.showForCompany(
+                  context,
+                  ref,
+                  feature: PremiumFeature.marketplaceBoost,
+                  onUnlocked: () => Navigator.push(
                     context,
-                    ref,
-                    feature: PremiumFeature.marketplaceBoost,
-                    onUnlocked: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CompanyMarketAnalyticsScreen(),
-                      ),
+                    MaterialPageRoute(
+                      builder: (_) => const CompanyMarketAnalyticsScreen(),
                     ),
                   ),
                 ),
@@ -2136,43 +2156,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               const SizedBox(height: 12),
               _buildVetProfileActions(context),
             ],
-            const Divider(),
+            const Divider(color: Colors.transparent, height: 16),
           ],
 
           if (parsedRole != UserRole.veterinarian &&
               !UpcomingProductHelper.isCompanyRole(role))
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.green[200]!),
+            ProfileCreamListTile(
+              leading: CircleAvatar(
+                backgroundColor:
+                    AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.15),
+                child: const Icon(Icons.pets, color: AgroAccentColors.marketplaceChipGreen),
               ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.green[100],
-                  child: Icon(Icons.pets, color: Colors.green[800]),
-                ),
-                title: Text(
-                  'animals_title'.tr(),
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text('animals_profile_subtitle'.tr()),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MyAnimalsScreen(),
-                  ),
+              title: Text(
+                'animals_title'.tr(),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text('animals_profile_subtitle'.tr()),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MyAnimalsScreen(),
                 ),
               ),
             ),
           const SizedBox(height: 16),
 
           const ProfileSubscriptionCard(),
-          const SizedBox(height: 12),
-          const RolesSubscriptionPdfProfileTile(),
-          const SizedBox(height: 12),
-          const BetaTestGuideProfileTile(),
           const SizedBox(height: 12),
           const ProfileLegalTermsTile(),
           const SizedBox(height: 12),
@@ -2183,16 +2192,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           Center(
             child: Text(
               'Build ${AppVersion.label}',
-              style: TextStyle(color: Colors.grey[500], fontSize: 12),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+              ),
             ),
           ),
           const SizedBox(height: 16),
 
-          // ODJAVA
-          ListTile(
+          ProfileCreamListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: Text('logout'.tr(),
-                style: const TextStyle(color: Colors.red)),
+            title: Text(
+              'logout'.tr(),
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            trailing: const SizedBox.shrink(),
             onTap: _signOut,
           ),
         ],
@@ -2209,18 +2226,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           labelKey: 'vet_patient_records',
           subtitleKey: 'vet_patient_records_btn_desc',
           color: Colors.teal.shade700,
-          onTap: () => PremiumGateDialog.showForVeterinarian(
-            context,
-            ref,
-            onUnlocked: () => Navigator.push(
+          onTap: () {
+            final access = ref.read(premiumAccessProvider);
+            void openHub() => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const VeterinarianAnimalsHubScreen(
+                      initialTab: VeterinarianAnimalsTab.digitalIntake,
+                    ),
+                  ),
+                );
+            if (access.canUse(PremiumFeature.digitalMedicalIntake)) {
+              openHub();
+              return;
+            }
+            PremiumGateDialog.showForVeterinarian(
               context,
-              MaterialPageRoute(
-                builder: (_) => const VeterinarianAnimalsHubScreen(
-                  initialTab: VeterinarianAnimalsTab.digitalIntake,
-                ),
-              ),
-            ),
-          ),
+              ref,
+              onUnlocked: openHub,
+            );
+          },
         ),
         const SizedBox(height: 12),
         _buildVetActionButton(
@@ -2228,14 +2253,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           icon: Icons.pets,
           labelKey: 'vet_my_pets',
           subtitleKey: 'vet_my_pets_btn_desc',
-          color: Colors.green.shade700,
-          onTap: () => PremiumGateDialog.showForVeterinarian(
+          color: AgroAccentColors.marketplaceChipGreen,
+          isLocked: false,
+          onTap: () => Navigator.push(
             context,
-            ref,
-            onUnlocked: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MyAnimalsScreen()),
-            ),
+            MaterialPageRoute(builder: (_) => const MyAnimalsScreen()),
           ),
         ),
       ],
@@ -2249,9 +2271,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     required String subtitleKey,
     required Color color,
     required VoidCallback onTap,
+    bool? isLocked,
   }) {
     final access = ref.watch(premiumAccessProvider);
-    final isLocked = !access.canUse(PremiumFeature.digitalMedicalIntake);
+    final locked = isLocked ??
+        !access.canUse(PremiumFeature.digitalMedicalIntake);
 
     return SizedBox(
       width: double.infinity,
@@ -2262,7 +2286,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          elevation: isLocked ? 2 : 4,
+          elevation: locked ? 2 : 4,
         ),
         child: Row(
           children: [
@@ -2291,7 +2315,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               ),
             ),
             Icon(
-              isLocked ? Icons.lock_outline : Icons.chevron_right,
+              locked ? Icons.lock_outline : Icons.chevron_right,
               color: Colors.white.withValues(alpha: 0.9),
             ),
           ],
@@ -2301,13 +2325,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Widget _infoTile(IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.green[700]),
-      title: Text(label,
-          style: const TextStyle(fontSize: 13, color: Colors.grey)),
-      subtitle: Text(value,
+    return ProfileCreamCard(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: Icon(icon, color: AgroAccentColors.marketplaceChipGreen),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: AgroAccentColors.textDark.withValues(alpha: 0.6),
+          ),
+        ),
+        subtitle: Text(
+          value,
           style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w500)),
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: AgroAccentColors.textDark,
+          ),
+        ),
+      ),
     );
   }
 }

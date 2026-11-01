@@ -14,6 +14,7 @@ import '../../providers/subscription_provider.dart';
 import '../../repositories/farmer_shop_repository.dart';
 import '../../repositories/order_repository.dart';
 import '../../repositories/product_repository.dart';
+import '../../theme/agro_accent_colors.dart';
 import '../../utils/farmer_shop_localization.dart';
 import '../../utils/localized_title.dart';
 import '../../models/product_units.dart';
@@ -21,10 +22,11 @@ import '../../widgets/product_price_text.dart';
 import '../../models/screen_guide_step.dart';
 import '../../widgets/farmer_helper_button.dart';
 import '../../widgets/premium_gate.dart';
+import '../../widgets/agro_glass_chrome.dart';
 import '../../services/delivery_service.dart';
 import '../../services/currency_service.dart';
-import '../../services/payment_service.dart';
 import '../../services/peer_marketplace_payment_service.dart';
+import '../../services/payment_service.dart';
 import '../../config/marketplace_payment_config.dart';
 import '../../models/saved_payment_method.dart';
 import '../../repositories/payment_methods_repository.dart';
@@ -62,6 +64,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _isValidating = false;
 
   bool _isCheckingDelivery = false;
+
+  bool _isSubmittingOrder = false;
 
   String _paymentMethod = 'cash';
 
@@ -818,7 +822,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
 
   Future<void> _submitOrder() async {
+    if (_isSubmittingOrder) return;
+    setState(() => _isSubmittingOrder = true);
 
+    try {
     final stockCheck = await ref
         .read(cartProvider.notifier)
         .validateStockAgainstServer(ref.read(productRepositoryProvider));
@@ -828,7 +835,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('cart_stock_insufficient'.tr()),
-            backgroundColor: Colors.orange[800],
+            backgroundColor: AgroAccentColors.snackBarBackground,
           ),
         );
       }
@@ -874,7 +881,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('peer_payment_upcoming_required'.tr()),
-            backgroundColor: Colors.orange.shade800,
+            backgroundColor: AgroAccentColors.snackBarBackground,
           ),
         );
         setState(() => _paymentMethod =
@@ -891,7 +898,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('peer_payment_multi_seller'.tr()),
-            backgroundColor: Colors.orange.shade800,
+            backgroundColor: AgroAccentColors.snackBarBackground,
           ),
         );
       }
@@ -901,37 +908,48 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     if (!mounted) return;
 
     PaymentResult paymentResult;
-    if (selectedMethod.requiresDigitalProcessing) {
+    SellerPeerPaymentDetails? peerSellerDetails;
+    ConvertedPrice? peerConvertedTotal;
+
+    if (selectedMethod == CartPaymentMethod.stripe ||
+        selectedMethod == CartPaymentMethod.googlePay) {
       final converted = _cartConvertedTotal(items);
-      final paymentOutcome = await ref.read(paymentServiceProvider).processPayment(
+      final processed = await ref.read(paymentServiceProvider).processPayment(
             context: context,
             method: selectedMethod,
             amount: converted.displayAmount,
             currency: converted.displayCurrency,
-            sellerId: items.length == 1 ? items.first.sellerId : null,
+            sellerId: items.first.sellerId,
           );
-      if (!mounted || paymentOutcome == null) return;
-      paymentResult = paymentOutcome;
-    } else if (MarketplacePaymentConfig.peerToPeerOnly) {
-      final converted = _cartConvertedTotal(items);
-      final amountLabel =
-          '${converted.displayAmount.toStringAsFixed(2)} ${converted.displayCurrency}';
-      final peerService = PeerMarketplacePaymentService();
-      final seller = await peerService.loadSellerDetails(items.first.sellerId);
       if (!mounted) return;
-      final paymentOutcome = await peerService.confirmPeerPayment(
+      if (processed == null) return;
+      paymentResult = processed;
+    } else if (selectedMethod == CartPaymentMethod.directPaypal ||
+        selectedMethod == CartPaymentMethod.bankTransfer) {
+      peerConvertedTotal = _cartConvertedTotal(items);
+      final paymentRef = PeerMarketplacePaymentService.newPaymentReference();
+      final peer = PeerMarketplacePaymentService();
+      peerSellerDetails =
+          await peer.loadSellerDetails(items.first.sellerId);
+      if (!mounted) return;
+      final peerResult = await peer.confirmPeerPayment(
         context: context,
         method: selectedMethod,
-        seller: seller,
-        amountLabel: amountLabel,
+        seller: peerSellerDetails!,
+        amountLabel: _formatCartTotal(items),
+        amountEur: peerConvertedTotal!.displayAmount,
+        paymentReference: paymentRef,
+        currencyCode: peerConvertedTotal!.displayCurrency,
       );
-      if (!mounted || paymentOutcome == null) return;
-      paymentResult = paymentOutcome;
+      if (!mounted) return;
+      if (peerResult == null) return;
+      paymentResult = peerResult;
     } else {
-      paymentResult = PaymentResult.cashPending();
+      paymentResult = PaymentResult(
+        paymentMethod: selectedMethod.firestoreValue,
+        paymentStatus: PaymentStatus.pending,
+      );
     }
-
-    try {
 
       final orderRepo = ref.read(orderRepositoryProvider);
 
@@ -962,36 +980,47 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           context: context,
 
           builder: (_) => AlertDialog(
-
+            icon: const Icon(
+              Icons.check_circle_outline,
+              color: AgroAccentColors.accentDark,
+              size: 40,
+            ),
             title: Text('cart_order_success_title'.tr()),
 
             content: Text(
-
-              orderCount == 1
-
-                  ? 'cart_order_success_one'.tr()
-
-                  : 'cart_order_success_many'
-                      .tr(namedArgs: {'count': '$orderCount'}),
-
+              _cartOrderSuccessMessage(
+                method: selectedMethod,
+                orderCount: orderCount,
+              ),
             ),
 
             actions: [
 
               ElevatedButton(
 
-                onPressed: () {
-
+                onPressed: () async {
                   Navigator.pop(context);
-
-                  Navigator.pop(context);
-
+                  final peer = PeerMarketplacePaymentService();
+                  if (mounted &&
+                      peerSellerDetails != null &&
+                      peerConvertedTotal != null &&
+                      (selectedMethod == CartPaymentMethod.directPaypal ||
+                          selectedMethod == CartPaymentMethod.bankTransfer)) {
+                    await peer.showAfterOrderInstructions(
+                      context: context,
+                      method: selectedMethod,
+                      seller: peerSellerDetails!,
+                      amountLabel: _formatCartTotal(items),
+                      amountEur: peerConvertedTotal!.displayAmount,
+                      paymentReference: paymentResult.transactionId ?? '',
+                      currencyCode: peerConvertedTotal!.displayCurrency,
+                    );
+                  }
+                  if (mounted) Navigator.pop(context);
                 },
 
                 style: ElevatedButton.styleFrom(
-
-                  backgroundColor: Colors.green[700],
-
+                  backgroundColor: AgroAccentColors.accentDark,
                 ),
 
                 child: Text(
@@ -1024,6 +1053,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
       }
 
+    } finally {
+      if (mounted) setState(() => _isSubmittingOrder = false);
     }
 
   }
@@ -1061,18 +1092,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: marketplaceCreamPanelDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1102,20 +1122,20 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               padding: const EdgeInsets.all(10),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: AgroAccentColors.infoBackground,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: AgroAccentColors.infoBorder),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Colors.orange.shade800),
+                  const Icon(Icons.info_outline, color: AgroAccentColors.infoIcon),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'peer_payment_upcoming_required'.tr(),
-                      style: TextStyle(
-                        color: Colors.orange.shade900,
+                      style: const TextStyle(
+                        color: AgroAccentColors.infoText,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -1281,15 +1301,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
           padding: const EdgeInsets.all(12),
 
-          decoration: BoxDecoration(
-
-            color: Colors.green[50],
-
-            borderRadius: BorderRadius.circular(12),
-
-            border: Border.all(color: Colors.green[200]!),
-
-          ),
+          decoration: marketplaceCreamPanelDecoration(),
 
           child: Column(
 
@@ -1454,7 +1466,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                   'cart_no_delivery_options'.tr(),
 
-                  style: TextStyle(color: Colors.orange[800], fontSize: 13),
+                  style: const TextStyle(
+                    color: AgroAccentColors.infoText,
+                    fontSize: 13,
+                  ),
 
                 ),
 
@@ -1533,6 +1548,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
+  String _cartOrderSuccessMessage({
+    required CartPaymentMethod method,
+    required int orderCount,
+  }) {
+    if (method == CartPaymentMethod.directPaypal) {
+      return 'peer_payment_order_success_paypal'.tr();
+    }
+    if (method == CartPaymentMethod.bankTransfer) {
+      return 'peer_payment_order_success_bank'.tr();
+    }
+    if (orderCount == 1) {
+      return 'cart_order_success_one'.tr();
+    }
+    return 'cart_order_success_many'.tr(namedArgs: {'count': '$orderCount'});
+  }
+
   String _formatCartTotal(List<CartItem> items) {
     return CurrencyService().formatDual(_cartConvertedTotal(items));
   }
@@ -1555,12 +1586,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Widget _buildCartItemCard(CartItem item) {
     final unit = ProductUnits.normalize(item.unit);
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      elevation: 2,
+      decoration: marketplaceCreamPanelDecoration(),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -1703,19 +1731,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
 
 
-    return Scaffold(
+    return MarketplaceScreenScaffold(
 
-      appBar: AppBar(
+      title: Text(localizedMyPrefixedTitle(context, 'cart_title')),
 
-        title: Text(localizedMyPrefixedTitle(context, 'cart_title')),
+      actions: [
 
-        backgroundColor: Colors.green[700],
-
-        foregroundColor: Colors.white,
-
-        actions: [
-
-          FarmerHelperIconButton(guideSteps: _guideSteps),
+        FarmerHelperIconButton(guideSteps: _guideSteps),
 
           if (cartItems.isNotEmpty)
 
@@ -1785,8 +1807,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
         ],
 
-      ),
-
       body: cartItems.isEmpty
 
           ? Center(
@@ -1803,7 +1823,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                     size: 80,
 
-                    color: Colors.grey[400],
+                    color: Colors.white.withValues(alpha: 0.40),
 
                   ),
 
@@ -1813,7 +1833,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                     'cart_empty'.tr(),
 
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white.withValues(alpha: 0.90),
+                    ),
 
                   ),
 
@@ -1823,7 +1846,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                     'cart_empty_hint'.tr(),
 
-                    style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
 
                   ),
 
@@ -1869,23 +1895,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   padding: const EdgeInsets.all(16),
 
                   decoration: BoxDecoration(
-
-                    color: Colors.white,
-
-                    boxShadow: [
-
-                      BoxShadow(
-
-                        color: Colors.black.withValues(alpha: 0.05),
-
-                        blurRadius: 10,
-
-                        offset: const Offset(0, -5),
-
-                      ),
-
-                    ],
-
+                    color: AgroAccentColors.glassTop.withValues(alpha: 0.98),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(AgroAccentColors.marketplaceCornerRadius),
+                    ),
+                    border: Border.all(color: AgroAccentColors.borderLight),
+                    boxShadow: AgroAccentColors.marketplaceCardShadow,
                   ),
 
                   child: Column(
@@ -1993,7 +2008,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
                         child: ElevatedButton(
 
-                          onPressed: canOrder ? _placeOrder : null,
+                          onPressed:
+                              canOrder && !_isSubmittingOrder ? _placeOrder : null,
 
                           style: ElevatedButton.styleFrom(
 

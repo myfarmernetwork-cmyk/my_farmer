@@ -5,7 +5,9 @@ import '../config/beta_config.dart';
 import '../models/app_user.dart';
 import '../models/premium_access.dart';
 import '../models/subscription_tier.dart';
+import 'app_config_provider.dart';
 import 'admin_role_preview_provider.dart';
+import 'app_config_provider.dart';
 import '../providers/auth_provider.dart';
 import '../repositories/auth_repository.dart';
 import '../services/payment_service.dart';
@@ -95,7 +97,7 @@ final isTrialProvider = StreamProvider<bool>((ref) async* {
   yield* service.premiumStatusStream.map((_) => service.lastKnownIsTrial);
 });
 
-/// Admin ili zatvoreno testiranje — bez paywalla i cijena u UI-u.
+/// Admin ili beta build — bez paywalla i cijena u UI-u.
 final grantsFullPremiumProvider = Provider<bool>((ref) {
   return ref.watch(adminPremiumBypassProvider) ||
       BetaConfig.closedTestFreePremium;
@@ -122,6 +124,10 @@ final premiumAccessProvider = Provider<PremiumAccess>((ref) {
   final isPremiumFromStore = ref.watch(isPremiumProvider).value ?? false;
   final isAdminBypass = ref.watch(adminPremiumBypassProvider);
   final closedTestFreePremium = BetaConfig.closedTestFreePremium;
+  final closedTestingFreeChat = ref.watch(closedTestingFreeChatProvider);
+  final closedTestingFreeAiScanner =
+      ref.watch(closedTestingFreeAiScannerProvider);
+  final closedTestingFreeVetIntake = ref.watch(closedTestingFreeVetIntakeProvider);
   final isPremium =
       isPremiumFromStore || isAdminBypass || closedTestFreePremium;
   final effectiveRole = ref.watch(effectiveUserRoleProvider);
@@ -130,6 +136,9 @@ final premiumAccessProvider = Provider<PremiumAccess>((ref) {
     isPremium: isPremium,
     isAdminBypass: isAdminBypass,
     closedTestFreePremium: closedTestFreePremium,
+    closedTestingFreeChat: closedTestingFreeChat,
+    closedTestingFreeAiScanner: closedTestingFreeAiScanner,
+    closedTestingFreeVetIntake: closedTestingFreeVetIntake,
     effectiveRole: effectiveRole,
     user: user,
     languageCode: user?.languageCode ?? 'hr',
@@ -199,6 +208,13 @@ final weatherPremiumAccessProvider = Provider<bool>((ref) {
 
   final user = ref.watch(userDocProvider).valueOrNull ??
       ref.watch(authStateProvider).valueOrNull;
+
+  if (user != null &&
+      user.isFarmerRole &&
+      ref.watch(closedTestingFreeWeatherAlertsProvider)) {
+    return true;
+  }
+
   final storePremium = ref.watch(isPremiumProvider).valueOrNull ??
       user?.premiumActive ??
       false;

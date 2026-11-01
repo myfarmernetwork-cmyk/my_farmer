@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../services/vet_navigation_service.dart';
 import '../services/vet_proximity_radar_service.dart';
+import '../utils/scroll_bottom_padding.dart';
 import '../widgets/vet_profile_sheet.dart';
 
 /// Map of verified veterinarians with search and Google Maps navigation.
@@ -205,7 +206,15 @@ class _VetFinderScreenState extends ConsumerState<VetFinderScreen> {
                       child: _visibleVets.isEmpty
                           ? Center(child: Text('vet_finder_empty'.tr()))
                           : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                              padding: ScrollBottomPadding.list(
+                                context,
+                                base: EdgeInsets.fromLTRB(
+                                  12,
+                                  8,
+                                  12,
+                                  _selectedVet != null ? 72 : 0,
+                                ),
+                              ),
                               itemCount: _visibleVets.length,
                               itemBuilder: (context, index) {
                                 final vet = _visibleVets[index];

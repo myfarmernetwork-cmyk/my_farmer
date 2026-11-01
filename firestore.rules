@@ -77,6 +77,17 @@ service cloud.firestore {
         allow write: if isOwner(userId);
       }
 
+      match /inbox_notifications/{notificationId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && request.resource.data.type is string
+          && request.resource.data.title is string
+          && request.resource.data.body is string
+          && request.resource.data.readAt == null;
+        allow update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+
       match /reviews/{reviewId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn()
@@ -214,6 +225,11 @@ service cloud.firestore {
         request.auth.uid == sellerId
         || isStockOnlyCatalogUpdate()
       );
+    }
+
+    match /config/app {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
   }
 }

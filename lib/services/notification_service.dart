@@ -8,10 +8,12 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../features/buyer/farmer_storefront_screen.dart';
 import '../features/buyer/buyer_orders_screen.dart';
 import '../features/buyer/product_details_screen.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/forum/screens/forum_topic_detail_screen.dart';
+import '../features/seller/add_product_screen.dart';
 import '../features/seller/farmer_orders_screen.dart';
 import '../firebase_options.dart';
 import '../models/animal_record.dart';
@@ -19,6 +21,9 @@ import '../models/product.dart';
 import '../models/veterinary_request.dart';
 import '../providers/notification_navigation_provider.dart';
 import '../screens/my_animals_screen.dart';
+import 'notification_dismissal_store.dart';
+import 'notification_event_key.dart';
+import 'notification_prefs.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -26,10 +31,25 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationDismissalStore.recordRemoteMessage(message.data);
   await NotificationService.showBackgroundMessage(message);
 }
 
+/// Prati ulazak u app i označava swipe-om obrisane tray obavijesti.
+class _NotificationLifecycleObserver with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(NotificationService().syncTrayDismissalsFromSystem());
+    }
+  }
+}
+
+final _notificationLifecycleObserver = _NotificationLifecycleObserver();
+
 class NotificationService {
+  static const String _notificationIcon = '@drawable/ic_notification';
+  static const String _notificationLargeIcon = '@mipmap/ic_launcher';
   static final NotificationService _instance = NotificationService._();
   factory NotificationService() => _instance;
   NotificationService._();
@@ -46,11 +66,26 @@ class NotificationService {
 
   GlobalKey<NavigatorState>? _navigatorKey;
   bool _initialized = false;
+  bool _lifecycleObserverAttached = false;
   bool _tokenRefreshListenerSet = false;
   String? _pendingPayload;
 
   void setNavigatorKey(GlobalKey<NavigatorState> key) {
     _navigatorKey = key;
+  }
+
+  Future<void> syncQuietWhenBackground(bool value) async {
+    await NotificationPrefs.setQuietWhenBackground(value);
+  }
+
+  static Future<bool> shouldSuppressBackgroundNotification(
+    RemoteMessage message,
+  ) async {
+    final type = message.data['type'] as String?;
+    if (type == 'weather_alert') return false;
+    if (type == 'forum_new_topic' || type == 'forum_reply') return true;
+    final quiet = await NotificationPrefs.quietWhenBackground();
+    return quiet;
   }
 
   Future<void> initNotifications() async {
@@ -62,7 +97,7 @@ class NotificationService {
     await _createWeatherChannel();
 
     const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+        AndroidInitializationSettings(_notificationIcon);
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -91,17 +126,93 @@ class NotificationService {
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
+      final eventKey = NotificationEventKey.fromData(initialMessage.data);
+      if (eventKey != null) {
+        unawaited(
+          NotificationDismissalStore.markDismissedForCurrentUser(eventKey),
+        );
+      }
       _queuePayload(_buildPayload(initialMessage.data));
     }
 
     FirebaseAuth.instance.authStateChanges().listen((user) {
       if (user != null) {
         syncTokenForUser(user.uid);
+        _loadQuietSettingForUser(user.uid);
         flushPendingNavigation();
+        unawaited(syncTrayDismissalsFromSystem());
       }
     });
 
+    if (!_lifecycleObserverAttached) {
+      WidgetsBinding.instance.addObserver(_notificationLifecycleObserver);
+      _lifecycleObserverAttached = true;
+    }
+
     _initialized = true;
+  }
+
+  /// Uskladi lokalno stanje s trayom — obrisane obavijesti se više ne vraćaju.
+  Future<void> syncTrayDismissalsFromSystem() async {
+    final android = _localNotifications
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (android == null) return;
+
+    try {
+      final active = await android.getActiveNotifications();
+      final activeIds = active
+          .map((notification) => notification.id)
+          .whereType<int>()
+          .toSet();
+      await NotificationDismissalStore.markMissingActiveAsDismissed(activeIds);
+    } catch (_) {}
+  }
+
+  AndroidNotificationDetails _androidTrayDetails(
+    AndroidNotificationDetails base,
+  ) {
+    return AndroidNotificationDetails(
+      base.channelId,
+      base.channelName,
+      channelDescription: base.channelDescription,
+      importance: base.importance,
+      priority: base.priority,
+      showWhen: base.showWhen,
+      category: base.category,
+      icon: _notificationIcon,
+      largeIcon: const DrawableResourceAndroidBitmap(_notificationLargeIcon),
+    );
+  }
+
+  Future<bool> _showSystemTrayIfAllowed({
+    required String eventKey,
+    required String? payload,
+    required String title,
+    required String body,
+    required AndroidNotificationDetails androidDetails,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (await NotificationDismissalStore.isBlocked(uid, eventKey)) {
+      return false;
+    }
+
+    final notificationId = NotificationEventKey.notificationIdFor(eventKey);
+    await NotificationDismissalStore.linkNotificationId(
+      uid,
+      notificationId,
+      eventKey,
+    );
+    await NotificationDismissalStore.markTrayShown(uid, eventKey);
+
+    await _localNotifications.show(
+      notificationId,
+      title,
+      body,
+      NotificationDetails(android: _androidTrayDetails(androidDetails)),
+      payload: payload ?? eventKey,
+    );
+    return true;
   }
 
   /// Traži dozvolu (ako treba) i uvijek osvježi FCM token u Firestore.
@@ -127,6 +238,8 @@ class NotificationService {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         await syncTokenForUser(user.uid);
+        await _loadQuietSettingForUser(user.uid);
+        await syncTrayDismissalsFromSystem();
       }
     } catch (_) {
       // Obavijesti nisu obavezne za rad appa.
@@ -148,6 +261,17 @@ class NotificationService {
       badge: true,
       sound: true,
     );
+  }
+
+  Future<void> _loadQuietSettingForUser(String uid) async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final quiet = doc.data()?['quietWhenBackground'] as bool? ?? false;
+      await syncQuietWhenBackground(quiet);
+    } catch (_) {
+      await NotificationPrefs.quietWhenBackground();
+    }
   }
 
   Future<void> syncTokenForUser(String uid) async {
@@ -208,6 +332,7 @@ class NotificationService {
     required String summary,
     required double total,
     String? orderId,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -217,23 +342,10 @@ class NotificationService {
       showWhen: true,
     );
 
-    const platformDetails = NotificationDetails(android: androidDetails);
-
-    await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      'notification_new_order_title'.tr(),
-      'notification_new_order_push_body'.tr(
-        namedArgs: {
-          'buyer': buyerName,
-          'summary': summary,
-          'total': total.toStringAsFixed(2),
-        },
-      ),
-      platformDetails,
-      payload: orderId == null || orderId.isEmpty
-          ? 'new_order'
-          : 'new_order|$orderId',
-    );
+    final payload = orderId == null || orderId.isEmpty
+        ? 'new_order'
+        : 'new_order|$orderId';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -250,12 +362,29 @@ class NotificationService {
         pushOrdersScreen: true,
       ),
     );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: 'notification_new_order_title'.tr(),
+      body: 'notification_new_order_push_body'.tr(
+        namedArgs: {
+          'buyer': buyerName,
+          'summary': summary,
+          'total': total.toStringAsFixed(2),
+        },
+      ),
+      androidDetails: androidDetails,
+    );
   }
 
   Future<void> showLowStockAlert({
     required String productName,
     required double stock,
     String? productId,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -265,16 +394,18 @@ class NotificationService {
       showWhen: true,
     );
 
-    const platformDetails = NotificationDetails(android: androidDetails);
-
-    await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000) + 1,
-      'Niska zaliha',
-      '$productName — ostalo ${stock.toStringAsFixed(0)} kom',
-      platformDetails,
-      payload: productId == null || productId.isEmpty
-          ? 'low_stock'
-          : 'low_stock|$productId|$productName',
+    final payload = productId == null || productId.isEmpty
+        ? 'low_stock'
+        : 'low_stock|$productId|$productName';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
+    final title = 'notification_low_stock_title'.tr();
+    final body = 'notification_low_stock_body_remaining'.tr(
+      namedArgs: {
+        'product': productName,
+        'count': stock % 1 == 0
+            ? stock.toInt().toString()
+            : stock.toStringAsFixed(1),
+      },
     );
 
     NotificationNavigationBridge.dispatch(
@@ -282,9 +413,18 @@ class NotificationService {
         target: NotificationTarget.lowStock,
         productId: productId,
         productName: productName,
-        title: 'Niska zaliha',
-        body: '$productName — ostalo ${stock.toStringAsFixed(0)} kom',
+        stockCount: stock,
       ),
+    );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: title,
+      body: body,
+      androidDetails: androidDetails,
     );
   }
 
@@ -292,6 +432,7 @@ class NotificationService {
     required String title,
     required String body,
     String? payload,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _weatherChannelId,
@@ -302,20 +443,36 @@ class NotificationService {
       category: AndroidNotificationCategory.alarm,
     );
 
-    const platformDetails = NotificationDetails(android: androidDetails);
+    final resolvedPayload = payload ?? 'weather_alert';
+    final eventKey =
+        NotificationEventKey.fromPayload(resolvedPayload) ?? 'weather_alert';
 
-    await _localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000) + 50000,
-      title,
-      body,
-      platformDetails,
-      payload: payload ?? 'weather_alert',
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: resolvedPayload,
+      title: title,
+      body: body,
+      androidDetails: androidDetails,
     );
   }
 
   static Future<void> showBackgroundMessage(RemoteMessage message) async {
+    if (await shouldSuppressBackgroundNotification(message)) return;
+
+    final data = message.data;
+    final eventKey = NotificationEventKey.fromData(data);
+    if (eventKey != null) {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (await NotificationDismissalStore.isBlocked(uid, eventKey)) return;
+    }
+
+    // FCM već prikaže system notification kad payload sadrži `notification`.
+    if (message.notification != null) return;
+
     final plugin = FlutterLocalNotificationsPlugin();
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@drawable/ic_notification');
     await plugin.initialize(
       const InitializationSettings(android: androidInit),
     );
@@ -332,7 +489,6 @@ class NotificationService {
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    final data = message.data;
     final type = data['type'] as String?;
     final notification = message.notification;
     final title = notification?.title ??
@@ -342,10 +498,12 @@ class NotificationService {
         (data['message'] as String?) ??
         'Nova poruka';
 
-    final payload = _buildPayloadStatic(data);
+    final payload = NotificationEventKey.fromData(data);
     final isWeather = type == 'weather_alert';
     final channelId = isWeather ? _weatherChannelId : _channelId;
     final channelName = isWeather ? _weatherChannelName : _channelName;
+
+    if (payload == null) return;
 
     if (isWeather) {
       const weatherChannel = AndroidNotificationChannel(
@@ -360,8 +518,17 @@ class NotificationService {
           ?.createNotificationChannel(weatherChannel);
     }
 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final notificationId = NotificationEventKey.notificationIdFor(payload);
+    await NotificationDismissalStore.linkNotificationId(
+      uid,
+      notificationId,
+      payload,
+    );
+    await NotificationDismissalStore.markTrayShown(uid, payload);
+
     await plugin.show(
-      message.hashCode,
+      notificationId,
       title,
       body,
       NotificationDetails(
@@ -372,6 +539,8 @@ class NotificationService {
           priority: Priority.high,
           showWhen: true,
           category: isWeather ? AndroidNotificationCategory.alarm : null,
+          icon: '@drawable/ic_notification',
+          largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
         ),
       ),
       payload: payload,
@@ -410,25 +579,29 @@ class NotificationService {
     final type = message.data['type'] as String?;
     final isWeather = type == 'weather_alert';
 
-    final androidDetails = AndroidNotificationDetails(
-      isWeather ? _weatherChannelId : _channelId,
-      isWeather ? _weatherChannelName : _channelName,
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-      category: isWeather ? AndroidNotificationCategory.alarm : null,
-    );
+    unawaited(NotificationDismissalStore.recordRemoteMessage(message.data));
 
-    final platformDetails = NotificationDetails(android: androidDetails);
-
-    await _localNotifications.show(
-      message.hashCode,
-      message.notification?.title ?? 'My Farmer',
-      message.notification?.body ??
-          'Imate novo obavještenje u My Farmer aplikaciji.',
-      platformDetails,
-      payload: _buildPayload(message.data),
-    );
+    // Dok je app otvoren: in-app banner umjesto system traya (osim vremena).
+    if (isWeather) {
+      final payload = NotificationEventKey.fromData(message.data);
+      if (payload != null) {
+        await _showSystemTrayIfAllowed(
+          eventKey: payload,
+          payload: payload,
+          title: message.notification?.title ?? 'My Farmer',
+          body: message.notification?.body ??
+              'Imate novo obavještenje u My Farmer aplikaciji.',
+          androidDetails: AndroidNotificationDetails(
+            _weatherChannelId,
+            _weatherChannelName,
+            importance: Importance.max,
+            priority: Priority.high,
+            showWhen: true,
+            category: AndroidNotificationCategory.alarm,
+          ),
+        );
+      }
+    }
 
     _dispatchInAppIntent(message.data, message.notification);
   }
@@ -470,8 +643,7 @@ class NotificationService {
             target: NotificationTarget.lowStock,
             productId: data['productId'] as String?,
             productName: data['productName'] as String?,
-            title: notification?.title ?? 'Niska zaliha',
-            body: notification?.body,
+            stockCount: _parseStockCount(data['stockCount']),
           ),
         );
         break;
@@ -480,8 +652,6 @@ class NotificationService {
           NotificationNavigationIntent(
             target: NotificationTarget.weather,
             weatherAlertKey: data['alertKey'] as String?,
-            title: notification?.title ?? '⚠️ Vremensko upozorenje',
-            body: notification?.body,
           ),
         );
         break;
@@ -600,6 +770,7 @@ class NotificationService {
     required String requestId,
     required String animalName,
     required String clientName,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -608,19 +779,12 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
     );
-    const platformDetails = NotificationDetails(android: androidDetails);
 
     final body = clientName.trim().isEmpty
         ? animalName.trim()
         : '${clientName.trim()} — ${animalName.trim()}';
-
-    await _localNotifications.show(
-      requestId.hashCode,
-      'Novi digitalni karton',
-      body.isEmpty ? 'Novi karton ljubimca' : body,
-      platformDetails,
-      payload: 'vet_intake|$requestId',
-    );
+    final payload = 'vet_intake|$requestId';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -632,12 +796,24 @@ class NotificationService {
         body: body.isEmpty ? 'Novi karton ljubimca' : body,
       ),
     );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: 'Novi digitalni karton',
+      body: body.isEmpty ? 'Novi karton ljubimca' : body,
+      androidDetails: androidDetails,
+    );
   }
 
   Future<void> showVetResponseAlert({
     required String animalId,
     required String animalName,
     required String body,
+    String? requestId,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -646,15 +822,11 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
     );
-    const platformDetails = NotificationDetails(android: androidDetails);
 
-    await _localNotifications.show(
-      animalId.hashCode,
-      'Odgovor veterinara',
-      body,
-      platformDetails,
-      payload: 'vet_response|$animalId',
-    );
+    final payload = requestId != null && requestId.isNotEmpty
+        ? 'vet_response|$requestId'
+        : 'vet_response|$animalId';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -665,12 +837,25 @@ class NotificationService {
         body: body,
       ),
     );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: 'Odgovor veterinara',
+      body: body,
+      androidDetails: androidDetails,
+    );
   }
 
   Future<void> showChatMessageAlert({
     required String senderId,
     required String senderName,
     required String messagePreview,
+    String? roomId,
+    String? messageId,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -679,15 +864,14 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
     );
-    const platformDetails = NotificationDetails(android: androidDetails);
 
-    await _localNotifications.show(
-      '$senderId$messagePreview'.hashCode,
-      'Nova poruka',
-      messagePreview.isEmpty ? senderName : messagePreview,
-      platformDetails,
-      payload: 'chat_message|$senderId|$senderName',
+    final payload = _chatPayload(
+      senderId: senderId,
+      senderName: senderName,
+      roomId: roomId,
+      messageId: messageId,
     );
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -698,12 +882,38 @@ class NotificationService {
         body: messagePreview.isEmpty ? senderName : messagePreview,
       ),
     );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: 'Nova poruka',
+      body: messagePreview.isEmpty ? senderName : messagePreview,
+      androidDetails: androidDetails,
+    );
+  }
+
+  String _chatPayload({
+    required String senderId,
+    required String senderName,
+    String? roomId,
+    String? messageId,
+  }) {
+    if (messageId != null &&
+        messageId.isNotEmpty &&
+        roomId != null &&
+        roomId.isNotEmpty) {
+      return 'chat_message|$roomId|$messageId';
+    }
+    return 'chat_message|$senderId|$senderName';
   }
 
   Future<void> showForumNewTopicAlert({
     required String topicId,
     required String topicTitle,
     required String authorName,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -712,20 +922,14 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
     );
-    const platformDetails = NotificationDetails(android: androidDetails);
 
-    final title = topicTitle.trim().isEmpty ? 'Nova tema na forumu' : topicTitle.trim();
+    final title =
+        topicTitle.trim().isEmpty ? 'Nova tema na forumu' : topicTitle.trim();
     final body = authorName.trim().isEmpty
         ? 'Netko je objavio novu temu'
         : authorName.trim();
-
-    await _localNotifications.show(
-      topicId.hashCode,
-      title,
-      body,
-      platformDetails,
-      payload: 'forum_new_topic|$topicId',
-    );
+    final payload = 'forum_new_topic|$topicId';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -737,6 +941,16 @@ class NotificationService {
         body: body,
       ),
     );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: title,
+      body: body,
+      androidDetails: androidDetails,
+    );
   }
 
   Future<void> showForumReplyAlert({
@@ -744,6 +958,7 @@ class NotificationService {
     required String topicTitle,
     required String authorName,
     required String preview,
+    bool systemTray = true,
   }) async {
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -752,7 +967,6 @@ class NotificationService {
       priority: Priority.high,
       showWhen: true,
     );
-    const platformDetails = NotificationDetails(android: androidDetails);
 
     final title = topicTitle.trim().isEmpty
         ? 'Novi odgovor na forumu'
@@ -760,14 +974,8 @@ class NotificationService {
     final body = preview.trim().isNotEmpty
         ? preview.trim()
         : (authorName.trim().isEmpty ? 'Netko je odgovorio' : authorName.trim());
-
-    await _localNotifications.show(
-      '$topicId$preview'.hashCode,
-      title,
-      body,
-      platformDetails,
-      payload: 'forum_reply|$topicId',
-    );
+    final payload = 'forum_reply|$topicId';
+    final eventKey = NotificationEventKey.fromPayload(payload)!;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
@@ -778,6 +986,16 @@ class NotificationService {
         title: title,
         body: body,
       ),
+    );
+
+    if (!systemTray) return;
+
+    await _showSystemTrayIfAllowed(
+      eventKey: eventKey,
+      payload: payload,
+      title: title,
+      body: body,
+      androidDetails: androidDetails,
     );
   }
 
@@ -798,14 +1016,15 @@ class NotificationService {
     Map<String, dynamic> data,
     RemoteNotification? notification,
   ) {
-    final productId = data['productId'] as String? ?? '';
-    if (productId.isEmpty) return;
+    final productId = (data['productId'] as String? ?? '').trim();
+    final farmerId = (data['farmerId'] as String? ?? '').trim();
+    if (productId.isEmpty && farmerId.isEmpty) return;
 
     NotificationNavigationBridge.dispatch(
       NotificationNavigationIntent(
         target: NotificationTarget.newProduct,
-        productId: productId,
-        farmerId: data['farmerId'] as String?,
+        productId: productId.isEmpty ? null : productId,
+        farmerId: farmerId.isEmpty ? null : farmerId,
         farmerName: data['farmerName'] as String?,
         productName: data['productName'] as String?,
         title: notification?.title,
@@ -815,69 +1034,105 @@ class NotificationService {
   }
 
   /// Otvara ekran proizvoda iz obavijesti (banner, tržnica, push).
+  Future<void> navigateFromIntent(NotificationNavigationIntent intent) async {
+    NotificationNavigationBridge.switchToTabFor(intent);
+
+    switch (intent.target) {
+      case NotificationTarget.orders:
+        _openOrdersScreen(highlightOrderId: intent.orderId);
+        break;
+      case NotificationTarget.buyerOrders:
+        _openBuyerOrdersScreen(
+          highlightOrderId: intent.orderId,
+          orderStatus: intent.orderStatus,
+        );
+        break;
+      case NotificationTarget.newProduct:
+        await _openNewProductFromIntent(intent);
+        break;
+      case NotificationTarget.lowStock:
+        if (intent.productId != null && intent.productId!.isNotEmpty) {
+          await _openSellerProductEdit(intent.productId!);
+        } else {
+          NotificationNavigationBridge.switchToTabFor(
+            NotificationNavigationIntent(
+              target: NotificationTarget.lowStock,
+              productId: intent.productId,
+            ),
+          );
+        }
+        break;
+      case NotificationTarget.weather:
+        break;
+      case NotificationTarget.vetIntake:
+        if (intent.requestId != null && intent.requestId!.isNotEmpty) {
+          await _openVetRequest(intent.requestId!);
+        }
+        break;
+      case NotificationTarget.vetResponse:
+        if (intent.animalId != null && intent.animalId!.isNotEmpty) {
+          await _openAnimalDetail(intent.animalId!);
+        }
+        break;
+      case NotificationTarget.chatMessage:
+        if (intent.senderId != null && intent.senderId!.isNotEmpty) {
+          _openChat(
+            intent.senderId!,
+            intent.senderName ?? 'Korisnik',
+          );
+        }
+        break;
+      case NotificationTarget.forumTopic:
+      case NotificationTarget.forumReply:
+        if (intent.topicId != null && intent.topicId!.isNotEmpty) {
+          await _openForumTopic(intent.topicId!);
+        }
+        break;
+    }
+  }
+
+  void focusSellerOrderFromIntent(NotificationNavigationIntent intent) {
+    if (intent.orderId == null || intent.orderId!.isEmpty) return;
+    _openOrdersScreen(highlightOrderId: intent.orderId);
+  }
+
+  void focusBuyerOrderFromIntent(NotificationNavigationIntent intent) {
+    if (intent.orderId == null || intent.orderId!.isEmpty) return;
+    _openBuyerOrdersScreen(
+      highlightOrderId: intent.orderId,
+      orderStatus: intent.orderStatus,
+    );
+  }
+
   Future<void> openProductFromNotification(String productId) async {
     await _openProductDetails(productId);
   }
 
   String? _buildPayload(Map<String, dynamic> data) =>
-      _buildPayloadStatic(data);
-
-  static String? _buildPayloadStatic(Map<String, dynamic> data) {
-    final type = data['type'] as String?;
-    if (type == null) return null;
-
-    switch (type) {
-      case 'new_order':
-        final orderId = data['orderId'] as String? ?? '';
-        return orderId.isEmpty ? type : '$type|$orderId';
-      case 'order_status':
-        final orderId = data['orderId'] as String? ?? '';
-        final status = data['status'] as String? ?? '';
-        if (orderId.isEmpty) return type;
-        return status.isEmpty ? '$type|$orderId' : '$type|$orderId|$status';
-      case 'weather_alert':
-        final alertKey = data['alertKey'] as String? ?? '';
-        return alertKey.isEmpty ? type : '$type|$alertKey';
-      case 'low_stock':
-        final productId = data['productId'] as String? ?? '';
-        final productName = data['productName'] as String? ?? '';
-        if (productId.isEmpty) return type;
-        return productName.isEmpty
-            ? '$type|$productId'
-            : '$type|$productId|$productName';
-      case 'new_product':
-        final productId = data['productId'] as String? ?? '';
-        final farmerId = data['farmerId'] as String? ?? '';
-        if (productId.isEmpty && farmerId.isEmpty) return type;
-        if (productId.isEmpty) return '$type||$farmerId';
-        if (farmerId.isEmpty) return '$type|$productId';
-        return '$type|$productId|$farmerId';
-      case 'vet_response':
-        final animalId = data['animalId'] as String? ?? '';
-        return '$type|$animalId';
-      case 'chat_message':
-        final senderId = data['senderId'] as String? ?? '';
-        final senderName = data['senderName'] as String? ?? 'Korisnik';
-        return '$type|$senderId|$senderName';
-      case 'vet_intake':
-        final requestId = data['requestId'] as String? ?? '';
-        return '$type|$requestId';
-      case 'forum_new_topic':
-        final topicId = data['topicId'] as String? ?? '';
-        return topicId.isEmpty ? type : '$type|$topicId';
-      case 'forum_reply':
-        final topicId = data['topicId'] as String? ?? '';
-        return topicId.isEmpty ? type : '$type|$topicId';
-      default:
-        return type;
-    }
-  }
+      NotificationEventKey.fromData(data);
 
   void _onLocalNotificationTap(NotificationResponse response) {
+    unawaited(_markNotificationHandled(response));
     _handleNotificationPayload(response.payload);
   }
 
+  Future<void> _markNotificationHandled(NotificationResponse response) async {
+    final payload = response.payload;
+    final eventKey = NotificationEventKey.fromPayload(payload);
+    if (eventKey != null) {
+      await NotificationDismissalStore.markDismissedForCurrentUser(eventKey);
+    }
+    final id = response.id;
+    if (id != null) {
+      await NotificationDismissalStore.markDismissedByNotificationId(id);
+    }
+  }
+
   void _handleMessageOpened(RemoteMessage message) {
+    final eventKey = NotificationEventKey.fromData(message.data);
+    if (eventKey != null) {
+      unawaited(NotificationDismissalStore.markDismissedForCurrentUser(eventKey));
+    }
     _handleNotificationPayload(_buildPayload(message.data));
   }
 
@@ -887,14 +1142,13 @@ class NotificationService {
     if (payload == 'new_order' || payload.startsWith('new_order|')) {
       final parts = payload.split('|');
       final orderId = parts.length > 1 ? parts[1] : null;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.orders,
-          orderId: orderId,
-          pushOrdersScreen: true,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.orders,
+        orderId: orderId,
+        pushOrdersScreen: true,
       );
-      _openOrdersScreen(highlightOrderId: orderId);
+      NotificationNavigationBridge.dispatch(intent);
+      navigateFromIntent(intent);
       return;
     }
 
@@ -902,39 +1156,36 @@ class NotificationService {
       final parts = payload.split('|');
       final orderId = parts.length > 1 ? parts[1] : null;
       final status = parts.length > 2 ? parts[2] : null;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.buyerOrders,
-          orderId: orderId,
-          orderStatus: status,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.buyerOrders,
+        orderId: orderId,
+        orderStatus: status,
       );
-      _openBuyerOrdersScreen();
+      NotificationNavigationBridge.dispatch(intent);
+      navigateFromIntent(intent);
       return;
     }
 
     if (payload == 'low_stock' || payload.startsWith('low_stock|')) {
       final parts = payload.split('|');
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.lowStock,
-          productId: parts.length > 1 ? parts[1] : null,
-          productName: parts.length > 2 ? parts.sublist(2).join('|') : null,
-          title: 'Niska zaliha',
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.lowStock,
+        productId: parts.length > 1 ? parts[1] : null,
+        productName: parts.length > 2 ? parts.sublist(2).join('|') : null,
       );
+      NotificationNavigationBridge.dispatch(intent);
+      navigateFromIntent(intent);
       return;
     }
 
     if (payload == 'weather_alert' || payload.startsWith('weather_alert|')) {
       final parts = payload.split('|');
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.weather,
-          weatherAlertKey: parts.length > 1 ? parts[1] : null,
-          title: '⚠️ Vremensko upozorenje',
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.weather,
+        weatherAlertKey: parts.length > 1 ? parts[1] : null,
       );
+      NotificationNavigationBridge.dispatch(intent);
+      navigateFromIntent(intent);
       return;
     }
 
@@ -943,30 +1194,30 @@ class NotificationService {
       final productId = parts.length > 1 && parts[1].isNotEmpty ? parts[1] : null;
       final farmerId = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
 
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.newProduct,
-          productId: productId,
-          farmerId: farmerId,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.newProduct,
+        productId: productId,
+        farmerId: farmerId,
       );
+      NotificationNavigationBridge.dispatch(intent);
 
-      if (productId != null) {
-        _openProductDetails(productId);
+      if ((productId != null && productId.isNotEmpty) ||
+          (farmerId != null && farmerId.isNotEmpty)) {
+        navigateFromIntent(intent);
       }
       return;
     }
 
     if (payload.startsWith('vet_response|')) {
-      final animalId = payload.split('|').last;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.vetResponse,
-          animalId: animalId.isEmpty ? null : animalId,
-        ),
+      final parts = payload.split('|');
+      final animalId = parts.length >= 3 ? parts[2] : parts.last;
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.vetResponse,
+        animalId: animalId.isEmpty ? null : animalId,
       );
+      NotificationNavigationBridge.dispatch(intent);
       if (animalId.isNotEmpty) {
-        _openAnimalDetail(animalId);
+        navigateFromIntent(intent);
       }
       return;
     }
@@ -974,58 +1225,74 @@ class NotificationService {
     if (payload.startsWith('chat_message|')) {
       final parts = payload.split('|');
       if (parts.length >= 3) {
-        final senderId = parts[1];
-        final senderName = parts.sublist(2).join('|');
-        NotificationNavigationBridge.dispatch(
-          NotificationNavigationIntent(
-            target: NotificationTarget.chatMessage,
-            senderId: senderId,
-            senderName: senderName,
-          ),
+        final second = parts[1];
+        final third = parts.sublist(2).join('|');
+
+        String senderId;
+        String senderName;
+
+        // FCM: chat_message|roomId|messageId
+        if (second.contains('_') && !third.contains(' ')) {
+          final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+          final roomParts = second.split('_');
+          if (uid.isNotEmpty && roomParts.length == 2) {
+            senderId =
+                roomParts.first == uid ? roomParts.last : roomParts.first;
+            senderName = 'Korisnik';
+          } else {
+            return;
+          }
+        } else {
+          senderId = second;
+          senderName = third;
+        }
+
+        final intent = NotificationNavigationIntent(
+          target: NotificationTarget.chatMessage,
+          senderId: senderId,
+          senderName: senderName,
         );
-        _openChat(senderId, senderName);
+        NotificationNavigationBridge.dispatch(intent);
+        navigateFromIntent(intent);
       }
       return;
     }
 
     if (payload.startsWith('vet_intake|')) {
       final requestId = payload.split('|').last;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.vetIntake,
-          requestId: requestId.isEmpty ? null : requestId,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.vetIntake,
+        requestId: requestId.isEmpty ? null : requestId,
       );
+      NotificationNavigationBridge.dispatch(intent);
       if (requestId.isNotEmpty) {
-        _openVetRequest(requestId);
+        navigateFromIntent(intent);
       }
       return;
     }
 
     if (payload.startsWith('forum_new_topic|')) {
       final topicId = payload.split('|').last;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.forumTopic,
-          topicId: topicId.isEmpty ? null : topicId,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.forumTopic,
+        topicId: topicId.isEmpty ? null : topicId,
       );
+      NotificationNavigationBridge.dispatch(intent);
       if (topicId.isNotEmpty) {
-        _openForumTopic(topicId);
+        navigateFromIntent(intent);
       }
       return;
     }
 
     if (payload.startsWith('forum_reply|')) {
       final topicId = payload.split('|').last;
-      NotificationNavigationBridge.dispatch(
-        NotificationNavigationIntent(
-          target: NotificationTarget.forumReply,
-          topicId: topicId.isEmpty ? null : topicId,
-        ),
+      final intent = NotificationNavigationIntent(
+        target: NotificationTarget.forumReply,
+        topicId: topicId.isEmpty ? null : topicId,
       );
+      NotificationNavigationBridge.dispatch(intent);
       if (topicId.isNotEmpty) {
-        _openForumTopic(topicId);
+        navigateFromIntent(intent);
       }
       return;
     }
@@ -1070,18 +1337,39 @@ class NotificationService {
           .collection('veterinary_requests')
           .doc(requestId)
           .get();
-      if (!doc.exists) return;
 
-      final request = VeterinaryRequest.fromFirestore(doc);
-      if (request.vetId != uid) return;
+      if (doc.exists) {
+        final request = VeterinaryRequest.fromFirestore(doc);
+        final assignedVetId = request.vetId.trim();
+        if (assignedVetId.isEmpty || assignedVetId == uid) {
+          if (!navigator.mounted) return;
+          await navigator.push(
+            MaterialPageRoute(
+              builder: (_) => VetPatientRequestDetailScreen(request: request),
+            ),
+          );
+          return;
+        }
+      }
 
-      navigator.push(
+      if (!navigator.mounted) return;
+      await navigator.push(
         MaterialPageRoute(
-          builder: (_) => VetPatientRequestDetailScreen(request: request),
+          builder: (_) => const VeterinarianAnimalsHubScreen(
+            initialTab: VeterinarianAnimalsTab.digitalIntake,
+          ),
         ),
       );
     } catch (_) {
-      // Navigacija ne smije blokirati app.
+      final navigator = _navigatorKey?.currentState;
+      if (navigator == null || !navigator.mounted) return;
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => const VeterinarianAnimalsHubScreen(
+            initialTab: VeterinarianAnimalsTab.digitalIntake,
+          ),
+        ),
+      );
     }
   }
 
@@ -1110,7 +1398,91 @@ class NotificationService {
     );
   }
 
+  Future<void> _openNewProductFromIntent(
+    NotificationNavigationIntent intent,
+  ) async {
+    final productId = intent.productId?.trim();
+    if (productId != null && productId.isNotEmpty) {
+      final opened = await _tryOpenProductDetails(productId);
+      if (opened) return;
+    }
+
+    final farmerId = intent.farmerId?.trim();
+    if (farmerId != null && farmerId.isNotEmpty) {
+      _openFarmerStorefront(farmerId);
+      return;
+    }
+
+    _showNavigationUnavailableMessage();
+  }
+
+  void _showNavigationUnavailableMessage() {
+    final messenger = _navigatorKey?.currentState?.overlay?.context;
+    if (messenger == null) return;
+    ScaffoldMessenger.maybeOf(messenger)?.showSnackBar(
+      SnackBar(content: Text('notification_product_unavailable'.tr())),
+    );
+  }
+
+  void _openFarmerStorefront(String sellerId) {
+    final navigator = _navigatorKey?.currentState;
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => FarmerStorefrontScreen(sellerId: sellerId),
+      ),
+    );
+  }
+
+  Future<bool> _tryOpenProductDetails(String productId) async {
+    final navigator = _navigatorKey?.currentState;
+    if (navigator == null) return false;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('products')
+          .doc(productId)
+          .get();
+      if (!doc.exists) return false;
+
+      final product = Product.fromFirestore(doc);
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => ProductDetailsScreen(product: product),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _openProductDetails(String productId) async {
+    final opened = await _tryOpenProductDetails(productId);
+    if (!opened) {
+      _showNavigationUnavailableMessage();
+    }
+  }
+
+  void _openBuyerOrdersScreen({
+    String? highlightOrderId,
+    String? orderStatus,
+  }) {
+    final navigator = _navigatorKey?.currentState;
+    if (navigator == null) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => BuyerOrdersScreen(
+          highlightOrderId: highlightOrderId,
+          orderStatus: orderStatus,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSellerProductEdit(String productId) async {
     final navigator = _navigatorKey?.currentState;
     if (navigator == null) return;
 
@@ -1122,25 +1494,15 @@ class NotificationService {
       if (!doc.exists) return;
 
       final product = Product.fromFirestore(doc);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || product.sellerId != uid) return;
+
       navigator.push(
         MaterialPageRoute(
-          builder: (_) => ProductDetailsScreen(product: product),
+          builder: (_) => AddProductScreen(productToEdit: product),
         ),
       );
-    } catch (_) {
-      // Navigacija ne smije blokirati app.
-    }
-  }
-
-  void _openBuyerOrdersScreen() {
-    final navigator = _navigatorKey?.currentState;
-    if (navigator == null) return;
-
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => const BuyerOrdersScreen(),
-      ),
-    );
+    } catch (_) {}
   }
 
   void _openOrdersScreen({String? highlightOrderId}) {
@@ -1152,5 +1514,11 @@ class NotificationService {
         builder: (_) => FarmerOrdersScreen(highlightOrderId: highlightOrderId),
       ),
     );
+  }
+
+  static double? _parseStockCount(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw.toString());
   }
 }

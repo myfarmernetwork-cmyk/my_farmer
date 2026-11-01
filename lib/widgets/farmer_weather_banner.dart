@@ -8,24 +8,25 @@ import 'package:geolocator/geolocator.dart';
 
 import '../models/farm_weather.dart';
 import '../providers/auth_provider.dart';
-import '../providers/subscription_provider.dart';
 import '../services/farm_location_service.dart';
 import '../services/weather_service.dart';
 import '../utils/upcoming_product_helper.dart';
 import 'farmer_weather_widget.dart';
 
 /// Samostalni banner s vremenskom prognozom — osvježavanje ne rebuilda roditeljski ekran.
+/// Push alarme šalje isključivo backend (epizode); ovdje samo prikaz prognoze i upozorenja.
 class FarmerWeatherBanner extends ConsumerStatefulWidget {
   const FarmerWeatherBanner({
     super.key,
     this.guideKey,
     this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    this.checkAlertsOnPeriodicRefresh = false,
+    this.marketplaceSurface = false,
   });
 
   final Key? guideKey;
   final EdgeInsetsGeometry padding;
-  final bool checkAlertsOnPeriodicRefresh;
+  /// Tamno-zelena tržišna pozadina — stakleni banner (Proizvodi tab).
+  final bool marketplaceSurface;
 
   @override
   ConsumerState<FarmerWeatherBanner> createState() =>
@@ -49,10 +50,10 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
     final role = ref.read(firestoreUserRoleProvider).valueOrNull;
     if (UpcomingProductHelper.isCompanyRole(role)) return;
 
-    unawaited(_refresh(checkAlerts: widget.checkAlertsOnPeriodicRefresh));
+    unawaited(_refresh());
     _timer ??= Timer.periodic(
       const Duration(minutes: 30),
-      (_) => _refresh(checkAlerts: widget.checkAlertsOnPeriodicRefresh),
+      (_) => _refresh(),
     );
   }
 
@@ -62,7 +63,7 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
     super.dispose();
   }
 
-  Future<void> _refresh({bool checkAlerts = false}) async {
+  Future<void> _refresh() async {
     final role = ref.read(firestoreUserRoleProvider).valueOrNull;
     if (UpcomingProductHelper.isCompanyRole(role)) return;
 
@@ -83,14 +84,6 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
         _fromDeviceGps = result.usedDeviceGps;
         _loading = false;
       });
-
-      if (checkAlerts && result.snapshot != null) {
-        final isPremium = ref.read(weatherPremiumAccessProvider);
-        await service.checkPremiumAlerts(
-          weather: result.snapshot!,
-          isPremium: isPremium,
-        );
-      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -107,7 +100,7 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
 
     if (_weather == null) {
       setState(() => _loading = true);
-      await _refresh(checkAlerts: false);
+      await _refresh();
       if (!mounted) return;
       if (_weather != null) return;
 
@@ -124,7 +117,7 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
       return;
     }
 
-    await _refresh(checkAlerts: true);
+    await _refresh();
   }
 
   Future<void> _enableLocation() async {
@@ -147,7 +140,7 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      await _refresh(checkAlerts: true);
+      await _refresh();
       return;
     }
 
@@ -197,8 +190,9 @@ class _FarmerWeatherBannerState extends ConsumerState<FarmerWeatherBanner> {
         isLoading: _loading,
         hasLocation: _hasLocation,
         usingDeviceGps: _fromDeviceGps,
-        onRefresh: _weather != null ? () => _refresh(checkAlerts: true) : null,
+        onRefresh: _weather != null ? _refresh : null,
         onActionTap: _handleBannerAction,
+        marketplaceSurface: widget.marketplaceSurface,
       ),
     );
   }

@@ -38,7 +38,7 @@ class PlantScannerConfig {
 
     'PLANT_SCANNER_USE_CLOUD',
 
-    defaultValue: false,
+    defaultValue: true,
 
   );
 

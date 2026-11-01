@@ -125,15 +125,24 @@ class SubscriptionService {
     return Purchases.getOfferings();
   }
 
+  /// Lokalizirana cijena iz Play/App Store (RevenueCat offerings).
+  Future<String?> storePriceStringForProductId(String productId) async {
+    if (RevenueCatConfig.simulationMode) return null;
+
+    final offerings = await getOfferings();
+    final package = _findPackageByProductId(offerings, productId);
+    return package?.storeProduct.priceString;
+  }
+
   Future<bool> purchasePackage(Package package) async {
     if (!_configured) return false;
 
     try {
-      final customerInfo = await Purchases.purchasePackage(package);
+      final result = await Purchases.purchasePackage(package);
       await syncPaymentStoreCountry(
         userId: FirebaseAuth.instance.currentUser?.uid,
       );
-      return _handleCustomerInfo(customerInfo);
+      return _handleCustomerInfo(result.customerInfo);
     } on PlatformException catch (e) {
       final errorCode = PurchasesErrorHelper.getErrorCode(e);
       if (errorCode == PurchasesErrorCode.purchaseCancelledError) {
@@ -212,23 +221,35 @@ class SubscriptionService {
     }
   }
 
+  bool _storeProductMatches(String storeIdentifier, String productId) {
+    if (storeIdentifier == productId) return true;
+    // Google Play Billing 5+ — npr. premium_buyer_monthly:monthly
+    if (storeIdentifier.startsWith('$productId:')) return true;
+    return storeIdentifier.split(':').first == productId;
+  }
+
   Package? _findPackageByProductId(Offerings? offerings, String productId) {
     if (offerings == null) return null;
 
+    Package? match(Package package) {
+      final storeId = package.storeProduct.identifier;
+      if (_storeProductMatches(storeId, productId)) return package;
+      if (package.identifier == productId) return package;
+      return null;
+    }
+
     for (final offering in offerings.all.values) {
       for (final package in offering.availablePackages) {
-        if (package.storeProduct.identifier == productId) {
-          return package;
-        }
+        final found = match(package);
+        if (found != null) return found;
       }
     }
 
     final current = offerings.current;
     if (current != null) {
       for (final package in current.availablePackages) {
-        if (package.storeProduct.identifier == productId) {
-          return package;
-        }
+        final found = match(package);
+        if (found != null) return found;
       }
     }
 

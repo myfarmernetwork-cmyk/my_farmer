@@ -60,6 +60,15 @@ const COPY = {
     ready_delivery_title: "Bestellung bereit",
     ready_delivery_body: ({ schedule }) =>
       `Ihre Bestellung ist fertig. Lieferung: ${schedule}.`,
+    rejected_title: "Bestellung abgelehnt",
+    rejected_body: ({ seller, message }) =>
+      message && message.trim()
+        ? `${seller} hat die Bestellung abgelehnt: ${message.trim()}`
+        : `${seller} hat Ihre Bestellung abgelehnt.`,
+    low_stock_title: "Niedriger Bestand",
+    low_stock_body: ({ productName, stock }) =>
+      `${productName} — noch ${stock} Stück`,
+    product_fallback: "Produkt",
   },
   en: {
     new_order_title: "New order",
@@ -74,6 +83,15 @@ const COPY = {
     ready_delivery_title: "Order ready",
     ready_delivery_body: ({ schedule }) =>
       `Your order is ready. Delivery: ${schedule}.`,
+    rejected_title: "Order rejected",
+    rejected_body: ({ seller, message }) =>
+      message && message.trim()
+        ? `${seller} rejected the order: ${message.trim()}`
+        : `${seller} rejected your order.`,
+    low_stock_title: "Low stock",
+    low_stock_body: ({ productName, stock }) =>
+      `${productName} — ${stock} left`,
+    product_fallback: "Product",
   },
   hr: {
     new_order_title: "Nova narudžba",
@@ -88,6 +106,15 @@ const COPY = {
     ready_delivery_title: "Narudžba spremna",
     ready_delivery_body: ({ schedule }) =>
       `Vaša narudžba je spremna. Dostava: ${schedule}.`,
+    rejected_title: "Narudžba odbijena",
+    rejected_body: ({ seller, message }) =>
+      message && message.trim()
+        ? `${seller} je odbio narudžbu: ${message.trim()}`
+        : `${seller} je odbio vašu narudžbu.`,
+    low_stock_title: "Niska zaliha",
+    low_stock_body: ({ productName, stock }) =>
+      `${productName} — ostalo ${stock} kom`,
+    product_fallback: "Proizvod",
   },
   bs: {
     new_order_title: "Nova narudžba",
@@ -102,6 +129,15 @@ const COPY = {
     ready_delivery_title: "Narudžba spremna",
     ready_delivery_body: ({ schedule }) =>
       `Vaša narudžba je spremna. Dostava: ${schedule}.`,
+    rejected_title: "Narudžba odbijena",
+    rejected_body: ({ seller, message }) =>
+      message && message.trim()
+        ? `${seller} je odbio narudžbu: ${message.trim()}`
+        : `${seller} je odbio vašu narudžbu.`,
+    low_stock_title: "Niska zaliha",
+    low_stock_body: ({ productName, stock }) =>
+      `${productName} — ostalo ${stock} kom`,
+    product_fallback: "Proizvod",
   },
   sr: {
     new_order_title: "Nova porudžbina",
@@ -116,6 +152,15 @@ const COPY = {
     ready_delivery_title: "Porudžbina spremna",
     ready_delivery_body: ({ schedule }) =>
       `Vaša porudžbina je spremna. Dostava: ${schedule}.`,
+    rejected_title: "Porudžbina odbijena",
+    rejected_body: ({ seller, message }) =>
+      message && message.trim()
+        ? `${seller} je odbio porudžbinu: ${message.trim()}`
+        : `${seller} je odbio vašu porudžbinu.`,
+    low_stock_title: "Niska zaliha",
+    low_stock_body: ({ productName, stock }) =>
+      `${productName} — ostalo ${stock} kom`,
+    product_fallback: "Proizvod",
   },
 };
 
@@ -151,6 +196,13 @@ function normalizeOrderStatus(raw) {
     case "done":
     case "finished":
       return "completed";
+    case "rejected":
+    case "odbijeno":
+    case "odbijena":
+    case "declined":
+    case "cancelled":
+    case "canceled":
+      return "rejected";
     default:
       return value || "new";
   }
@@ -205,6 +257,7 @@ function buyerStatusNotification({
   sellerName,
   deliveryType,
   sellerData,
+  sellerMessage,
 }) {
   const copy = getCopy(lang);
   const seller = sellerName || "Farmer";
@@ -213,6 +266,16 @@ function buyerStatusNotification({
     return {
       title: copy.preparing_title,
       body: copy.preparing_body({ seller }),
+    };
+  }
+
+  if (status === "rejected") {
+    return {
+      title: copy.rejected_title,
+      body: copy.rejected_body({
+        seller,
+        message: sellerMessage || "",
+      }),
     };
   }
 
@@ -233,10 +296,21 @@ function buyerStatusNotification({
   return null;
 }
 
+function lowStockNotification({ lang, productName, stock }) {
+  const copy = COPY[lang] || COPY.en;
+  const name = (productName || copy.product_fallback || "Product").trim();
+  const count = Number.isFinite(Number(stock)) ? Math.floor(Number(stock)) : 0;
+  return {
+    title: copy.low_stock_title,
+    body: copy.low_stock_body({ productName: name, stock: count }),
+  };
+}
+
 module.exports = {
   resolveLang,
   normalizeOrderStatus,
   newOrderNotification,
   buyerStatusNotification,
+  lowStockNotification,
   formatDeliverySchedule,
 };

@@ -17,20 +17,72 @@ const {
   createPaymentIntentBody,
   mapStripeError,
 } = require("./stripe_checkout");
-const { identifyPlantBody } = require("./plant_id_proxy");
+const { identifyPlantBody: identifyPlantViaPlantId } = require("./plant_id_proxy");
+const { identifyPlantBody: identifyPlantViaPlantNet } = require("./plantnet_proxy");
 const {
   requestAccountDeletion,
   purgeScheduledAccountDeletions,
 } = require("./account_deletion");
 const {
+  adminClearUserProfileImage,
+  adminDeleteUserAccount,
+} = require("./admin_moderation");
+const {
   resolveLang,
   normalizeOrderStatus,
   newOrderNotification,
   buyerStatusNotification,
+  lowStockNotification,
 } = require("./order_notification_copy");
+const { writeInboxNotification } = require("./inbox_notifications");
 
 const PAYPAL_SECRETS = ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_ENV"];
 const PLANT_ID_SECRETS = ["PLANT_ID_API_KEY"];
+const PLANTNET_SECRETS = ["PLANTNET_API_KEY"];
+
+function resolveIdentifyPlantBody() {
+  if (process.env.PLANTNET_API_KEY) {
+    return identifyPlantViaPlantNet;
+  }
+  return identifyPlantViaPlantId;
+}
+
+async function identifyPlantWithFallback(data) {
+  const hasPlantNet = Boolean(process.env.PLANTNET_API_KEY);
+  const hasPlantId = Boolean(process.env.PLANT_ID_API_KEY);
+
+  if (hasPlantNet) {
+    try {
+      return await identifyPlantViaPlantNet(data);
+    } catch (error) {
+      const retriable =
+        error.code === "failed-precondition" ||
+        error.code === "resource-exhausted" ||
+        error.httpStatus === 401 ||
+        error.httpStatus === 403 ||
+        error.httpStatus === 429;
+
+      if (hasPlantId && retriable) {
+        console.warn(
+          "Pl@ntNet unavailable, falling back to Plant.id:",
+          error.message,
+        );
+        return identifyPlantViaPlantId(data);
+      }
+      throw error;
+    }
+  }
+
+  if (hasPlantId) {
+    return identifyPlantViaPlantId(data);
+  }
+
+  const err = new Error(
+    "No plant scanner API key configured (PLANTNET_API_KEY or PLANT_ID_API_KEY).",
+  );
+  err.code = "failed-precondition";
+  throw err;
+}
 
 initializeApp();
 
@@ -134,14 +186,25 @@ exports.capturePayPalOrder = onCall(
 );
 
 exports.identifyPlant = onCall(
-  { secrets: PLANT_ID_SECRETS, memory: "512MiB", timeoutSeconds: 60 },
+  {
+    secrets: [...PLANTNET_SECRETS, ...PLANT_ID_SECRETS],
+    memory: "512MiB",
+    timeoutSeconds: 60,
+  },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Authentication required.");
     }
 
+    if (!process.env.PLANTNET_API_KEY && !process.env.PLANT_ID_API_KEY) {
+      throw new HttpsError(
+        "failed-precondition",
+        "No plant scanner API key configured (PLANTNET_API_KEY or PLANT_ID_API_KEY).",
+      );
+    }
+
     try {
-      return await identifyPlantBody(request.data);
+      return await identifyPlantWithFallback(request.data);
     } catch (error) {
       if (error.code === "invalid-argument") {
         throw new HttpsError("invalid-argument", error.message);
@@ -149,10 +212,14 @@ exports.identifyPlant = onCall(
       if (error.code === "failed-precondition") {
         throw new HttpsError("failed-precondition", error.message);
       }
+      if (error.code === "resource-exhausted") {
+        throw new HttpsError("resource-exhausted", error.message);
+      }
       if (error.httpStatus === 401 || error.httpStatus === 403) {
         throw new HttpsError(
           "failed-precondition",
-          "Plant.id API key is invalid or expired.",
+          error.message ||
+            "Plant scanner API key is invalid, expired, or blocked for this server IP.",
         );
       }
       if (error.httpStatus === 429) {
@@ -230,6 +297,13 @@ exports.notifyFarmerOnNewOrder = onDocumentCreated(
       },
     });
 
+    await writeInboxNotification(sellerId, {
+      type: "new_order",
+      title: notification.title,
+      body: notification.body,
+      orderId: event.params.orderId,
+    });
+
     console.log(`Notification sent to seller ${sellerId}.`);
   },
 );
@@ -244,7 +318,9 @@ exports.notifyBuyerOnOrderStatusUpdate = onDocumentUpdated(
     const prevStatus = normalizeOrderStatus(before.status);
     const nextStatus = normalizeOrderStatus(after.status);
     if (prevStatus === nextStatus) return;
-    if (nextStatus !== "preparing" && nextStatus !== "completed") return;
+    if (nextStatus !== "preparing" &&
+        nextStatus !== "completed" &&
+        nextStatus !== "rejected") return;
 
     const buyerId = after.buyerId;
     if (!buyerId) {
@@ -277,6 +353,7 @@ exports.notifyBuyerOnOrderStatusUpdate = onDocumentUpdated(
       sellerName,
       deliveryType,
       sellerData,
+      sellerMessage: after.sellerMessage,
     });
     if (!notification) return;
 
@@ -295,6 +372,15 @@ exports.notifyBuyerOnOrderStatusUpdate = onDocumentUpdated(
           channelId: "high_importance_channel",
         },
       },
+    });
+
+    await writeInboxNotification(buyerId, {
+      type: "order_status",
+      title: notification.title,
+      body: notification.body,
+      orderId: event.params.orderId,
+      orderStatus: nextStatus,
+      status: nextStatus,
     });
 
     console.log(
@@ -328,6 +414,7 @@ exports.notifyFollowersOnNewProduct = onDocumentCreated(
     }
 
     const tokens = [];
+    const followerIds = [];
 
     for (const followerDoc of followersSnap.docs) {
       const buyerId = followerDoc.data().buyerId;
@@ -335,7 +422,10 @@ exports.notifyFollowersOnNewProduct = onDocumentCreated(
 
       const buyerDoc = await getFirestore().collection("users").doc(buyerId).get();
       const token = buyerDoc.data()?.fcmToken;
-      if (token) tokens.push(token);
+      if (token) {
+        tokens.push(token);
+        followerIds.push(buyerId);
+      }
     }
 
     if (tokens.length === 0) {
@@ -367,6 +457,20 @@ exports.notifyFollowersOnNewProduct = onDocumentCreated(
         },
       },
     });
+
+    await Promise.all(
+      followerIds.map((buyerId) =>
+        writeInboxNotification(buyerId, {
+          type: "new_product",
+          title: `${farmerName} ima novi proizvod!`,
+          body,
+          farmerId,
+          productId: event.params.productId,
+          farmerName,
+          productName,
+        }),
+      ),
+    );
 
     console.log(
       `New product notification sent to ${tokens.length} follower(s) for farmer ${farmerId}.`,
@@ -405,7 +509,6 @@ exports.notifyOwnerOnVetResponse = onDocumentUpdated(
     const fcmToken = clientDoc.data()?.fcmToken;
     if (!fcmToken) {
       console.log(`No FCM token for client ${clientId}.`);
-      return;
     }
 
     const vetName = after.vetName || "Veterinar";
@@ -415,27 +518,240 @@ exports.notifyOwnerOnVetResponse = onDocumentUpdated(
         ? `${responseText.slice(0, 117)}...`
         : responseText;
 
-    await getMessaging().send({
-      token: fcmToken,
-      notification: {
-        title: "Nalaz veterinara",
-        body: `${vetName} je odgovorio za ${animalName}: ${preview}`,
-      },
-      data: {
-        type: "vet_response",
-        requestId: event.params.requestId,
-        animalId: after.animalId || "",
-        vetName,
-      },
-      android: {
-        priority: "high",
+    const pushTitle = "Nalaz veterinara";
+    const pushBody = `${vetName} je odgovorio za ${animalName}: ${preview}`;
+
+    if (fcmToken) {
+      await getMessaging().send({
+        token: fcmToken,
         notification: {
-          channelId: "high_importance_channel",
+          title: pushTitle,
+          body: pushBody,
         },
-      },
+        data: {
+          type: "vet_response",
+          requestId: event.params.requestId,
+          animalId: after.animalId || "",
+          vetName,
+        },
+        android: {
+          priority: "high",
+          notification: {
+            channelId: "high_importance_channel",
+          },
+        },
+      });
+    }
+
+    await writeInboxNotification(clientId, {
+      type: "vet_response",
+      title: pushTitle,
+      body: pushBody,
+      requestId: event.params.requestId,
+      animalId: after.animalId || "",
+      animalName,
+      vetName,
     });
 
     console.log(`Vet response notification sent to client ${clientId}.`);
+  },
+);
+
+exports.notifyOnVetAppointmentUpdate = onDocumentUpdated(
+  "veterinary_requests/{requestId}",
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after) return;
+
+    const beforeStatus = before?.appointmentStatus || "none";
+    const afterStatus = after.appointmentStatus || "none";
+    if (beforeStatus === afterStatus) return;
+
+    const vetId = after.vetId;
+    const clientId = after.clientId;
+    const animalName = after.animalName || "životinja";
+    const animalId = after.animalId || "";
+    const requestId = event.params.requestId;
+    const clientName = after.clientName || "Vlasnik";
+    const vetName = after.vetName || "Veterinar";
+
+    const formatTs = (ts) => {
+      if (!ts || typeof ts.toDate !== "function") return "";
+      try {
+        return ts.toDate().toLocaleString("hr-HR");
+      } catch (_) {
+        return "";
+      }
+    };
+
+    const appointmentWhen =
+      formatTs(after.confirmedAt) ||
+      formatTs(after.proposedAt) ||
+      formatTs(after.ownerCounterAt);
+
+    if (afterStatus === "counter" && vetId) {
+      const title = "Novi prijedlog termina";
+      const body = `${clientName} predlaže termin za ${animalName}: ${formatTs(after.ownerCounterAt)}`;
+      const vetDoc = await getFirestore().collection("users").doc(vetId).get();
+      const token = vetDoc.data()?.fcmToken;
+      if (token) {
+        await getMessaging().send({
+          token,
+          notification: { title, body },
+          data: {
+            type: "vet_intake",
+            requestId,
+            animalId,
+            animalName,
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "high_importance_channel" },
+          },
+        });
+      }
+      await writeInboxNotification(vetId, {
+        type: "vet_intake",
+        title,
+        body,
+        requestId,
+        animalId,
+        animalName,
+        clientName,
+      });
+    }
+
+    if (afterStatus === "confirmed") {
+      if (beforeStatus === "counter" && clientId) {
+        const title = "Termin potvrđen";
+        const body = `${vetName} potvrđuje termin za ${animalName}: ${appointmentWhen}`;
+        const clientDoc = await getFirestore()
+          .collection("users")
+          .doc(clientId)
+          .get();
+        const token = clientDoc.data()?.fcmToken;
+        if (token) {
+          await getMessaging().send({
+            token,
+            notification: { title, body },
+            data: {
+              type: "vet_response",
+              requestId,
+              animalId,
+              vetName,
+            },
+            android: {
+              priority: "high",
+              notification: { channelId: "high_importance_channel" },
+            },
+          });
+        }
+        await writeInboxNotification(clientId, {
+          type: "vet_response",
+          title,
+          body,
+          requestId,
+          animalId,
+          animalName,
+          vetName,
+        });
+      } else if (vetId) {
+        const title = "Termin potvrđen";
+        const body = `${clientName} potvrđuje termin za ${animalName}: ${appointmentWhen}`;
+        const vetDoc = await getFirestore().collection("users").doc(vetId).get();
+        const token = vetDoc.data()?.fcmToken;
+        if (token) {
+          await getMessaging().send({
+            token,
+            notification: { title, body },
+            data: {
+              type: "vet_intake",
+              requestId,
+              animalId,
+              animalName,
+            },
+            android: {
+              priority: "high",
+              notification: { channelId: "high_importance_channel" },
+            },
+          });
+        }
+        await writeInboxNotification(vetId, {
+          type: "vet_intake",
+          title,
+          body,
+          requestId,
+          animalId,
+          animalName,
+          clientName,
+        });
+      }
+    }
+
+    if (afterStatus === "proposed" && beforeStatus === "counter" && clientId) {
+      const title = "Novi termin veterinara";
+      const body = `${vetName} predlaže novi termin za ${animalName}: ${formatTs(after.proposedAt)}`;
+      const clientDoc = await getFirestore().collection("users").doc(clientId).get();
+      const token = clientDoc.data()?.fcmToken;
+      if (token) {
+        await getMessaging().send({
+          token,
+          notification: { title, body },
+          data: {
+            type: "vet_response",
+            requestId,
+            animalId,
+            vetName,
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "high_importance_channel" },
+          },
+        });
+      }
+      await writeInboxNotification(clientId, {
+        type: "vet_response",
+        title,
+        body,
+        requestId,
+        animalId,
+        animalName,
+        vetName,
+      });
+    }
+
+    if (afterStatus === "declined" && vetId) {
+      const title = "Termin odbijen";
+      const body = `${clientName} ne može doći na predloženi termin za ${animalName}.`;
+      const vetDoc = await getFirestore().collection("users").doc(vetId).get();
+      const token = vetDoc.data()?.fcmToken;
+      if (token) {
+        await getMessaging().send({
+          token,
+          notification: { title, body },
+          data: {
+            type: "vet_intake",
+            requestId,
+            animalId,
+            animalName,
+          },
+          android: {
+            priority: "high",
+            notification: { channelId: "high_importance_channel" },
+          },
+        });
+      }
+      await writeInboxNotification(vetId, {
+        type: "vet_intake",
+        title,
+        body,
+        requestId,
+        animalId,
+        animalName,
+        clientName,
+      });
+    }
   },
 );
 
@@ -487,6 +803,15 @@ exports.notifyVetOnNewIntake = onDocumentCreated(
       },
     });
 
+    await writeInboxNotification(vetId, {
+      type: "vet_intake",
+      title: "Novi digitalni karton",
+      body,
+      requestId: event.params.requestId,
+      animalName,
+      clientName,
+    });
+
     console.log(`Vet intake notification sent to vet ${vetId}.`);
   },
 );
@@ -503,10 +828,6 @@ exports.notifyUserOnChatMessage = onDocumentCreated(
 
     const receiverDoc = await getFirestore().collection("users").doc(receiverId).get();
     const fcmToken = receiverDoc.data()?.fcmToken;
-    if (!fcmToken) {
-      console.log(`No FCM token for chat receiver ${receiverId}.`);
-      return;
-    }
 
     const senderDoc = await getFirestore().collection("users").doc(senderId).get();
     const senderName =
@@ -523,6 +844,21 @@ exports.notifyUserOnChatMessage = onDocumentCreated(
     if (!body) body = "Nova poruka";
 
     const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
+
+    await writeInboxNotification(receiverId, {
+      type: "chat_message",
+      title: senderName,
+      body: preview,
+      roomId: event.params.roomId,
+      senderId,
+      senderName,
+      messageId: event.params.messageId,
+    });
+
+    if (!fcmToken) {
+      console.log(`No FCM token for chat receiver ${receiverId}; inbox only.`);
+      return;
+    }
 
     try {
       await getMessaging().send({
@@ -576,30 +912,52 @@ exports.notifyFarmerOnLowStock = onDocumentUpdated(
     if (!sellerId) return;
 
     const stockAfter = Number(after.stock);
-    const stockBefore = Number(before?.stock ?? stockAfter + 1);
-    if (!Number.isFinite(stockAfter) || stockAfter > 10 || stockBefore <= 10) {
+    const stockBefore = Number(before?.stock);
+    if (!Number.isFinite(stockAfter) || !Number.isFinite(stockBefore)) {
+      return;
+    }
+    if (stockAfter > 10 || stockBefore <= 10 || stockBefore <= stockAfter) {
       return;
     }
 
     const sellerDoc = await getFirestore().collection("users").doc(sellerId).get();
-    const fcmToken = sellerDoc.data()?.fcmToken;
-    if (!fcmToken) {
-      console.log(`No FCM token for seller ${sellerId}.`);
-      return;
-    }
+    const sellerData = sellerDoc.data() || {};
+    const fcmToken = sellerData.fcmToken;
 
     const productName = after.name || "Proizvod";
+    const stockCount = Math.floor(stockAfter);
+    const lang = resolveLang(sellerData.preferredLanguage);
+    const notification = lowStockNotification({
+      lang,
+      productName,
+      stock: stockCount,
+    });
+
+    await writeInboxNotification(sellerId, {
+      type: "low_stock",
+      title: notification.title,
+      body: notification.body,
+      productId: event.params.productId,
+      productName,
+      stockCount,
+    });
+
+    if (!fcmToken) {
+      console.log(`No FCM token for seller ${sellerId}; inbox only.`);
+      return;
+    }
 
     await getMessaging().send({
       token: fcmToken,
       notification: {
-        title: "Niska zaliha",
-        body: `${productName} — ostalo ${Math.floor(stockAfter)} kom`,
+        title: notification.title,
+        body: notification.body,
       },
       data: {
         type: "low_stock",
         productId: event.params.productId,
         productName,
+        stockCount: String(stockCount),
       },
       android: {
         priority: "high",
@@ -615,148 +973,17 @@ exports.notifyFarmerOnLowStock = onDocumentUpdated(
 
 exports.notifyUsersOnNewForumTopic = onDocumentCreated(
   "forum_topics/{topicId}",
-  async (event) => {
-    const topic = event.data?.data();
-    if (!topic) return;
-
-    const authorId = topic.authorId;
-    if (!authorId) return;
-
-    let authorName = (topic.authorName || "").trim();
-    if (!authorName) {
-      const authorDoc = await getFirestore().collection("users").doc(authorId).get();
-      authorName =
-        authorDoc.data()?.name ||
-        authorDoc.data()?.displayName ||
-        "Korisnik";
-    }
-
-    const topicTitle = (topic.title || "Nova tema").trim();
-    const topicId = event.params.topicId;
-
-    const usersSnap = await getFirestore().collection("users").get();
-    const tokens = [];
-
-    for (const userDoc of usersSnap.docs) {
-      if (userDoc.id === authorId) continue;
-      const token = userDoc.data()?.fcmToken;
-      if (token) tokens.push(token);
-    }
-
-    if (tokens.length === 0) {
-      console.log("No FCM tokens for forum new topic notification.");
-      return;
-    }
-
-    const body = `${authorName} — ${topicTitle}`;
-    const preview = body.length > 120 ? `${body.slice(0, 117)}...` : body;
-
-    await getMessaging().sendEachForMulticast({
-      tokens,
-      notification: {
-        title: "Nova tema na forumu",
-        body: preview,
-      },
-      data: {
-        type: "forum_new_topic",
-        topicId,
-        topicTitle,
-        authorName,
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "high_importance_channel",
-        },
-      },
-    });
-
-    console.log(`Forum new topic notification sent to ${tokens.length} user(s).`);
+  async () => {
+    // Forum push is disabled — in-app category indicators only (100k+ scale).
+    console.log("Forum new topic: push skipped (in-app only).");
   },
 );
 
 exports.notifyTopicAuthorOnForumComment = onDocumentCreated(
   "forum_comments/{commentId}",
-  async (event) => {
-    const comment = event.data?.data();
-    if (!comment) return;
-
-    const topicId = comment.topicId;
-    const commentAuthorId = comment.authorId;
-    if (!topicId || !commentAuthorId) return;
-
-    const topicDoc = await getFirestore().collection("forum_topics").doc(topicId).get();
-    if (!topicDoc.exists) return;
-
-    const topic = topicDoc.data();
-    const topicAuthorId = topic?.authorId;
-    if (!topicAuthorId || topicAuthorId === commentAuthorId) return;
-
-    const authorDoc = await getFirestore()
-      .collection("users")
-      .doc(topicAuthorId)
-      .get();
-    const fcmToken = authorDoc.data()?.fcmToken;
-    if (!fcmToken) {
-      console.log(`No FCM token for forum topic author ${topicAuthorId}.`);
-      return;
-    }
-
-    let authorName = (comment.authorName || "").trim();
-    if (!authorName) {
-      const commentAuthorDoc = await getFirestore()
-        .collection("users")
-        .doc(commentAuthorId)
-        .get();
-      authorName =
-        commentAuthorDoc.data()?.name ||
-        commentAuthorDoc.data()?.displayName ||
-        "Korisnik";
-    }
-
-    const topicTitle = (topic?.title || "Vaša tema").trim();
-    let preview = (comment.text || "").trim();
-    if (!preview && comment.imageUrl) preview = "📷 Slika u komentaru";
-    if (!preview) preview = "Novi odgovor";
-    if (preview.length > 120) preview = `${preview.slice(0, 117)}...`;
-
-    try {
-      await getMessaging().send({
-        token: fcmToken,
-        notification: {
-          title: topicTitle,
-          body: preview,
-        },
-        data: {
-          type: "forum_reply",
-          topicId,
-          topicTitle,
-          authorName,
-          preview,
-        },
-        android: {
-          priority: "high",
-          notification: {
-            channelId: "high_importance_channel",
-            sound: "default",
-            notificationPriority: "PRIORITY_HIGH",
-          },
-        },
-      });
-
-      console.log(`Forum reply notification sent to ${topicAuthorId}.`);
-    } catch (error) {
-      console.error(`Forum reply notification failed for ${topicAuthorId}:`, error);
-      const code = error?.code || "";
-      if (
-        code === "messaging/registration-token-not-registered" ||
-        code === "messaging/invalid-registration-token"
-      ) {
-        await getFirestore().collection("users").doc(topicAuthorId).update({
-          fcmToken: FieldValue.delete(),
-        });
-      }
-    }
+  async () => {
+    // Forum push is disabled — in-app category indicators only (100k+ scale).
+    console.log("Forum reply: push skipped (in-app only).");
   },
 );
 
@@ -818,3 +1045,9 @@ exports.requestAccountDeletion = requestAccountDeletion;
 
 /** Dnevno briše račune s isteklim rokom brisanja. */
 exports.purgeScheduledAccountDeletions = purgeScheduledAccountDeletions;
+
+/** Admin — ukloni profilnu sliku korisnika. */
+exports.adminClearUserProfileImage = adminClearUserProfileImage;
+
+/** Admin — trajno obriši korisnički račun. */
+exports.adminDeleteUserAccount = adminDeleteUserAccount;

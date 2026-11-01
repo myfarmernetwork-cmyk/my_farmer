@@ -48,6 +48,7 @@ const kFarmerGuideFallbacks = <String, Map<String, String>>{
   'forum_cat_vegetables': {'hr': 'Ratarstvo', 'de': 'Ackerbau', 'en': 'Field crops', 'pl': 'Uprawy polowe', 'sv': 'Fältgrödor'},
   'forum_cat_livestock': {'hr': 'Stočarstvo', 'de': 'Viehzucht', 'en': 'Livestock', 'pl': 'Hodowla zwierząt', 'sv': 'Djurhållning'},
   'forum_cat_machinery': {'hr': 'Mehanizacija', 'de': 'Maschinen', 'en': 'Mechanization', 'pl': 'Mechanizacja', 'sv': 'Mekanisering'},
+  'forum_cat_other': {'hr': 'Ostalo', 'de': 'Sonstiges', 'en': 'Other', 'pl': 'Inne', 'sv': 'Övrigt'},
   'guide_forum_categories_title': {
     'hr': 'Kategorije foruma',
     'de': 'Forum-Kategorien',
@@ -1321,17 +1322,17 @@ const kFarmerGuideFallbacks = <String, Map<String, String>>{
     'en': 'Buyer Premium',
   },
   'paywall_buyer_price': {
-    'hr': '1,99 KM / 1,99 € mjesečno',
-    'de': '1,99 KM / 1,99 € pro Monat',
-    'en': '1.99 KM / €1.99 per month',
+    'hr': '{price}',
+    'de': '{price}',
+    'en': '{price}',
   },
   'paywall_buyer_features': {
     'hr':
-        'Rezervacija robe u dolasku u košarici, do 10 kućnih ljubimaca (psi, mačke...), 15 AI skeniranja mjesečno.',
+        'Rezervacija robe u dolasku u košarici, do 10 kućnih ljubimaca (psi, mačke...), {count} AI skeniranja mjesečno.',
     'de':
-        'Vorbestellung in der Warenkorb, bis zu 10 Haustiere, 15 KI-Scans pro Monat.',
+        'Vorbestellung in der Warenkorb, bis zu 10 Haustiere, {count} KI-Scans pro Monat.',
     'en':
-        'Upcoming product reservation in cart, up to 10 pets, 15 AI scans per month.',
+        'Upcoming product reservation in cart, up to 10 pets, {count} AI scans per month.',
   },
   'paywall_hobby_title': {
     'hr': 'Hobi Farmer Premium',
@@ -1339,17 +1340,17 @@ const kFarmerGuideFallbacks = <String, Map<String, String>>{
     'en': 'Hobby Farmer Premium',
   },
   'paywall_hobby_price': {
-    'hr': '3,99 KM / 3,99 € mjesečno',
-    'de': '3,99 KM / 3,99 € pro Monat',
-    'en': '3.99 KM / €3.99 per month',
+    'hr': '{price}',
+    'de': '{price}',
+    'en': '{price}',
   },
   'paywall_hobby_features': {
     'hr':
-        'Satelitsko mjerenje parcela, NIRS/NDVI nadzor (20/mj), do 5 parcela, do 20 životinja, 30 AI skeniranja/mj, rezervacija u dolasku. Prodaja ostaje na 5 artikala.',
+        'Satelitsko mjerenje parcela, NIRS/NDVI nadzor (20/mj), do 5 parcela, do 20 životinja, {count} AI skeniranja/mj, rezervacija u dolasku. Prodaja ostaje na 5 artikala.',
     'de':
-        'Satelliten-Parzellenmessung, NIRS/NDVI-Monitoring (20/Monat), bis zu 5 Parzellen, bis zu 20 Tiere, 30 KI-Scans/Monat, Vorbestellung. Verkauf bleibt bei 5 Artikeln.',
+        'Satelliten-Parzellenmessung, NIRS/NDVI-Monitoring (20/Monat), bis zu 5 Parzellen, bis zu 20 Tiere, {count} KI-Scans/Monat, Vorbestellung. Verkauf bleibt bei 5 Artikeln.',
     'en':
-        'Satellite parcel measurement, NIRS/NDVI monitoring (20/mo), up to 5 parcels, 20 animals, 30 AI scans/mo, upcoming reservation. Selling stays at 5 products.',
+        'Satellite parcel measurement, NIRS/NDVI monitoring (20/mo), up to 5 parcels, 20 animals, {count} AI scans/mo, upcoming reservation. Selling stays at 5 products.',
   },
   'paywall_hobby_features_intro': {
     'hr': 'U pretplati je uključeno:',
@@ -2226,6 +2227,49 @@ const kFarmerGuideFallbacks = <String, Map<String, String>>{
     'hr': 'Ukloni oznaku važno',
     'de': 'Markierung entfernen',
     'en': 'Remove important mark',
+  },
+  'vet_sent_messages_title': {
+    'hr': 'Poslane poruke',
+    'de': 'Gesendete Nachrichten',
+    'en': 'Sent messages',
+  },
+  'vet_sent_messages_empty': {
+    'hr':
+        'Još nema poslanih poruka klijentima. Pošaljite prvi nalaz iz digitalnog kartona.',
+    'de':
+        'Noch keine Nachrichten an Kunden gesendet. Senden Sie den ersten Befund über die digitale Akte.',
+    'en':
+        'No messages sent to clients yet. Send the first report from a digital intake record.',
+  },
+  'vet_sent_messages_search_hint': {
+    'hr': 'Pretraži poruke, klijente, životinje…',
+    'de': 'Nachrichten, Kunden, Tiere suchen…',
+    'en': 'Search messages, clients, animals…',
+  },
+  'vet_sent_messages_count': {
+    'hr': '{count} poruka',
+    'de': '{count} Nachrichten',
+    'en': '{count} messages',
+  },
+  'vet_sent_messages_no_results': {
+    'hr': 'Nema poruka za ovu pretragu.',
+    'de': 'Keine Nachrichten für diese Suche.',
+    'en': 'No messages match this search.',
+  },
+  'vet_sent_messages_open_patient': {
+    'hr': 'Otvori karton pacijenta',
+    'de': 'Patientenakte öffnen',
+    'en': 'Open patient record',
+  },
+  'vet_sent_messages_copy': {
+    'hr': 'Kopiraj tekst',
+    'de': 'Text kopieren',
+    'en': 'Copy text',
+  },
+  'vet_sent_messages_copied': {
+    'hr': 'Poruka kopirana.',
+    'de': 'Nachricht kopiert.',
+    'en': 'Message copied.',
   },
   'vet_owner_response_title': {
     'hr': 'Nalaz i uputa veterinara:',

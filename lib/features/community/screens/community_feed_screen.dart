@@ -3,17 +3,22 @@ import 'dart:math' as math;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/community_post.dart';
 import '../repositories/community_post_repository.dart';
 import '../services/community_author_service.dart';
+import '../utils/community_image_layout.dart';
 import '../widgets/community_post_card.dart';
 import '../widgets/community_post_composer_sheet.dart';
+import '../../buyer/storefront_layout.dart';
 import '../../../models/screen_guide_step.dart';
 import '../../../widgets/farmer_helper_button.dart';
+import '../../../utils/scroll_bottom_padding.dart';
+import '../../../theme/agro_accent_colors.dart';
+import '../../../widgets/agro_glass_chrome.dart';
+import '../../../widgets/marketplace_pagination_bar.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   const CommunityFeedScreen({super.key});
@@ -23,7 +28,10 @@ class CommunityFeedScreen extends StatefulWidget {
 }
 
 class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
   static const _postsPerPage = 10;
+
+  late final Stream<List<CommunityPost>> _feedStream;
 
   String _emptyFeedMessage(BuildContext context) {
     const key = 'community_empty_feed';
@@ -62,6 +70,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       ];
 
   @override
+  void initState() {
+    super.initState();
+    _feedStream = _postRepository.watchFeedPosts();
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -92,111 +106,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     }
   }
 
-  Widget _buildPaginationBar({
-    required int currentPage,
-    required int totalPages,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey[300]!)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          TextButton.icon(
-            onPressed:
-                currentPage > 1 ? () => _goToPage(currentPage - 1) : null,
-            icon: const Icon(Icons.chevron_left, size: 20),
-            label: Text(
-              'page_previous'.tr(),
-              style: const TextStyle(fontSize: 12),
-            ),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.green[800],
-              disabledForegroundColor: Colors.grey[400],
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(totalPages, (index) {
-                  final pageNumber = index + 1;
-                  final isActive = pageNumber == currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: InkWell(
-                      onTap: isActive ? null : () => _goToPage(pageNumber),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color:
-                              isActive ? Colors.blue[700] : Colors.transparent,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isActive
-                                ? Colors.blue[700]!
-                                : Colors.grey[300]!,
-                          ),
-                        ),
-                        child: Text(
-                          '$pageNumber',
-                          style: TextStyle(
-                            fontWeight:
-                                isActive ? FontWeight.bold : FontWeight.w500,
-                            color: isActive ? Colors.white : Colors.grey[800],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: currentPage < totalPages
-                ? () => _goToPage(currentPage + 1)
-                : null,
-            icon: const Icon(Icons.chevron_right, size: 20),
-            label: Text(
-              'page_next'.tr(),
-              style: const TextStyle(fontSize: 12),
-            ),
-            iconAlignment: IconAlignment.end,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.green[800],
-              disabledForegroundColor: Colors.grey[400],
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 80,
     );
 
@@ -211,20 +124,53 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     await _performUpload(draft.imageFile, draft.description);
   }
 
+  void _showImageSourcePicker() {
+    if (_isUploading) return;
+
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera,
+                color: AgroAccentColors.marketplaceChipGreen,
+              ),
+              title: Text('scanner_camera'.tr()),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library,
+                color: AgroAccentColors.marketplaceChipGreen,
+              ),
+              title: Text('scanner_gallery'.tr()),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _performUpload(File file, String description) async {
     setState(() => _isUploading = true);
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
     try {
-      final fileName = 'ljepote/${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-      final task = FirebaseStorage.instance.ref().child(fileName).putFile(
-            file,
-            SettableMetadata(contentType: 'image/jpeg'),
-          );
-
-      final snapshot = await task;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
+      final imageAspectRatio =
+          await CommunityImageLayout.readAspectRatioFromFile(file);
+      final downloadUrl = await _postRepository.uploadPostImage(file);
 
       await _postRepository.publishPost(
         imageUrl: downloadUrl,
@@ -232,6 +178,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             ? description
             : 'community_no_description'.tr(),
         userId: userId!,
+        imageAspectRatio: imageAspectRatio,
       );
 
       if (mounted) {
@@ -257,19 +204,51 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text('community_title'.tr()),
-        backgroundColor: Colors.green[800],
-        foregroundColor: Colors.white,
         actions: [
+          KeyedSubtree(
+            key: _communityAddPostKey,
+            child: AgroHeaderIconButton(
+              icon: Icons.add_a_photo,
+              tooltip: 'guide_community_add_post_title'.tr(),
+              onPressed: _showImageSourcePicker,
+            ),
+          ),
           FarmerHelperIconButton(guideSteps: _guideSteps),
         ],
       ),
-      body: StreamBuilder<List<CommunityPost>>(
-        stream: _postRepository.watchFeedPosts(),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: StreamBuilder<List<CommunityPost>>(
+        stream: _feedStream,
         builder: (context, snapshot) {
+          if (snapshot.hasError && !snapshot.hasData) {
+            return KeyedSubtree(
+              key: _communityFeedKey,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _emptyFeedMessage(context),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: _chipGreen),
+            );
           }
 
           final allPosts = snapshot.data!
@@ -296,7 +275,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                     _emptyFeedMessage(context),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 16,
                       height: 1.45,
                     ),
@@ -306,53 +285,54 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             );
           }
 
-          return Column(
-            children: [
-              Expanded(
-                child: KeyedSubtree(
-                  key: _communityFeedKey,
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                    itemCount: pagePosts.length,
-                    itemBuilder: (context, index) {
-                      final post = pagePosts[index];
-                      return CommunityPostCard(
-                        post: post,
-                        authorService: _authorService,
-                        postRepository: _postRepository,
-                        onReported: () {
-                          setState(() => _hiddenPostIds.add(post.id));
-                        },
-                      );
-                    },
-                  ),
-                ),
+          return KeyedSubtree(
+            key: _communityFeedKey,
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: ScrollBottomPadding.list(
+                context,
+                base: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                mainTab: true,
               ),
-              SafeArea(
-                top: false,
-                minimum: const EdgeInsets.only(bottom: 4),
-                child: KeyedSubtree(
-                  key: _communityPaginationKey,
-                  child: _buildPaginationBar(
-                    currentPage: currentPage,
-                    totalPages: totalPages,
+              itemCount: pagePosts.length + (totalPages > 1 ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == pagePosts.length) {
+                  return KeyedSubtree(
+                    key: _communityPaginationKey,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 12),
+                      child: MarketplacePaginationBar(
+                        currentPage: currentPage,
+                        totalPages: totalPages,
+                        onPageSelected: _goToPage,
+                        compactNavigation: true,
+                      ),
+                    ),
+                  );
+                }
+
+                final post = pagePosts[index];
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: StorefrontLayout.maxContentWidth,
+                    ),
+                    child: CommunityPostCard(
+                      post: post,
+                      authorService: _authorService,
+                      postRepository: _postRepository,
+                      onReported: () {
+                        setState(() => _hiddenPostIds.add(post.id));
+                      },
+                    ),
                   ),
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           );
         },
       ),
-      floatingActionButton: KeyedSubtree(
-        key: _communityAddPostKey,
-        child: FloatingActionButton(
-          onPressed: _isUploading ? null : _pickImage,
-          backgroundColor: Colors.green[800],
-          child: _isUploading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : const Icon(Icons.add_a_photo, color: Colors.white),
-        ),
       ),
     );
   }

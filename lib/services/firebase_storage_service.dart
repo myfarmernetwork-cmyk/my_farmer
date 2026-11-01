@@ -14,7 +14,13 @@ class FirebaseStorageService {
       String destination = 'products/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
       Reference ref = _storage.ref().child(destination);
-      UploadTask uploadTask = ref.putFile(imageFile);
+      final lower = fileName.toLowerCase();
+      final metadata = SettableMetadata(
+        contentType: lower.endsWith('.png')
+            ? 'image/png'
+            : 'image/jpeg',
+      );
+      UploadTask uploadTask = ref.putFile(imageFile, metadata);
 
       TaskSnapshot snapshot = await uploadTask;
       String downloadUrl = await snapshot.ref.getDownloadURL();

@@ -10,11 +10,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../models/company_catalog_item.dart';
+import '../../models/product.dart';
 import '../../models/screen_guide_step.dart';
 import '../../repositories/company_catalog_repository.dart';
 import '../../services/company_catalog_csv_parser.dart';
 import '../../services/currency_service.dart';
 import '../../utils/firestore_error_helper.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import '../../widgets/company_catalog_guide.dart';
 import '../../widgets/firestore_error_panel.dart';
 import '../../widgets/farmer_screen_guide.dart';
@@ -100,9 +102,15 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
       final text = CompanyCatalogCsvParser.stripBom(
         utf8.decode(bytes, allowMalformed: true),
       );
+      final rows = CompanyCatalogCsvParser.parse(text);
+      if (!mounted) return;
+
+      final toImport = await _showImportPreviewSheet(rows);
+      if (toImport == null || toImport.isEmpty || !mounted) return;
+
       final importResult = await ref
           .read(companyCatalogRepositoryProvider)
-          .importCsv(sellerId: user.uid, csvContent: text);
+          .importRows(sellerId: user.uid, rows: toImport);
       if (!mounted) return;
 
       final message = importResult.updated > 0
@@ -142,6 +150,17 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
     } finally {
       if (mounted) setState(() => _importing = false);
     }
+  }
+
+  Future<List<ParsedCatalogRow>?> _showImportPreviewSheet(
+    List<ParsedCatalogRow> rows,
+  ) {
+    return showModalBottomSheet<List<ParsedCatalogRow>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _CsvImportPreviewSheet(rows: rows),
+    );
   }
 
   /// Na Androidu 9+ [PlatformFile.bytes] često je null — čitamo s diska ili streama.
@@ -228,8 +247,32 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
     }
   }
 
-  void _openAddWithItem(CompanyCatalogItem item) {
-    Navigator.push(
+  Future<void> _openAddWithItem(CompanyCatalogItem item) async {
+    if (item.isPublished && item.publishedProductId != null) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('products')
+            .doc(item.publishedProductId!)
+            .get();
+        if (!mounted) return;
+        if (doc.exists) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddProductScreen(
+                productToEdit: Product.fromFirestore(doc),
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        // Nastavi na catalogPrefill ako proizvod nije učitán.
+      }
+    }
+
+    if (!mounted) return;
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => AddProductScreen(catalogPrefill: item),
@@ -278,7 +321,10 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
           final hasPublishedItems = items.any((i) => i.isPublished);
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: ScrollBottomPadding.list(
+              context,
+              base: const EdgeInsets.all(16),
+            ),
             children: [
               CompanyCatalogHowItWorks(guideKey: _guideHowKey),
               const SizedBox(height: 12),
@@ -411,6 +457,187 @@ class _CompanyCatalogScreenState extends ConsumerState<CompanyCatalogScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _CsvImportPreviewSheet extends StatefulWidget {
+  const _CsvImportPreviewSheet({required this.rows});
+
+  final List<ParsedCatalogRow> rows;
+
+  @override
+  State<_CsvImportPreviewSheet> createState() => _CsvImportPreviewSheetState();
+}
+
+class _CsvImportPreviewSheetState extends State<_CsvImportPreviewSheet> {
+  late final Set<String> _selectedSkus;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSkus = widget.rows.map((r) => r.skuCode).toSet();
+  }
+
+  bool get _allSelected => _selectedSkus.length == widget.rows.length;
+
+  void _toggleAll(bool? value) {
+    setState(() {
+      if (value == true) {
+        _selectedSkus
+          ..clear()
+          ..addAll(widget.rows.map((r) => r.skuCode));
+      } else {
+        _selectedSkus.clear();
+      }
+    });
+  }
+
+  void _toggleRow(String sku, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedSkus.add(sku);
+      } else {
+        _selectedSkus.remove(sku);
+      }
+    });
+  }
+
+  List<ParsedCatalogRow> _rowsForImport(bool all) {
+    if (all) return widget.rows;
+    return widget.rows
+        .where((row) => _selectedSkus.contains(row.skuCode))
+        .toList(growable: false);
+  }
+
+  void _import({required bool all}) {
+    final rows = _rowsForImport(all);
+    if (rows.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('company_catalog_import_none_selected'.tr()),
+          backgroundColor: Colors.orange.shade800,
+        ),
+      );
+      return;
+    }
+    Navigator.pop(context, rows);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.85;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'company_catalog_import_preview_title'.tr(),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            CheckboxListTile(
+              value: _allSelected ? true : (_selectedSkus.isEmpty ? false : null),
+              tristate: true,
+              onChanged: (value) {
+                if (value == null) {
+                  _toggleAll(true);
+                } else {
+                  _toggleAll(value);
+                }
+              },
+              title: Text(
+                'company_catalog_import_select_all'.tr(
+                  namedArgs: {'count': '${widget.rows.length}'},
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.rows.length,
+                itemBuilder: (context, index) {
+                  final row = widget.rows[index];
+                  final selected = _selectedSkus.contains(row.skuCode);
+                  return CheckboxListTile(
+                    value: selected,
+                    onChanged: (value) =>
+                        _toggleRow(row.skuCode, value ?? false),
+                    title: Text(
+                      row.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '${row.skuCode} · ${row.price.toStringAsFixed(2)} · '
+                      '${row.stock.toStringAsFixed(0)} ${row.unit}',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _import(all: false),
+                      child: Text('company_catalog_import_selected_btn'.tr()),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => _import(all: true),
+                      child: Text('company_catalog_import_all_btn'.tr()),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

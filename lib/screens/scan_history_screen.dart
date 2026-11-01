@@ -4,10 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/scan_history_entry.dart';
 import '../repositories/scan_history_repository.dart';
+import '../theme/agro_accent_colors.dart';
+import '../utils/scroll_bottom_padding.dart';
+import '../widgets/agro_glass_chrome.dart';
 import '../widgets/translated_text.dart';
 
 class ScanHistoryScreen extends ConsumerWidget {
   const ScanHistoryScreen({super.key});
+
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -15,45 +20,71 @@ class ScanHistoryScreen extends ConsumerWidget {
 
     return Scaffold(
       key: ValueKey('scan_history_${context.locale}'),
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text('scan_history_title'.tr()),
-        backgroundColor: Colors.green[800],
-        foregroundColor: Colors.white,
       ),
-      body: historyAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text('common_error'.tr(namedArgs: {'error': '$error'})),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
         ),
-        data: (entries) {
-          if (entries.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.history, size: 64, color: Colors.grey[400]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'scan_history_empty'.tr(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                    ),
-                  ],
+        child: historyAsync.when(
+          loading: () => const Center(
+            child: CircularProgressIndicator(color: _chipGreen),
+          ),
+          error: (error, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'common_error'.tr(namedArgs: {'error': '$error'}),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.88),
                 ),
               ),
-            );
-          }
+            ),
+          ),
+          data: (entries) {
+            if (entries.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.history,
+                        size: 64,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'scan_history_empty'.tr(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              return _ScanHistoryCard(entry: entries[index]);
-            },
-          );
-        },
+            return ListView.builder(
+              padding: ScrollBottomPadding.list(
+                context,
+                base: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              ),
+              itemCount: entries.length,
+              itemBuilder: (context, index) {
+                return _ScanHistoryCard(entry: entries[index]);
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -72,64 +103,101 @@ class _ScanHistoryCard extends StatelessWidget {
         ? DateFormat.yMMMd(locale).add_Hm().format(date)
         : '';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (entry.imageUrl.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.network(
-                  entry.imageUrl,
-                  height: 160,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Material(
+        color: Colors.white,
+        elevation: 1,
+        shadowColor: Colors.black.withValues(alpha: 0.12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(
+            AgroAccentColors.marketplaceCornerRadius,
+          ),
+          side: BorderSide(
+            color: ScanHistoryScreen._chipGreen.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (entry.imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    entry.imageUrl,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 160,
+                      color: Colors.grey.shade100,
+                      child: const Icon(
+                        Icons.eco_outlined,
+                        size: 48,
+                        color: ScanHistoryScreen._chipGreen,
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10),
+              TranslatedText(
+                entry.plantName,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: ScanHistoryScreen._chipGreen,
                 ),
               ),
-            const SizedBox(height: 10),
-            TranslatedText(
-              entry.plantName,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            if (entry.scientificName.isNotEmpty)
-              Text(
-                entry.scientificName,
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey[700],
+              if (entry.scientificName.isNotEmpty)
+                Text(
+                  entry.scientificName,
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
-              ),
-            if (dateLabel.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(
-                dateLabel,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
-            if (entry.diagnosis.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'scan_history_diagnosis'.tr(),
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              TranslatedText(entry.diagnosis),
-            ],
-            if (entry.recommendedTreatment.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'scan_history_treatment'.tr(),
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green[800],
+              if (dateLabel.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  dateLabel,
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              TranslatedText(entry.recommendedTreatment),
+              ],
+              if (entry.diagnosis.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'scan_history_diagnosis'.tr(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ScanHistoryScreen._chipGreen,
+                  ),
+                ),
+                TranslatedText(
+                  entry.diagnosis,
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              ],
+              if (entry.recommendedTreatment.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'scan_history_treatment'.tr(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: ScanHistoryScreen._chipGreen,
+                  ),
+                ),
+                TranslatedText(
+                  entry.recommendedTreatment,
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

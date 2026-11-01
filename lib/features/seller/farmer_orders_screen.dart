@@ -26,6 +26,10 @@ import '../../widgets/order_ui_helpers.dart';
 
 import '../../widgets/orders_list_widgets.dart';
 
+import '../../widgets/agro_glass_chrome.dart';
+
+import '../../theme/agro_accent_colors.dart';
+
 
 
 /// Narudžbe farmera / firme — real-time stream iz Firestore.
@@ -338,7 +342,12 @@ class _FarmerOrdersScreenState extends ConsumerState<FarmerOrdersScreen> {
 
 
 
-    await ref.read(orderRepositoryProvider).updateOrderStatus(order.id, nextCode);
+    final orderRepo = ref.read(orderRepositoryProvider);
+    if (nextCode == OrderStatus.preparing) {
+      await orderRepo.acceptOrder(order);
+    } else {
+      await orderRepo.updateOrderStatus(order.id, nextCode);
+    }
 
     if (!context.mounted) return;
 
@@ -378,6 +387,138 @@ class _FarmerOrdersScreenState extends ConsumerState<FarmerOrdersScreen> {
 
 
 
+  Future<void> _rejectOrder(
+
+    BuildContext context,
+
+    WidgetRef ref,
+
+    Order order,
+
+  ) async {
+
+    if (!OrderStatus.canReject(order.statusCode)) return;
+
+
+
+    final messageController = TextEditingController();
+
+
+
+    final confirmed = await showDialog<bool>(
+
+      context: context,
+
+      builder: (ctx) => AlertDialog(
+
+        title: Text('orders_reject_title'.tr()),
+
+        content: SingleChildScrollView(
+
+          child: Column(
+
+            mainAxisSize: MainAxisSize.min,
+
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+
+            children: [
+
+              Text('orders_reject_intro'.tr()),
+
+              const SizedBox(height: 12),
+
+              TextField(
+
+                controller: messageController,
+
+                maxLines: 4,
+
+                decoration: InputDecoration(
+
+                  labelText: 'orders_reject_message_label'.tr(),
+
+                  hintText: 'orders_reject_message_hint'.tr(),
+
+                  border: const OutlineInputBorder(),
+
+                ),
+
+              ),
+
+            ],
+
+          ),
+
+        ),
+
+        actions: [
+
+          TextButton(
+
+            onPressed: () => Navigator.pop(ctx, false),
+
+            child: Text('cart_cancel'.tr()),
+
+          ),
+
+          ElevatedButton(
+
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700),
+
+            onPressed: () => Navigator.pop(ctx, true),
+
+            child: Text(
+
+              'orders_reject_confirm'.tr(),
+
+              style: const TextStyle(color: Colors.white),
+
+            ),
+
+          ),
+
+        ],
+
+      ),
+
+    );
+
+
+
+    if (confirmed != true || !context.mounted) return;
+
+
+
+    await ref.read(orderRepositoryProvider).rejectOrder(
+
+      order: order,
+
+      message: messageController.text,
+
+    );
+
+    messageController.dispose();
+
+
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+
+      SnackBar(
+
+        content: Text('orders_reject_success'.tr()),
+
+        backgroundColor: Colors.red.shade700,
+
+      ),
+
+    );
+
+  }
+
+
+
   @override
 
   Widget build(BuildContext context) {
@@ -389,105 +530,69 @@ class _FarmerOrdersScreenState extends ConsumerState<FarmerOrdersScreen> {
 
 
     return DefaultTabController(
-
       length: 2,
-
       child: Scaffold(
-
-        appBar: AppBar(
-
+        backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+        appBar: AgroGlassAppBar(
+          unifiedMarketplaceHeader: true,
           title: Text('orders_title_seller'.tr()),
-
-          backgroundColor: Colors.orange[800],
-
-          foregroundColor: Colors.white,
-
-          bottom: TabBar(
-
-            indicatorColor: Colors.white,
-
-            labelColor: Colors.white,
-
-            unselectedLabelColor: Colors.white70,
-
-            tabs: [
-
-              Tab(text: 'orders_tab_active'.tr()),
-
-              Tab(text: 'orders_tab_history'.tr()),
-
-            ],
-
-          ),
-
-        ),
-
-        body: Column(
-
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-
-          children: [
-
-            if (intent?.target == NotificationTarget.orders)
-
-              NotificationContextBanner(onOpenOrders: _focusOrderFromBanner),
-
-            Expanded(
-
-              child: ordersAsync.when(
-
-                loading: () => const Center(child: CircularProgressIndicator()),
-
-                error: (error, _) => OrdersErrorView(message: '$error'),
-
-                data: (orders) => TabBarView(
-
-                  children: [
-
-                    OrdersListView(
-
-                      orders: filterActiveOrders(orders),
-
-                      emptyMessage: 'orders_empty_active'.tr(),
-
-                      isBuyerView: false,
-
-                      highlightOrderId: _highlightOrderId,
-
-                      onAdvanceStatus: (order) =>
-
-                          _changeStatus(context, ref, order),
-
-                    ),
-
-                    OrdersListView(
-
-                      orders: filterHistoryOrders(orders),
-
-                      emptyMessage: 'orders_empty_history'.tr(),
-
-                      isBuyerView: false,
-
-                      showCompletedDate: true,
-
-                      highlightOrderId: _highlightOrderId,
-
-                    ),
-
-                  ],
-
-                ),
-
-              ),
-
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(48),
+            child: marketplaceTabBar(
+              tabs: [
+                Tab(text: 'orders_tab_active'.tr()),
+                Tab(text: 'orders_tab_history'.tr()),
+              ],
             ),
-
-          ],
-
+          ),
         ),
-
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (intent?.target == NotificationTarget.orders)
+                  NotificationContextBanner(onOpenOrders: _focusOrderFromBanner),
+                Expanded(
+                  child: ordersAsync.when(
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(
+                        color: AgroAccentColors.marketplaceChipGreen,
+                      ),
+                    ),
+                    error: (error, _) => OrdersErrorView(message: '$error'),
+                    data: (orders) => TabBarView(
+                      children: [
+                        OrdersListView(
+                          orders: filterActiveOrders(orders),
+                          emptyMessage: 'orders_empty_active'.tr(),
+                          isBuyerView: false,
+                          highlightOrderId: _highlightOrderId,
+                          onAdvanceStatus: (order) =>
+                              _changeStatus(context, ref, order),
+                          onRejectOrder: (order) =>
+                              _rejectOrder(context, ref, order),
+                        ),
+                        OrdersListView(
+                          orders: filterHistoryOrders(orders),
+                          emptyMessage: 'orders_empty_history'.tr(),
+                          isBuyerView: false,
+                          showCompletedDate: true,
+                          highlightOrderId: _highlightOrderId,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-
     );
 
   }

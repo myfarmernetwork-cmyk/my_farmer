@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/locale_settings_provider.dart';
 import 'screens/auth_gate.dart';
+import 'services/app_config_service.dart';
 import 'services/firestore_cache_service.dart';
 import 'firebase_options.dart';
 import 'services/notification_service.dart';
@@ -26,6 +27,9 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Mora prije runApp — inače terminate() prekine aktivne Firestore listenere.
+  await FirestoreCacheService.clearStaleCacheIfNeeded();
 
   NotificationService().setNavigatorKey(navigatorKey);
 
@@ -62,6 +66,8 @@ Future<void> _completeStartup() async {
     NirsMonitoringConfig.assertProductionReady();
     PlantScannerConfig.assertProductionReady();
 
+    await AppConfigService.instance.ensureLoaded();
+
     if (!BetaConfig.closedTestFreePremium) {
       await SubscriptionService()
           .configure()
@@ -71,8 +77,6 @@ Future<void> _completeStartup() async {
         onTimeout: () {},
       );
     }
-
-    await FirestoreCacheService.clearStaleCacheIfNeeded();
   } catch (e, stack) {
     debugPrint('Billing/services startup issue: $e\n$stack');
   }

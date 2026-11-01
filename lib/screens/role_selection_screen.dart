@@ -76,9 +76,12 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
         title: Text(role.titleKey.tr()),
         content: SingleChildScrollView(
           child: Text(
-            role.id == 'pharmacy'
-                ? companyRoleInfoForContext(context)
-                : role.infoKey.tr(),
+            switch (role.id) {
+              'pharmacy' => companyRoleInfoForContext(context),
+              'buyer' => buyerRoleInfoForContext(context),
+              'hobby_farmer' => hobbyRoleInfoForContext(context),
+              _ => role.infoKey.tr(),
+            },
           ),
         ),
         actions: [

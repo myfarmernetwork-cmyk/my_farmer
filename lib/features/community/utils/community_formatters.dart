@@ -3,6 +3,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../../../models/app_user.dart';
+import '../../buyer/storefront_tab_config.dart';
 
 class CommunityFormatters {
   static String _formatAbsoluteDate(BuildContext context, DateTime date) {
@@ -49,6 +50,10 @@ class CommunityFormatters {
         final translated = key.tr();
         return translated != key ? translated : 'role_buyer'.tr();
     }
+  }
+
+  static bool hasPublicProfile(String? role) {
+    return StorefrontTabConfig.fromRole(role).isPublicSellerRole;
   }
 
   static Color roleColor(String? role) {

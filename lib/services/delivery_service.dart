@@ -13,8 +13,9 @@ class DeliveryService {
       }
       if (permission == LocationPermission.deniedForever) return null;
 
+      // Play: minimum scope — marketplace radius, weather, currency (km-level).
       return Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
+        desiredAccuracy: LocationAccuracy.low,
         timeLimit: const Duration(seconds: 15),
       );
     } catch (_) {

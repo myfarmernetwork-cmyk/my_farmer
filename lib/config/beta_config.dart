@@ -1,13 +1,19 @@
-/// Zatvoreno testiranje (Closed testing) — samo u tom buildu.
+/// Zatvoreno testiranje (Closed testing).
 ///
-/// Closed testing AAB:
+/// Način 1 — compile-time (beta AAB):
 /// ```bash
 /// flutter build appbundle --release \
 ///   --dart-define=REVENUECAT_ANDROID_KEY=goog_xxx \
 ///   --dart-define=BETA_FREE_PREMIUM=true
 /// ```
+/// Ili: `.\scripts\build_beta.ps1`
 ///
-/// Produkcija — **bez** BETA_FREE_PREMIUM (default false).
+/// Način 2 — runtime (release AAB + Firestore):
+/// - `closedTestingFreeWeatherAlerts: true` — meteo-alarmi za farmere
+/// - `closedTestingFreeChat: true` — chat za sve uloge
+/// - `closedTestingFreeVetIntake: true` — kartoteka pacijenata za veterinare
+///
+/// Produkcija — oba načina isključena (default false).
 class BetaConfig {
   BetaConfig._();
 

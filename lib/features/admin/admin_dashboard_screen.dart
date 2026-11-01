@@ -1,15 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/app_user.dart';
 import '../../repositories/admin_repository.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import 'admin_orders_list_screen.dart';
 import 'admin_orders_screen.dart';
 import 'admin_stats_screen.dart';
 import 'admin_user_list_screen.dart';
 import 'admin_verification_screen.dart';
 import 'admin_reported_posts_screen.dart';
+import 'admin_media_moderation_screen.dart';
+import '../../screens/beta_test_pdf_screen.dart';
 import '../../screens/roles_subscription_pdf_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -21,6 +25,167 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _repo = AdminRepository();
+  final _resetEmailController = TextEditingController();
+  bool _resettingOwnQuotas = false;
+  bool _resettingEmailQuotas = false;
+  bool _approvingEmail = false;
+
+  @override
+  void dispose() {
+    _resetEmailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _approveBusinessByEmail() async {
+    final email = _resetEmailController.text.trim();
+    if (email.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Odobri poslovnu licencu'),
+        content: Text(
+          'Odobriti premium/licencu za $email?\n\n'
+          'Postavlja APPROVED status i omogućuje AI skener prema paketu.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Odobri'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _approvingEmail = true);
+    try {
+      await _repo.approveUserByEmail(email: email);
+      await _repo.resetUserUsageQuotasByEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Licenca odobrena i kvote resetirane za $email.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Greška: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _approvingEmail = false);
+    }
+  }
+
+  Future<void> _resetUsageQuotasByEmail() async {
+    final email = _resetEmailController.text.trim();
+    if (email.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset kvota po emailu'),
+        content: Text(
+          'Resetirati AI skener i NIRS brojače za $email?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Resetiraj'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _resettingEmailQuotas = true);
+    try {
+      await _repo.resetUserUsageQuotasByEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Kvote resetirane za $email.\n'
+            'Veterinar/firma: za puni AI skener koristi i „Odobri licencu“.',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Greška: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _resettingEmailQuotas = false);
+    }
+  }
+
+  Future<void> _resetOwnUsageQuotas() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset AI skenera'),
+        content: const Text(
+          'Resetirati AI skener i NIRS brojače na vašem računu?\n\n'
+          'Postavlja mjesečne skenove, uvodni sken, bonus, NIRS, trial i free scan zastavice na početno.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Resetiraj'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _resettingOwnQuotas = true);
+    try {
+      await _repo.resetUserUsageQuotas(uid: uid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vaše kvote su resetirane. Možete ponovo skenirati.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Greška: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _resettingOwnQuotas = false);
+    }
+  }
 
   String _pendingBannerText(BuildContext context, int count) {
     final lang = context.locale.languageCode;
@@ -213,6 +378,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ],
                         Expanded(
                           child: ListView(
+                            padding: ScrollBottomPadding.list(context),
                             children: [
                               const Text(
                                 'Živa statistika',
@@ -314,6 +480,90 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      const Text(
+                                        'Reset skenova po emailu',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      TextField(
+                                        controller: _resetEmailController,
+                                        keyboardType:
+                                            TextInputType.emailAddress,
+                                        decoration: const InputDecoration(
+                                          hintText: 'email@primjer.com',
+                                          prefixIcon: Icon(Icons.email_outlined),
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: FilledButton.icon(
+                                              onPressed: _resettingEmailQuotas
+                                                  ? null
+                                                  : _resetUsageQuotasByEmail,
+                                              icon: _resettingEmailQuotas
+                                                  ? const SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white,
+                                                      ),
+                                                    )
+                                                  : const Icon(Icons.restart_alt),
+                                              label: Text(
+                                                _resettingEmailQuotas
+                                                    ? 'Reset...'
+                                                    : 'Reset kvote',
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: OutlinedButton.icon(
+                                              onPressed: _approvingEmail
+                                                  ? null
+                                                  : _approveBusinessByEmail,
+                                              icon: _approvingEmail
+                                                  ? const SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.verified_user,
+                                                    ),
+                                              label: Text(
+                                                _approvingEmail
+                                                    ? 'Odobravam...'
+                                                    : 'Odobri licencu',
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
                               GridView.count(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
@@ -385,6 +635,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   ),
                                   _buildAdminCard(
                                     context,
+                                    title: 'admin_media_moderation_title'.tr(),
+                                    icon: Icons.photo_library_outlined,
+                                    color: Colors.deepPurple,
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const AdminMediaModerationScreen(),
+                                      ),
+                                    ),
+                                  ),
+                                  _buildAdminCard(
+                                    context,
                                     title: 'Seller narudžbe',
                                     icon: Icons.receipt_long,
                                     color: Colors.blueGrey,
@@ -404,6 +667,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                     onTap: () => RolesSubscriptionPdfScreen.open(
                                       context,
                                     ),
+                                  ),
+                                  _buildAdminCard(
+                                    context,
+                                    title: 'PDF beta upute (HR)',
+                                    icon: Icons.science_outlined,
+                                    color: Colors.orange.shade800,
+                                    onTap: () => BetaTestPdfScreen.open(context),
+                                  ),
+                                  _buildAdminCard(
+                                    context,
+                                    title: _resettingOwnQuotas
+                                        ? 'Resetiram...'
+                                        : 'Reset moj AI skener',
+                                    icon: Icons.restart_alt,
+                                    color: Colors.orange.shade800,
+                                    onTap: _resettingOwnQuotas
+                                        ? () {}
+                                        : _resetOwnUsageQuotas,
                                   ),
                                 ],
                               ),

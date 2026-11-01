@@ -93,7 +93,11 @@ class _ProductImageFramerState extends State<ProductImageFramer> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _centerImage());
     } catch (_) {
       if (!mounted) return;
-      setState(() => _loadingSize = false);
+      setState(() {
+        _loadingSize = false;
+        _imageSize = const Size(1920, 1080);
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _centerImage());
     }
   }
 

@@ -69,6 +69,8 @@ class Product {
 
   final bool requiresFinalPhoto;
 
+  final String? catalogItemId;
+
   final Timestamp createdAt;
 
 
@@ -126,6 +128,8 @@ class Product {
     this.upcomingMode = UpcomingProductHelper.harvestMode,
 
     this.requiresFinalPhoto = false,
+
+    this.catalogItemId,
 
     required this.createdAt,
 
@@ -288,7 +292,9 @@ class Product {
       subCategory: FirestoreParse.optionalString(data['subCategory']),
       searchTags: FirestoreParse.stringListOrEmpty(data['searchTags']),
       productionType: ProductionTypes.normalize(data['productionType']),
-      sellerId: FirestoreParse.stringOrEmpty(data['sellerId']),
+      sellerId: FirestoreParse.stringOrEmpty(
+        data['sellerId'] ?? data['farmerId'],
+      ),
       sellerName:
           FirestoreParse.stringOrEmpty(data['sellerName'], fallback: 'Farmer'),
       lat: parsedLat,
@@ -302,6 +308,7 @@ class Product {
         FirestoreParse.optionalString(data['upcomingMode']),
       ),
       requiresFinalPhoto: FirestoreParse.boolOr(data['requiresFinalPhoto']),
+      catalogItemId: FirestoreParse.optionalString(data['catalogItemId']),
       createdAt: FirestoreParse.timestampOrNow(data['createdAt']),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'medical_history_entry.dart';
+import 'vet_appointment_status.dart';
 import 'vet_conversation_message.dart';
 
 class VeterinaryRequest {
@@ -27,6 +28,15 @@ class VeterinaryRequest {
     this.createdAt,
     this.updatedAt,
     this.respondedAt,
+    this.appointmentStatus = VetAppointmentStatus.none,
+    this.ownerPreferredAt,
+    this.ownerPreferredNote = '',
+    this.proposedAt,
+    this.confirmedAt,
+    this.ownerCounterAt,
+    this.ownerCounterNote = '',
+    this.declinedAt,
+    this.declineReason = '',
   });
 
   final String id;
@@ -51,6 +61,44 @@ class VeterinaryRequest {
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
   final Timestamp? respondedAt;
+  final String appointmentStatus;
+  final Timestamp? ownerPreferredAt;
+  final String ownerPreferredNote;
+  final Timestamp? proposedAt;
+  final Timestamp? confirmedAt;
+  final Timestamp? ownerCounterAt;
+  final String ownerCounterNote;
+  final Timestamp? declinedAt;
+  final String declineReason;
+
+  bool get isPending => status.toLowerCase() == 'pending';
+
+  bool get hasVetResponse => vetResponse.trim().isNotEmpty;
+
+  bool get hasProposedAppointment =>
+      appointmentStatus == VetAppointmentStatus.proposed &&
+      proposedAt != null;
+
+  bool get hasOwnerCounter =>
+      appointmentStatus == VetAppointmentStatus.counter &&
+      ownerCounterAt != null;
+
+  bool get isAppointmentConfirmed =>
+      appointmentStatus == VetAppointmentStatus.confirmed;
+
+  bool get isAppointmentDeclined =>
+      appointmentStatus == VetAppointmentStatus.declined;
+
+  DateTime? get activeAppointmentDateTime {
+    if (isAppointmentConfirmed && confirmedAt != null) {
+      return confirmedAt!.toDate();
+    }
+    if (hasProposedAppointment) return proposedAt!.toDate();
+    if (hasOwnerCounter) return ownerCounterAt!.toDate();
+    return null;
+  }
+
+  DateTime? get ownerPreferredDateTime => ownerPreferredAt?.toDate();
 
   int get resolvedVetConversationReadCount => vetConversationReadCount ?? 0;
 
@@ -182,6 +230,16 @@ class VeterinaryRequest {
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
       respondedAt: data['respondedAt'] as Timestamp?,
+      appointmentStatus:
+          data['appointmentStatus'] as String? ?? VetAppointmentStatus.none,
+      ownerPreferredAt: data['ownerPreferredAt'] as Timestamp?,
+      ownerPreferredNote: data['ownerPreferredNote'] as String? ?? '',
+      proposedAt: data['proposedAt'] as Timestamp?,
+      confirmedAt: data['confirmedAt'] as Timestamp?,
+      ownerCounterAt: data['ownerCounterAt'] as Timestamp?,
+      ownerCounterNote: data['ownerCounterNote'] as String? ?? '',
+      declinedAt: data['declinedAt'] as Timestamp?,
+      declineReason: data['declineReason'] as String? ?? '',
     );
   }
 
@@ -201,6 +259,10 @@ class VeterinaryRequest {
       'medicalDocuments': medicalDocuments.map((d) => d.toMap()).toList(),
       'clientMemo': clientMemo.trim(),
       'status': status,
+      'appointmentStatus': appointmentStatus,
+      if (ownerPreferredAt != null) 'ownerPreferredAt': ownerPreferredAt,
+      if (ownerPreferredNote.trim().isNotEmpty)
+        'ownerPreferredNote': ownerPreferredNote.trim(),
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };

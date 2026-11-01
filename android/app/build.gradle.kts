@@ -55,6 +55,9 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
+            // R8 minify isključen — manji rizik na Stripe/Firebase; Play preporuka nije obavezna.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -76,4 +79,5 @@ flutter {
 // OBAVEZNO dodaj ovaj deo na sam kraj fajla
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("androidx.core:core-ktx:1.15.0")
 }

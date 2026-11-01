@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../../utils/admin_user_attribution.dart';
+
 class AdminRoleSlice {
   const AdminRoleSlice({
     required this.label,
@@ -172,6 +174,74 @@ class AdminUserPieChart extends StatelessWidget {
               .toList(),
         ),
       ],
+    );
+  }
+}
+
+class AdminSignupCountryChart extends StatelessWidget {
+  const AdminSignupCountryChart({super.key, required this.countries});
+
+  final List<AdminCountryCount> countries;
+
+  @override
+  Widget build(BuildContext context) {
+    if (countries.isEmpty) {
+      return SizedBox(
+        height: 120,
+        child: Center(
+          child: Text(
+            'Nema podataka o zemlji (ažurira se nakon updatea appa).',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+        ),
+      );
+    }
+
+    final maxCount = countries.fold<int>(
+      0,
+      (max, c) => c.count > max ? c.count : max,
+    );
+
+    return Column(
+      children: countries.take(8).map((entry) {
+        final fraction = maxCount > 0 ? entry.count / maxCount : 0.0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 118,
+                child: Text(
+                  entry.label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: fraction,
+                    minHeight: 22,
+                    backgroundColor: Colors.grey.shade200,
+                    color: Colors.deepPurple.shade400,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${entry.count}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

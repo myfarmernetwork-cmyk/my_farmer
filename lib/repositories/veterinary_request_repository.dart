@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/animal_record.dart';
 import '../models/medical_history_entry.dart';
 import '../models/vet_conversation_message.dart';
+import '../models/vet_appointment_status.dart';
 import '../models/veterinary_request.dart';
 
 class VeterinaryRequestRepository {
@@ -37,6 +38,31 @@ class VeterinaryRequestRepository {
     return _collection.doc(requestId).snapshots().map((doc) {
       if (!doc.exists) return null;
       return VeterinaryRequest.fromFirestore(doc);
+    });
+  }
+
+  Stream<VeterinaryRequest?> watchLatestForAnimal({
+    required String clientId,
+    required String animalId,
+  }) {
+    return _collection
+        .where('clientId', isEqualTo: clientId)
+        .where('animalId', isEqualTo: animalId)
+        .snapshots()
+        .map((snapshot) {
+      if (snapshot.docs.isEmpty) return null;
+      final requests = snapshot.docs
+          .map((doc) => VeterinaryRequest.fromFirestore(doc))
+          .toList();
+      requests.sort((a, b) {
+        final aTime = a.updatedAt ?? a.createdAt;
+        final bTime = b.updatedAt ?? b.createdAt;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime);
+      });
+      return requests.first;
     });
   }
 
@@ -74,6 +100,8 @@ class VeterinaryRequestRepository {
     required String vetName,
     required String clientMemo,
     String? clientName,
+    DateTime? ownerPreferredAt,
+    String? ownerPreferredNote,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('Korisnik nije prijavljen');
@@ -100,6 +128,9 @@ class VeterinaryRequestRepository {
       medicalHistory: animal.sortedMedicalHistory,
       medicalDocuments: allDocuments,
       clientMemo: clientMemo.trim(),
+      ownerPreferredAt:
+          ownerPreferredAt != null ? Timestamp.fromDate(ownerPreferredAt) : null,
+      ownerPreferredNote: ownerPreferredNote?.trim() ?? '',
     );
 
     await _collection.add(request.toCreateMap());
@@ -109,6 +140,7 @@ class VeterinaryRequestRepository {
     required String requestId,
     required String vetResponse,
     String? vetName,
+    DateTime? proposedAppointmentAt,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('Korisnik nije prijavljen');
@@ -118,7 +150,7 @@ class VeterinaryRequestRepository {
         vetName?.trim().isNotEmpty == true ? vetName!.trim() : (user.displayName ?? 'Veterinar');
     final messageId = VetConversationMessage.createId();
 
-    await _collection.doc(requestId).update({
+    final update = <String, dynamic>{
       'vetResponse': trimmed,
       'status': 'Answered',
       'respondedAt': FieldValue.serverTimestamp(),
@@ -131,6 +163,96 @@ class VeterinaryRequestRepository {
           'sentAt': Timestamp.now(),
         },
       ]),
+    };
+
+    if (proposedAppointmentAt != null) {
+      update['appointmentStatus'] = VetAppointmentStatus.proposed;
+      update['proposedAt'] = Timestamp.fromDate(proposedAppointmentAt);
+      update['ownerCounterAt'] = FieldValue.delete();
+      update['ownerCounterNote'] = FieldValue.delete();
+      update['declinedAt'] = FieldValue.delete();
+      update['declineReason'] = FieldValue.delete();
+      update['confirmedAt'] = FieldValue.delete();
+    } else {
+      update['appointmentStatus'] = VetAppointmentStatus.none;
+    }
+
+    await _collection.doc(requestId).update(update);
+  }
+
+  Future<void> confirmAppointment({required String requestId}) async {
+    final doc = await _collection.doc(requestId).get();
+    if (!doc.exists) throw Exception('Request not found');
+    final request = VeterinaryRequest.fromFirestore(doc);
+    final target = request.proposedAt;
+    if (target == null) {
+      throw Exception('No proposed appointment');
+    }
+
+    await _collection.doc(requestId).update({
+      'appointmentStatus': VetAppointmentStatus.confirmed,
+      'confirmedAt': target,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> counterProposeAppointment({
+    required String requestId,
+    required DateTime appointmentAt,
+    String? note,
+  }) async {
+    await _collection.doc(requestId).update({
+      'appointmentStatus': VetAppointmentStatus.counter,
+      'ownerCounterAt': Timestamp.fromDate(appointmentAt),
+      'ownerCounterNote': note?.trim() ?? '',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> declineAppointment({
+    required String requestId,
+    String? reason,
+  }) async {
+    await _collection.doc(requestId).update({
+      'appointmentStatus': VetAppointmentStatus.declined,
+      'declinedAt': FieldValue.serverTimestamp(),
+      'declineReason': reason?.trim() ?? '',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> acceptOwnerCounterAppointment({
+    required String requestId,
+  }) async {
+    final doc = await _collection.doc(requestId).get();
+    if (!doc.exists) throw Exception('Request not found');
+    final request = VeterinaryRequest.fromFirestore(doc);
+    final target = request.ownerCounterAt;
+    if (target == null) {
+      throw Exception('No counter appointment');
+    }
+
+    await _collection.doc(requestId).update({
+      'appointmentStatus': VetAppointmentStatus.confirmed,
+      'confirmedAt': target,
+      'proposedAt': target,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> vetProposeNewAppointment({
+    required String requestId,
+    required DateTime appointmentAt,
+  }) async {
+    await _collection.doc(requestId).update({
+      'appointmentStatus': VetAppointmentStatus.proposed,
+      'proposedAt': Timestamp.fromDate(appointmentAt),
+      'ownerCounterAt': FieldValue.delete(),
+      'ownerCounterNote': FieldValue.delete(),
+      'declinedAt': FieldValue.delete(),
+      'declineReason': FieldValue.delete(),
+      'confirmedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -174,11 +296,13 @@ final veterinaryRequestProvider =
   return ref.watch(veterinaryRequestRepositoryProvider).watchRequest(id);
 });
 
-final animalVetResponseProvider = StreamProvider.autoDispose
+final animalVetRequestProvider = StreamProvider.autoDispose
     .family<VeterinaryRequest?, String>((ref, animalId) {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return Stream.value(null);
   return ref
       .watch(veterinaryRequestRepositoryProvider)
-      .watchAnsweredForAnimal(clientId: uid, animalId: animalId);
+      .watchLatestForAnimal(clientId: uid, animalId: animalId);
 });
+
+final animalVetResponseProvider = animalVetRequestProvider;

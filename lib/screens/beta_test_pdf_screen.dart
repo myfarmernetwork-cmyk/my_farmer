@@ -40,31 +40,3 @@ class BetaTestPdfScreen extends StatelessWidget {
     );
   }
 }
-
-class BetaTestGuideProfileTile extends StatelessWidget {
-  const BetaTestGuideProfileTile({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.orange.shade200),
-      ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.orange.shade50,
-          child: Icon(Icons.science_outlined, color: Colors.orange.shade800),
-        ),
-        title: Text(
-          'beta_guide_profile_title'.tr(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('beta_guide_profile_subtitle'.tr()),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => BetaTestPdfScreen.open(context),
-      ),
-    );
-  }
-}

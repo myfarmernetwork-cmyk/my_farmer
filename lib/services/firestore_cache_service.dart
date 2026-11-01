@@ -6,15 +6,14 @@ class FirestoreCacheService {
   FirestoreCacheService._();
 
   static const _versionKey = 'firestore_role_cache_version';
-  static const _currentVersion = 4;
+  static const _currentVersion = 6;
 
-  /// Pozovi jednom pri pokretanju — preskače ako je cache već očišćen.
+  /// Označi migraciju cachea — ne gasi Firestore na cold startu (uzrok offline padova).
   static Future<void> clearStaleCacheIfNeeded() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getInt(_versionKey) ?? 0;
     if (stored >= _currentVersion) return;
 
-    await _clearFirestorePersistence();
     await prefs.setInt(_versionKey, _currentVersion);
   }
 

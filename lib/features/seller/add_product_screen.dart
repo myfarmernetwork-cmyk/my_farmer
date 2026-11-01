@@ -13,6 +13,7 @@ import '../../models/product_units.dart';
 import '../../utils/product_categories.dart';
 import '../../utils/production_types.dart';
 import '../../utils/upcoming_product_helper.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import '../../services/product_upload_service.dart';
 import '../../models/screen_guide_step.dart';
 import '../../widgets/farmer_helper_button.dart';
@@ -25,6 +26,8 @@ import '../../models/company_catalog_item.dart';
 import '../../repositories/company_catalog_repository.dart';
 import '../../widgets/barcode_scan_screen.dart';
 import '../../widgets/product_image_framer.dart';
+import '../../widgets/agro_glass_chrome.dart';
+import '../../theme/agro_accent_colors.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? productToEdit;
@@ -41,6 +44,9 @@ class AddProductScreen extends ConsumerStatefulWidget {
 }
 
 class _AddProductScreenState extends ConsumerState<AddProductScreen> {
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+  static const _priceYellow = Color(0xFFFFEB3B);
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -102,6 +108,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       ];
 
   bool get _isEditing => widget.productToEdit != null;
+
+  bool get _isCatalogEdit => widget.catalogPrefill != null;
+
+  bool get _isCsvCatalogProduct =>
+      _isCatalogEdit ||
+      (_isEditing &&
+          ((widget.productToEdit?.catalogItemId?.trim().isNotEmpty ?? false) ||
+              (widget.productToEdit?.skuCode?.trim().isNotEmpty ?? false)));
+
+  bool get _shouldSyncCompanyCatalog =>
+      _isCompanyRole || _isCsvCatalogProduct;
 
   @override
   void initState() {
@@ -265,7 +282,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final pickedFile = await _picker.pickImage(
       source: source,
-      imageQuality: 70,
+      imageQuality: 80,
+      maxWidth: 1920,
+      maxHeight: 1920,
     );
     if (pickedFile != null) {
       final file = File(pickedFile.path);
@@ -419,14 +438,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             controller: _unitDescriptionController,
             minLines: 2,
             maxLines: 3,
-            style: const TextStyle(fontSize: 16),
-            decoration: InputDecoration(
+            style: marketplaceFormFieldTextStyle,
+            decoration: marketplaceFormInputDecoration(
               hintText: 'add_product_pack_contents_hint'.tr(),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
               contentPadding: const EdgeInsets.all(14),
             ),
           ),
@@ -496,7 +510,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   Future<void> _submitProduct() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_imageFile == null && _existingImageUrl.isEmpty) {
+    if (!_isCsvCatalogProduct &&
+        _imageFile == null &&
+        _existingImageUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('add_product_image_required'.tr()),
@@ -546,7 +562,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       }
     }
 
-    if (!_isEditing) {
+    if (!_isEditing && !_isCatalogEdit) {
       if (_isService && !_canAddService) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('product_limit_reached'.tr())),
@@ -597,8 +613,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         final framed = await ProductImageFramer.exportFrame(_imageFrameKey);
         final uploadFile = framed ?? _imageFile!;
         final uploaded = await _storageService.uploadProductImage(uploadFile);
-        if (uploaded != null) imageUrl = uploaded;
+        if (uploaded == null) {
+          throw Exception('add_product_image_upload_failed');
+        }
+        imageUrl = uploaded;
       }
+
+      final parsedPrice = double.parse(_priceController.text.trim());
+      final parsedStock = double.tryParse(_stockController.text.trim()) ?? 999.0;
 
       final payload = {
         'sellerId': user.uid,
@@ -607,7 +629,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         'description': _isCompanyRole
             ? _productDescriptionController.text.trim()
             : _descriptionController.text.trim(),
-        'price': double.parse(_priceController.text.trim()),
+        'price': parsedPrice,
         'originalCurrency': originalCurrency,
         'unit': _isService ? 'kom' : _selectedUnit,
         if (_isService) 'servicePriceUnit': _servicePriceUnit,
@@ -628,8 +650,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         'productionType': _productionType,
         'isService': _isService,
         'imageUrl': imageUrl,
-        if (!_isService)
-          'stock': double.tryParse(_stockController.text.trim()) ?? 999.0,
+        if (!_isService) ...{
+          'stock': parsedStock,
+          'isSoldOut': parsedStock <= 0,
+        },
         if (!_isService && ProductUnits.isPak(_selectedUnit)) ...{
           'unitDescription': _unitDescriptionController.text.trim(),
         } else ...{
@@ -648,16 +672,82 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         },
       };
 
+      final catalogRepo = ref.read(companyCatalogRepositoryProvider);
+
       if (_isEditing) {
         await FirebaseFirestore.instance
             .collection('products')
             .doc(widget.productToEdit!.id)
             .update(payload);
+
+        final catalogItemId = widget.productToEdit!.catalogItemId?.trim() ?? '';
+        if (_shouldSyncCompanyCatalog) {
+          final syncArgs = (
+            sellerId: user.uid,
+            price: parsedPrice,
+            stock: parsedStock,
+            name: _nameController.text.trim(),
+            skuCode: _skuCodeController.text.trim(),
+            unit: _isService ? 'kom' : _selectedUnit,
+            productDescription: _productDescriptionController.text.trim(),
+            category: _selectedCategory,
+          );
+          if (catalogItemId.isNotEmpty) {
+            await catalogRepo.syncCatalogFromProductEdit(
+              sellerId: syncArgs.sellerId,
+              catalogItemId: catalogItemId,
+              price: syncArgs.price,
+              stock: syncArgs.stock,
+              name: syncArgs.name,
+              skuCode: syncArgs.skuCode,
+              unit: syncArgs.unit,
+              productDescription: syncArgs.productDescription,
+              category: syncArgs.category,
+            );
+          } else {
+            await catalogRepo.syncCatalogFromPublishedProduct(
+              sellerId: syncArgs.sellerId,
+              productId: widget.productToEdit!.id,
+              price: syncArgs.price,
+              stock: syncArgs.stock,
+              name: syncArgs.name,
+              skuCode: syncArgs.skuCode,
+              unit: syncArgs.unit,
+              productDescription: syncArgs.productDescription,
+              category: syncArgs.category,
+            );
+          }
+        }
       } else {
-        await FirebaseFirestore.instance.collection('products').add({
-          ...payload,
-          'createdAt': Timestamp.now(),
-        });
+        final prefill = widget.catalogPrefill;
+        if (prefill != null) {
+          await catalogRepo.syncCatalogFromProductEdit(
+            sellerId: user.uid,
+            catalogItemId: prefill.id,
+            price: parsedPrice,
+            stock: parsedStock,
+            name: _nameController.text.trim(),
+            skuCode: _skuCodeController.text.trim(),
+            unit: _isService ? 'kom' : _selectedUnit,
+            productDescription: _productDescriptionController.text.trim(),
+            category: _selectedCategory,
+          );
+
+          if (prefill.isPublished && prefill.publishedProductId != null) {
+            await FirebaseFirestore.instance
+                .collection('products')
+                .doc(prefill.publishedProductId!)
+                .update({
+              ...payload,
+              'catalogItemId': prefill.id,
+            });
+          }
+        } else {
+          await FirebaseFirestore.instance.collection('products').add({
+            ...payload,
+            'createdAt': Timestamp.now(),
+          });
+        }
       }
 
       if (mounted) {
@@ -675,8 +765,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final message = e.toString().contains('add_product_image_upload_failed')
+            ? 'add_product_image_upload_failed'.tr()
+            : 'common_error'.tr(namedArgs: {'error': e.toString()});
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('common_error'.tr(namedArgs: {'error': e.toString()}))),
+          SnackBar(content: Text(message)),
         );
       }
     } finally {
@@ -691,35 +784,49 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         .resolve(context.locale, currencyRegion: ref.read(currencyRegionProvider));
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text(
           _isEditing
               ? 'add_product_title_edit'.tr()
               : 'add_product_title_new'.tr(),
         ),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
         actions: [
           FarmerHelperIconButton(guideSteps: _guideSteps),
         ],
       ),
-      body: SafeArea(
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: SafeArea(
         top: false,
         child: _isUploading
             ? Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const CircularProgressIndicator(color: Colors.green),
+              const CircularProgressIndicator(
+                color: _chipGreen,
+              ),
               const SizedBox(height: 16),
-              Text('add_product_publishing'.tr()),
+              Text(
+                'add_product_publishing'.tr(),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
             ],
           ),
         )
             : Form(
           key: _formKey,
           child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: ScrollBottomPadding.list(
+            context,
+            base: const EdgeInsets.all(16),
+          ),
           children: [
             // SLIKA — povlačenje / pinch za centriranje proizvoda
             ProductImageFramer(
@@ -740,7 +847,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.green[700],
+                      color: _chipGreen,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -749,7 +856,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       'add_product_ai_classifying'.tr(),
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.green[800],
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -760,81 +867,106 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             const SizedBox(height: 20),
 
             // NAZIV
-            TextFormField(
-              key: _guideNameKey,
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'add_product_name_label'.tr(),
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.eco_outlined),
+            MarketplaceLabeledField(
+              label: 'add_product_name_label'.tr(),
+              child: TextFormField(
+                key: _guideNameKey,
+                controller: _nameController,
+                style: marketplaceFormFieldTextStyle,
+                decoration: marketplaceFormInputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.eco_outlined,
+                    color: _chipGreen,
+                  ),
+                ),
+                validator: (val) =>
+                    val!.isEmpty ? 'add_product_name_required'.tr() : null,
               ),
-              validator: (val) =>
-                  val!.isEmpty ? 'add_product_name_required'.tr() : null,
             ),
             const SizedBox(height: 12),
 
             if (_isCompanyRole) ...[
-              TextFormField(
-                controller: _skuCodeController,
-                keyboardType: TextInputType.text,
-                decoration: InputDecoration(
-                  labelText: 'add_product_sku_label'.tr(),
-                  hintText: 'add_product_scan_barcode'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.qr_code_scanner_outlined),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    tooltip: 'add_product_scan_barcode'.tr(),
-                    onPressed: _scanSkuBarcode,
+              MarketplaceLabeledField(
+                label: 'add_product_sku_label'.tr(),
+                child: TextFormField(
+                  controller: _skuCodeController,
+                  keyboardType: TextInputType.text,
+                  style: marketplaceFormFieldTextStyle,
+                  decoration: marketplaceFormInputDecoration(
+                    hintText: 'add_product_scan_barcode'.tr(),
+                    prefixIcon: const Icon(
+                      Icons.qr_code_scanner_outlined,
+                      color: _chipGreen,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      tooltip: 'add_product_scan_barcode'.tr(),
+                      onPressed: _scanSkuBarcode,
+                    ),
                   ),
+                  validator: (val) {
+                    if (!_isCompanyRole) return null;
+                    if (val == null || val.trim().isEmpty) {
+                      return 'add_product_sku_required'.tr();
+                    }
+                    return null;
+                  },
                 ),
-                validator: (val) {
-                  if (!_isCompanyRole) return null;
-                  if (val == null || val.trim().isEmpty) {
-                    return 'add_product_sku_required'.tr();
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _productDescriptionController,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  labelText: 'add_product_detailed_description_label'.tr(),
-                  alignLabelWithHint: true,
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.fact_check_outlined),
+              MarketplaceLabeledField(
+                label: 'add_product_detailed_description_label'.tr(),
+                child: TextFormField(
+                  controller: _productDescriptionController,
+                  maxLines: 5,
+                  style: marketplaceFormFieldTextStyle,
+                  decoration: marketplaceFormInputDecoration(
+                    prefixIcon: const Icon(
+                      Icons.fact_check_outlined,
+                      color: _chipGreen,
+                    ),
+                    contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  ),
+                  validator: (val) {
+                    if (!_isCompanyRole) return null;
+                    if (val == null || val.trim().isEmpty) {
+                      return 'add_product_detailed_description_required'.tr();
+                    }
+                    return null;
+                  },
                 ),
-                validator: (val) {
-                  if (!_isCompanyRole) return null;
-                  if (val == null || val.trim().isEmpty) {
-                    return 'add_product_detailed_description_required'.tr();
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 12),
             ] else ...[
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  labelText: 'add_product_description_optional'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.description_outlined),
+              MarketplaceLabeledField(
+                label: 'add_product_description_optional'.tr(),
+                child: TextFormField(
+                  controller: _descriptionController,
+                  maxLines: 3,
+                  style: marketplaceFormFieldTextStyle,
+                  decoration: marketplaceFormInputDecoration(
+                    prefixIcon: const Icon(
+                      Icons.description_outlined,
+                      color: _chipGreen,
+                    ),
+                    contentPadding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
             ],
 
             // KATEGORIJA
-            DropdownButtonFormField<String>(
+            MarketplaceLabeledField(
+              label: 'add_product_category'.tr(),
+              child: DropdownButtonFormField<String>(
               value: ProductUploadService.categoryCodesForRole(_userRole)
                       .contains(_selectedCategory)
                   ? _selectedCategory
                   : ProductUploadService.categoryCodesForRole(_userRole).first,
               isExpanded: true,
+              dropdownColor: Colors.white,
+              style: marketplaceFormFieldTextStyle,
               items: ProductUploadService.categoryCodesForRole(_userRole)
                   .map(
                     (code) => DropdownMenuItem(
@@ -861,18 +993,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   _selectedSubTag ??= 'other_protection';
                 }
               }),
-              decoration: InputDecoration(
-                labelText: 'add_product_category'.tr(),
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.category_outlined),
+              decoration: marketplaceFormInputDecoration(
+                prefixIcon: const Icon(
+                  Icons.category_outlined,
+                  color: _chipGreen,
+                ),
               ),
+            ),
             ),
             if (ProductUploadService.requiresSubTag(
               _userRole,
               _selectedCategory,
             )) ...[
               const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
+              MarketplaceLabeledField(
+                label: 'add_product_subcategory'.tr(),
+                child: DropdownButtonFormField<String>(
                 value: _selectedSubTag ??
                     ProductUploadService.companyCategories
                         .firstWhere((c) => c.id == 'plant_protection')
@@ -880,6 +1016,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         .last
                         .id,
                 isExpanded: true,
+                dropdownColor: Colors.white,
+                style: marketplaceFormFieldTextStyle,
                 items: ProductUploadService.companyCategories
                     .firstWhere((c) => c.id == 'plant_protection')
                     .subTags
@@ -898,18 +1036,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     )
                     .toList(),
                 onChanged: (val) => setState(() => _selectedSubTag = val),
-                decoration: InputDecoration(
-                  labelText: 'add_product_subcategory'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.label_outline),
+                decoration: marketplaceFormInputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.label_outline,
+                    color: _chipGreen,
+                  ),
                 ),
+              ),
               ),
             ],
             const SizedBox(height: 12),
 
-            DropdownButtonFormField<String>(
+            MarketplaceLabeledField(
+              label: 'add_product_production_type'.tr(),
+              child: DropdownButtonFormField<String>(
               value: _productionType,
               isExpanded: true,
+              dropdownColor: Colors.white,
+              style: marketplaceFormFieldTextStyle,
               items: [
                 ProductionTypes.conventional,
                 ProductionTypes.organic,
@@ -923,11 +1067,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   .toList(),
               onChanged: (val) =>
                   setState(() => _productionType = val!),
-              decoration: InputDecoration(
-                labelText: 'add_product_production_type'.tr(),
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.nature_outlined),
+              decoration: marketplaceFormInputDecoration(
+                prefixIcon: const Icon(
+                  Icons.nature_outlined,
+                  color: _chipGreen,
+                ),
               ),
+            ),
             ),
             const SizedBox(height: 12),
 
@@ -937,13 +1083,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   Expanded(
                     child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text('add_product_is_service'.tr()),
+                      title: Text(
+                        'add_product_is_service'.tr(),
+                        style: const TextStyle(color: Colors.white),
+                      ),
                       value: _isService,
+                      activeThumbColor: _chipGreen,
+                      activeTrackColor: Colors.white.withValues(alpha: 0.45),
                       onChanged: (val) => setState(() => _isService = val),
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.info_outline, color: Colors.green[700]),
+                    icon: const Icon(Icons.info_outline, color: Colors.white),
                     tooltip: 'service_info_title'.tr(),
                     onPressed: _showServiceInfoDialog,
                   ),
@@ -951,8 +1102,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               ),
 
             if (_isService && _canAddService) ...[
-              DropdownButtonFormField<String>(
+              MarketplaceLabeledField(
+                label: 'add_product_service_unit'.tr(),
+                child: DropdownButtonFormField<String>(
                 value: _servicePriceUnit,
+                dropdownColor: Colors.white,
+                style: marketplaceFormFieldTextStyle,
                 items: ProductUnits.servicePriceUnits
                     .map(
                       (u) => DropdownMenuItem(
@@ -964,18 +1119,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 onChanged: (val) {
                   if (val != null) setState(() => _servicePriceUnit = val);
                 },
-                decoration: InputDecoration(
-                  labelText: 'add_product_service_unit'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.straighten_outlined),
+                decoration: marketplaceFormInputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.straighten_outlined,
+                    color: _chipGreen,
+                  ),
                 ),
+              ),
               ),
               const SizedBox(height: 12),
             ],
 
             if (!_isService) ...[
-              DropdownButtonFormField<String>(
+              MarketplaceLabeledField(
+                label: 'add_product_unit'.tr(),
+                child: DropdownButtonFormField<String>(
                 value: _selectedUnit,
+                dropdownColor: Colors.white,
+                style: marketplaceFormFieldTextStyle,
                 items: ProductUnits.productUnits
                     .map(
                       (u) => DropdownMenuItem(
@@ -993,29 +1154,35 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     }
                   });
                 },
-                decoration: InputDecoration(
-                  labelText: 'add_product_unit'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.scale_outlined),
+                decoration: marketplaceFormInputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.scale_outlined,
+                    color: _chipGreen,
+                  ),
                 ),
+              ),
               ),
               const SizedBox(height: 12),
               if (ProductUnits.isPak(_selectedUnit)) ...[
                 _buildPackContentsField(),
                 const SizedBox(height: 12),
               ],
-              TextFormField(
+              MarketplaceLabeledField(
+                label: _isCompanyRole
+                    ? 'add_product_company_stock_label'.tr()
+                    : 'add_product_stock'.tr(),
+                child: TextFormField(
                 key: _guideStockKey,
                 controller: _stockController,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: _isCompanyRole
-                      ? 'add_product_company_stock_label'.tr()
-                      : 'add_product_stock'.tr(),
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.inventory_2_outlined),
-                  suffixText: _selectedUnit,
+                style: marketplaceFormFieldTextStyle,
+                decoration: marketplaceFormInputDecoration(
+                  prefixIcon: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: _chipGreen,
+                  ),
+                  suffixText: ProductUnits.shortLabel(_selectedUnit),
                   helperText: _isCompanyRole
                       ? null
                       : 'add_product_stock_hint'.tr(),
@@ -1031,6 +1198,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   return null;
                 },
               ),
+              ),
               const SizedBox(height: 12),
             ],
 
@@ -1042,6 +1210,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   _isCompanyRole
                       ? 'product_upcoming_company_toggle'.tr()
                       : 'product_upcoming_toggle'.tr(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: Text(
                   _isCompanyRole
@@ -1049,9 +1221,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                           namedArgs: {'days': '$_upcomingMaxDays'},
                         )
                       : 'product_upcoming_toggle_hint'.tr(),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                  ),
                 ),
                 value: _isUpcoming,
-                activeThumbColor: Colors.orange.shade700,
+                activeThumbColor: _chipGreen,
+                activeTrackColor: Colors.white.withValues(alpha: 0.45),
                 onChanged: (value) {
                   setState(() {
                     _isUpcoming = value;
@@ -1070,14 +1246,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     _isCompanyRole
                         ? 'delivery_date_label'.tr()
                         : 'harvest_date_label'.tr(),
+                    style: const TextStyle(color: Colors.white),
                   ),
                   subtitle: Text(
                     '${_harvestDateTime.day}.${_harvestDateTime.month}.${_harvestDateTime.year} '
                     '${_harvestDateTime.hour.toString().padLeft(2, '0')}:'
                     '${_harvestDateTime.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                    ),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.calendar_month),
+                    icon: const Icon(Icons.calendar_month, color: Colors.white),
                     onPressed: _pickHarvestDateTime,
                   ),
                 ),
@@ -1086,58 +1266,60 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ],
 
             // CIJENA
-            TextFormField(
+            MarketplaceLabeledField(
+              label: _isService
+                  ? 'add_product_price_per_unit'.tr()
+                  : _isCompanyRole
+                      ? 'add_product_company_price_label'.tr()
+                      : 'add_product_price'.tr(),
+              child: TextFormField(
               key: _guidePriceKey,
               controller: _priceController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: _isService
-                    ? 'add_product_price_per_unit'.tr()
-                    : _isCompanyRole
-                        ? 'add_product_company_price_label'.tr()
-                        : 'add_product_price'.tr(),
-                border: const OutlineInputBorder(),
+              style: marketplaceFormFieldTextStyle,
+              decoration: marketplaceFormInputDecoration(
                 prefixIcon: Center(
                   widthFactor: 1,
                   child: Text(
                     currency.symbol,
-                    style: TextStyle(
-                      fontSize: currency.symbol.length > 2 ? 14 : 18,
+                    style: const TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.green.shade800,
+                      color: _chipGreen,
                     ),
                   ),
                 ),
                 suffixText: _isService
-                    ? '/ $_servicePriceUnit'
-                    : '/ $_selectedUnit',
+                    ? '/ ${ProductUnits.shortLabel(_servicePriceUnit)}'
+                    : '/ ${ProductUnits.shortLabel(_selectedUnit)}',
               ),
               validator: (val) =>
                   val!.isEmpty ? 'add_product_price_required'.tr() : null,
             ),
+            ),
             const SizedBox(height: 30),
 
             // DUGME
-            ElevatedButton(
+            FilledButton(
               onPressed: _submitProduct,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[700],
+              style: FilledButton.styleFrom(
+                backgroundColor: _chipGreen,
+                foregroundColor: _priceYellow,
                 minimumSize: const Size(double.infinity, 55),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
+                shape: const StadiumBorder(),
               ),
               child: Text(
-                _isEditing
+                (_isEditing || _isCatalogEdit)
                     ? 'add_product_submit_save'.tr()
                     : 'add_product_submit_publish'.tr(),
                 style: const TextStyle(
-                    color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(height: 20),
           ],
+        ),
         ),
         ),
       ),

@@ -106,7 +106,57 @@ class AuthRepository {
   }
 
   Future<void> _ensureAuthTokenReady(User user) async {
-    await user.getIdToken(true);
+    try {
+      await user.getIdToken(false);
+    } catch (_) {
+      await user.getIdToken(true);
+    }
+  }
+
+  bool _isTransientFirestoreError(FirebaseException error) {
+    return error.code == 'unavailable' || error.code == 'deadline-exceeded';
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _readUserDoc({
+    required String uid,
+    required Source source,
+  }) {
+    return _firestore.collection('users').doc(uid).get(GetOptions(source: source));
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _getUserDocResilient({
+    required String uid,
+    bool preferServer = true,
+  }) async {
+    FirebaseException? lastTransient;
+
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final useServer = preferServer && attempt < 2;
+      try {
+        return await _readUserDoc(
+          uid: uid,
+          source: useServer ? Source.server : Source.serverAndCache,
+        );
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied' && _auth.currentUser != null) {
+          await _ensureAuthTokenReady(_auth.currentUser!);
+          continue;
+        }
+        if (!_isTransientFirestoreError(e)) {
+          rethrow;
+        }
+        lastTransient = e;
+        await Future.delayed(Duration(milliseconds: 400 * (attempt + 1)));
+      }
+    }
+
+    try {
+      final cached = await _readUserDoc(uid: uid, source: Source.cache);
+      if (cached.exists) return cached;
+    } catch (_) {}
+
+    if (lastTransient != null) throw lastTransient;
+    return _readUserDoc(uid: uid, source: Source.serverAndCache);
   }
 
   Future<void> _resetBrokenSession() async {
@@ -154,7 +204,41 @@ class AuthRepository {
         await _resetBrokenSession();
         return null;
       }
+      if (_isTransientFirestoreError(e) &&
+          _lastSyncedUser?.uid == firebaseUser.uid) {
+        return _lastSyncedUser;
+      }
+      final cachedUser =
+          await _loadAuthenticatedUserFromCache(firebaseUser);
+      if (cachedUser != null) {
+        return cachedUser;
+      }
       rethrow;
+    }
+  }
+
+  Future<AppUser?> _loadAuthenticatedUserFromCache(User firebaseUser) async {
+    try {
+      final doc = await _readUserDoc(
+        uid: firebaseUser.uid,
+        source: Source.cache,
+      );
+      if (!doc.exists || doc.data() == null) return null;
+
+      var data = Map<String, dynamic>.from(doc.data()!);
+      data = await _sanitizeUserDocument(
+        uid: firebaseUser.uid,
+        data: data,
+        email: firebaseUser.email ?? '',
+      );
+      data = await _restoreRoleIfCorrupted(data: data);
+      if (!_isUserActive(data)) return null;
+
+      final appUser = AppUser.fromMap(firebaseUser.uid, data);
+      publishSyncedUser(appUser);
+      return appUser;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -190,27 +274,7 @@ class AuthRepository {
       await _ensureAuthTokenReady(firebaseUser);
     }
 
-    Future<DocumentSnapshot<Map<String, dynamic>>> readDoc({
-      required bool fromServer,
-    }) {
-      return _firestore.collection('users').doc(uid).get(
-            GetOptions(
-              source: fromServer ? Source.server : Source.serverAndCache,
-            ),
-          );
-    }
-
-    DocumentSnapshot<Map<String, dynamic>> doc;
-    try {
-      doc = await readDoc(fromServer: forceServer);
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied' && firebaseUser != null) {
-        await _ensureAuthTokenReady(firebaseUser);
-        doc = await readDoc(fromServer: true);
-      } else {
-        rethrow;
-      }
-    }
+    final doc = await _getUserDocResilient(uid: uid, preferServer: forceServer);
 
     if (!doc.exists || doc.data() == null) {
       final retry = await _fetchUserDoc(uid);
@@ -239,15 +303,15 @@ class AuthRepository {
     String uid,
   ) async {
     for (var attempt = 0; attempt < 5; attempt++) {
-      final doc = await _firestore.collection('users').doc(uid).get(
-            const GetOptions(source: Source.server),
-          );
-      if (doc.exists) return doc;
-      await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+      try {
+        final doc = await _readUserDoc(uid: uid, source: Source.server);
+        if (doc.exists) return doc;
+      } on FirebaseException catch (e) {
+        if (!_isTransientFirestoreError(e)) rethrow;
+      }
+      await Future.delayed(Duration(milliseconds: 300 * (attempt + 1)));
     }
-    return _firestore.collection('users').doc(uid).get(
-          const GetOptions(source: Source.server),
-        );
+    return _getUserDocResilient(uid: uid, preferServer: true);
   }
 
   Map<String, dynamic> _roleSpecificFields({
@@ -407,16 +471,17 @@ class AuthRepository {
     return sanitized;
   }
 
-  /// Ako je uloga pogrešno prepisana na buyer, koristi inferenciju samo u memoriji.
-  /// Trajna promjena uloge u Firestoreu dopuštena je samo administratoru / Cloud Functions.
+  /// Ako polje [role] nedostaje, dopuni ga inferencijom iz profila (samo u memoriji).
   Future<Map<String, dynamic>> _restoreRoleIfCorrupted({
     required Map<String, dynamic> data,
   }) async {
-    final stored = data['role']?.toString().trim().toLowerCase() ?? '';
+    final stored = data['role']?.toString().trim() ?? '';
+    if (stored.isNotEmpty) {
+      return data;
+    }
+
     final resolved = AppUser.resolveRoleCanonical(data);
-    if (resolved.isNotEmpty &&
-        resolved != stored &&
-        (stored.isEmpty || stored == 'buyer')) {
+    if (resolved.isNotEmpty) {
       return {...data, 'role': resolved};
     }
 
@@ -433,6 +498,8 @@ class AuthRepository {
     String extraInfo = '',
     String? veterinaryLicense,
     String? companyRegistrationNumber,
+    String? preferredLanguage,
+    Map<String, dynamic>? signupAttribution,
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
@@ -458,7 +525,11 @@ class AuthRepository {
       'isAvailable': true,
       'offersPickup': true,
       'offersDelivery': false,
-      'preferredLanguage': 'hr_HR',
+      'preferredLanguage': preferredLanguage?.trim().isNotEmpty == true
+          ? preferredLanguage!.trim()
+          : 'hr_HR',
+      if (signupAttribution != null && signupAttribution.isNotEmpty)
+        ...signupAttribution,
       'isVerified': true,
       'isPublicProfile': canonicalRole != 'veterinarian',
       'isActive': true,

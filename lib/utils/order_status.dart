@@ -3,6 +3,7 @@ class OrderStatus {
   static const newOrder = 'new';
   static const preparing = 'preparing';
   static const completed = 'completed';
+  static const rejected = 'rejected';
 
   static const flow = [newOrder, preparing, completed];
 
@@ -29,6 +30,13 @@ class OrderStatus {
       case 'done':
       case 'finished':
         return completed;
+      case 'rejected':
+      case 'odbijeno':
+      case 'odbijena':
+      case 'declined':
+      case 'cancelled':
+      case 'canceled':
+        return rejected;
       default:
         if (raw == null || raw.toString().isEmpty) return newOrder;
         return newOrder;
@@ -38,7 +46,14 @@ class OrderStatus {
   static bool isActive(String code) =>
       code == newOrder || code == preparing;
 
-  static bool isHistory(String code) => code == completed;
+  static bool isHistory(String code) =>
+      code == completed || code == rejected;
+
+  /// Buyer may rate the farmer after the seller accepted or finished the order.
+  static bool allowsBuyerReview(String code) =>
+      code == preparing || code == completed;
+
+  static bool canReject(String code) => code == newOrder;
 
   static String? nextCode(String code) {
     final index = flow.indexOf(code);
@@ -54,6 +69,8 @@ class OrderStatus {
         return 'orders_status_preparing';
       case completed:
         return 'orders_status_completed';
+      case rejected:
+        return 'orders_status_rejected';
       default:
         return 'orders_status_new';
     }

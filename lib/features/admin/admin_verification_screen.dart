@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../repositories/admin_repository.dart';
 import '../../utils/admin_user_presence.dart';
+import '../../utils/scroll_bottom_padding.dart';
 
 class AdminVerificationScreen extends StatefulWidget {
   const AdminVerificationScreen({super.key});
@@ -144,7 +145,7 @@ class _AdminVerificationScreenState extends State<AdminVerificationScreen> {
           }
 
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: ScrollBottomPadding.list(context),
             itemCount: docs.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {

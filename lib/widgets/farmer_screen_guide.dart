@@ -34,7 +34,7 @@ class FarmerScreenGuide extends StatefulWidget {
 
     return showGeneralDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.transparent,
       useRootNavigator: true,
       pageBuilder: (dialogContext, _, __) {

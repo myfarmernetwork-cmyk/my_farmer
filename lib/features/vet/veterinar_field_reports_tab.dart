@@ -11,6 +11,7 @@ import '../../models/vet_field_report.dart';
 import '../../providers/subscription_provider.dart';
 import '../../repositories/vet_field_report_repository.dart';
 import '../../repositories/veterinary_request_repository.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import '../../widgets/farmer_help_widgets.dart';
 
 /// Tab „Terenski nalazi“ u kartoteci pacijenata veterinara.
@@ -83,7 +84,10 @@ class VeterinarFieldReportsTab extends ConsumerWidget {
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+          padding: ScrollBottomPadding.list(
+            context,
+            base: const EdgeInsets.fromLTRB(12, 12, 12, 72),
+          ),
           itemCount: reports.length,
           itemBuilder: (context, index) {
             final report = reports[index];

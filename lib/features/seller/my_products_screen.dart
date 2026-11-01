@@ -7,13 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/product.dart';
 import '../../models/screen_guide_step.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/quantity_helper.dart';
+import '../../theme/agro_accent_colors.dart';
 import '../../utils/upcoming_product_helper.dart';
+import '../../utils/scroll_bottom_padding.dart';
 import '../../widgets/farmer_helper_button.dart';
+import '../../widgets/agro_glass_chrome.dart';
 import '../../widgets/farmer_weather_banner.dart';
-import '../../widgets/product_price_text.dart';
-import '../../widgets/product_sold_out_overlay.dart';
-import '../../widgets/seller_product_availability_switch.dart';
+import '../../widgets/seller_product_list_card.dart';
 import 'add_product_screen.dart';
 import 'manage_harvest_screen.dart';
 
@@ -28,6 +28,25 @@ class _MyProductsScreenState extends ConsumerState<MyProductsScreen> {
   final GlobalKey _guideWeatherKey = GlobalKey();
   final GlobalKey _guideListKey = GlobalKey();
   final GlobalKey _guideFabKey = GlobalKey();
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _productsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _bindProductsStream();
+  }
+
+  void _bindProductsStream() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      _productsStream = null;
+      return;
+    }
+    _productsStream = FirebaseFirestore.instance
+        .collection('products')
+        .where('sellerId', isEqualTo: uid)
+        .snapshots();
+  }
 
   List<ScreenGuideStep> _guideStepsForRole(bool isCompany) => [
         if (!isCompany)
@@ -53,68 +72,142 @@ class _MyProductsScreenState extends ConsumerState<MyProductsScreen> {
     return FarmerWeatherBanner(guideKey: _guideWeatherKey);
   }
 
+  Future<void> _confirmDelete(BuildContext context, String productId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('seller_delete_product'.tr()),
+        content: Text('seller_delete_confirm'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('animals_delete'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await FirebaseFirestore.instance.collection('products').doc(productId).delete();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     final roleAsync = ref.watch(firestoreUserRoleProvider);
     final isCompany =
         UpcomingProductHelper.isCompanyRole(roleAsync.valueOrNull);
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text('nav_my_products'.tr()),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
         actions: [
           FarmerHelperIconButton(guideSteps: _guideStepsForRole(isCompany)),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _topBanner(isCompany: isCompany),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('products')
-                  .where('sellerId', isEqualTo: user?.uid)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _topBanner(isCompany: isCompany),
+            Expanded(
+              child: _productsStream == null
+                  ? Center(
+                      child: Text(
+                        'products_empty'.tr(),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          fontSize: 16,
+                        ),
+                      ),
+                    )
+                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _productsStream,
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: AgroAccentColors.marketplaceChipGreen,
+                            ),
+                          );
+                        }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return KeyedSubtree(
-                    key: _guideListKey,
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Center(child: Text('products_empty'.tr())),
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return KeyedSubtree(
+                            key: _guideListKey,
+                            child: Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  'products_empty'.tr(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        final docs = snapshot.data!.docs;
+
+                        return ListView.builder(
+                          padding: ScrollBottomPadding.list(
+                            context,
+                            base: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                            mainTab: true,
+                          ),
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final product =
+                                Product.fromFirestore(docs[index]);
+                            final card = _ProductListEntry(
+                              product: product,
+                              onEdit: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AddProductScreen(
+                                    productToEdit: product,
+                                  ),
+                                ),
+                              ),
+                              onDelete: () =>
+                                  _confirmDelete(context, product.id),
+                            );
+
+                            if (index == 0) {
+                              return KeyedSubtree(
+                                key: _guideListKey,
+                                child: card,
+                              );
+                            }
+                            return card;
+                          },
+                        );
+                      },
                     ),
-                  );
-                }
-
-                final docs = snapshot.data!.docs;
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final product = Product.fromFirestore(docs[index]);
-                    final card = _FarmerProductCard(product: product);
-
-                    if (index == 0) {
-                      return KeyedSubtree(key: _guideListKey, child: card);
-                    }
-                    return card;
-                  },
-                );
-              },
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButtonLocation: ScrollBottomPadding.fabLocationMainTabRaised,
+      floatingActionButton: MarketplacePrimaryFab(
         key: _guideFabKey,
         onPressed: () {
           Navigator.push(
@@ -122,193 +215,74 @@ class _MyProductsScreenState extends ConsumerState<MyProductsScreen> {
             MaterialPageRoute(builder: (_) => const AddProductScreen()),
           );
         },
-        backgroundColor: Colors.green[700],
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 }
 
-class _FarmerProductCard extends ConsumerWidget {
-  const _FarmerProductCard({required this.product});
+class _ProductListEntry extends StatelessWidget {
+  const _ProductListEntry({
+    required this.product,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   final Product product;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   bool get _isHarvestManaged =>
       product.isUpcoming || product.requiresFinalPhoto;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stockLabel = QuantityHelper.formatWithUnit(
-      product.stock,
-      product.displayUnit,
-    );
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (product.requiresFinalPhoto) _PulsingHarvestAlert(),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: product.imageUrl.isNotEmpty
-                      ? Image.network(
-                          product.imageUrl,
-                          width: 56,
-                          height: 56,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.image, size: 56),
-                        )
-                      : const Icon(Icons.image, size: 56),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      ProductPriceText(
-                        price: product.price,
-                        originalCurrency: product.originalCurrency,
-                        unit: product.displayUnit,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'product_available_stock'.tr(
-                          namedArgs: {'quantity': stockLabel},
-                        ),
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                      ),
-                      if (product.isUnavailable) ...[
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Text(
-                            productSoldOutBadgeText(context),
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (product.isHarvestCountdownActive) ...[
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.orange.shade200),
-                          ),
-                          child: Text(
-                            product.isDeliveryUpcoming
-                                ? 'product_upcoming_delivery_badge'.tr()
-                                : 'product_upcoming_badge'.tr(),
-                            style: TextStyle(
-                              color: Colors.orange.shade800,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (product.requiresFinalPhoto) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'harvest_awaiting_final_photo_short'.tr(),
-                          style: TextStyle(
-                            color: Colors.red.shade700,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.blue),
-                  tooltip: 'common_edit'.tr(),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => AddProductScreen(productToEdit: product),
-                    ),
-                  ),
-                ),
-                SellerProductAvailabilitySwitch(product: product),
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () {
-                    FirebaseFirestore.instance
-                        .collection('products')
-                        .doc(product.id)
-                        .delete();
-                  },
-                ),
-              ],
-            ),
-            if (_isHarvestManaged) ...[
-              const Divider(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ManageHarvestScreen(product: product),
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: product.requiresFinalPhoto
-                        ? Colors.red.shade700
-                        : Colors.orange.shade700,
-                    foregroundColor: Colors.white,
-                  ),
-                  icon: const Icon(Icons.agriculture),
-                  label: Text('harvest_manage_action'.tr()),
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (product.requiresFinalPhoto) const _PulsingHarvestAlert(),
+        SellerProductListCard(
+          product: product,
+          onEdit: onEdit,
+          onDelete: onDelete,
+        ),
+        if (_isHarvestManaged) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ManageHarvestScreen(product: product),
                 ),
               ),
-            ],
-          ],
-        ),
-      ),
+              style: FilledButton.styleFrom(
+                backgroundColor: product.requiresFinalPhoto
+                    ? Colors.red.shade700
+                    : AgroAccentColors.marketplaceChipGreen,
+                foregroundColor: product.requiresFinalPhoto
+                    ? Colors.white
+                    : const Color(0xFFFFEB3B),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    AgroAccentColors.marketplacePillRadius,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.agriculture),
+              label: Text('harvest_manage_action'.tr()),
+            ),
+          ),
+          const SizedBox(height: 2),
+        ],
+      ],
     );
   }
 }
 
 class _PulsingHarvestAlert extends StatefulWidget {
+  const _PulsingHarvestAlert();
+
   @override
   State<_PulsingHarvestAlert> createState() => _PulsingHarvestAlertState();
 }

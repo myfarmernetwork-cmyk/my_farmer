@@ -87,6 +87,7 @@ class _ChatMessageAlertListenerState extends State<ChatMessageAlertListener> {
       senderId: senderId,
       senderName: senderName,
       messagePreview: preview,
+      systemTray: false,
     );
   }
 

@@ -1,4 +1,4 @@
-/// Švicarsko tržište — de/fr/it u CH: viša cijena, isti EU limiti.
+/// Švicarsko tržište — de/fr/it u CH: viša cijena, isti EU AI limiti (kupac 10, hobi 20).
 class SwissMarketPricing {
   SwissMarketPricing._();
 

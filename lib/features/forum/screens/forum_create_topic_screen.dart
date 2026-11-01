@@ -12,6 +12,9 @@ import '../repositories/forum_repository.dart';
 import '../utils/forum_author_name.dart';
 import 'forum_topic_detail_screen.dart';
 import '../../../widgets/farmer_help_widgets.dart';
+import '../../../theme/agro_accent_colors.dart';
+import '../../../widgets/agro_glass_chrome.dart';
+import '../../../utils/scroll_bottom_padding.dart';
 
 class ForumCreateTopicScreen extends StatefulWidget {
   const ForumCreateTopicScreen({
@@ -30,6 +33,9 @@ class ForumCreateTopicScreen extends StatefulWidget {
 }
 
 class _ForumCreateTopicScreenState extends State<ForumCreateTopicScreen> {
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+  static const _priceYellow = Color(0xFFFFEB3B);
+
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
   final ForumRepository _repository = ForumRepository();
@@ -207,145 +213,173 @@ class _ForumCreateTopicScreenState extends State<ForumCreateTopicScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text(
           widget.isEditing
               ? 'forum_edit_topic'.tr()
               : 'forum_new_topic'.tr(),
         ),
-        backgroundColor: Colors.green.shade800,
-        foregroundColor: Colors.white,
       ),
-      body: SafeArea(
-        top: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(
-                labelText: 'forum_topic_title'.tr(),
-                border: const OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.sentences,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: ScrollBottomPadding.list(
+              context,
+              base: const EdgeInsets.all(16),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _bodyController,
-              decoration: InputDecoration(
-                labelText: 'forum_topic_body'.tr(),
-                border: const OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-              minLines: 6,
-              maxLines: 12,
-              textCapitalization: TextCapitalization.sentences,
-            ),
-            const SizedBox(height: 16),
-            if (_imageFile != null) ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(
-                  _imageFile!,
-                  height: 180,
-                  fit: BoxFit.cover,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MarketplaceLabeledField(
+                  label: 'forum_topic_title'.tr(),
+                  child: TextField(
+                    controller: _titleController,
+                    style: marketplaceFormFieldTextStyle,
+                    decoration: marketplaceFormInputDecoration(),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-            ] else if (_existingImageUrl != null &&
-                _existingImageUrl!.isNotEmpty) ...[
-              Stack(
-                children: [
+                const SizedBox(height: 16),
+                MarketplaceLabeledField(
+                  label: 'forum_topic_body'.tr(),
+                  child: TextField(
+                    controller: _bodyController,
+                    style: marketplaceFormFieldTextStyle,
+                    decoration: marketplaceFormInputDecoration(),
+                    minLines: 6,
+                    maxLines: 12,
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (_imageFile != null) ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      _existingImageUrl!,
+                    child: Image.file(
+                      _imageFile!,
                       height: 180,
-                      width: double.infinity,
                       fit: BoxFit.cover,
                     ),
                   ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: IconButton.filled(
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.black54,
-                        foregroundColor: Colors.white,
+                  const SizedBox(height: 8),
+                ] else if (_existingImageUrl != null &&
+                    _existingImageUrl!.isNotEmpty) ...[
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          _existingImageUrl!,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                      onPressed: _isPublishing
-                          ? null
-                          : () => setState(() {
-                                _existingImageUrl = null;
-                                _imageFile = null;
-                              }),
-                      icon: const Icon(Icons.close, size: 18),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: IconButton.filled(
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.black54,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: _isPublishing
+                              ? null
+                              : () => setState(() {
+                                    _existingImageUrl = null;
+                                    _imageFile = null;
+                                  }),
+                          icon: const Icon(Icons.close, size: 18),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (_linkUrl != null && _linkUrl!.isNotEmpty) ...[
+                  InputChip(
+                    avatar:
+                        Icon(Icons.link, size: 16, color: Colors.blue.shade700),
+                    label: Text(
+                      _linkUrl!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onDeleted: _isPublishing
+                        ? null
+                        : () => setState(() => _linkUrl = null),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isPublishing ? null : _pickImage,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _chipGreen,
+                          side: BorderSide(
+                            color: _chipGreen.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        icon: const Icon(Icons.image_outlined),
+                        label: Text('forum_add_image'.tr()),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isPublishing ? null : _addLink,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _chipGreen,
+                          side: BorderSide(
+                            color: _chipGreen.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        icon: const Icon(Icons.link),
+                        label: Text('forum_add_link'.tr()),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _isPublishing ? null : _publish,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _chipGreen,
+                    foregroundColor: _priceYellow,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AgroAccentColors.marketplacePillRadius,
+                      ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (_linkUrl != null && _linkUrl!.isNotEmpty) ...[
-              InputChip(
-                avatar: Icon(Icons.link, size: 16, color: Colors.blue.shade700),
-                label: Text(
-                  _linkUrl!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onDeleted: _isPublishing
-                    ? null
-                    : () => setState(() => _linkUrl = null),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isPublishing ? null : _pickImage,
-                    icon: const Icon(Icons.image_outlined),
-                    label: Text('forum_add_image'.tr()),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isPublishing ? null : _addLink,
-                    icon: const Icon(Icons.link),
-                    label: Text('forum_add_link'.tr()),
-                  ),
+                  child: _isPublishing
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _priceYellow,
+                          ),
+                        )
+                      : Text(
+                          widget.isEditing
+                              ? 'forum_comment_save'.tr()
+                              : farmerGuideTr(context, 'forum_publish_topic'),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isPublishing ? null : _publish,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: _isPublishing
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Text(
-                      widget.isEditing
-                          ? 'forum_comment_save'.tr()
-                          : farmerGuideTr(context, 'forum_publish_topic'),
-                    ),
-            ),
-          ],
-        ),
+          ),
         ),
       ),
     );

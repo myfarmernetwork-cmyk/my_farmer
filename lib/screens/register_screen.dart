@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+import '../providers/locale_settings_provider.dart';
+import '../services/user_attribution_service.dart';
 import '../utils/company_scan_copy.dart';
 import '../providers/auth_provider.dart';
 import '../repositories/auth_repository.dart';
@@ -120,9 +122,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         title: Text(role.titleKey.tr()),
         content: SingleChildScrollView(
           child: Text(
-            role.id == 'pharmacy'
-                ? companyRoleInfoForContext(context)
-                : role.infoKey.tr(),
+            switch (role.id) {
+              'pharmacy' => companyRoleInfoForContext(context),
+              'buyer' => buyerRoleInfoForContext(context),
+              'hobby_farmer' => hobbyRoleInfoForContext(context),
+              _ => role.infoKey.tr(),
+            },
           ),
         ),
         actions: [
@@ -171,6 +176,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     try {
       final role = selectedRole!;
+      final localeOption = AppLocaleOption.fromLocale(context.locale);
+      final localeKey = localeOption?.storageKey ??
+          context.locale.toString().replaceAll('-', '_');
+      final signupAttribution =
+          await UserAttributionService.captureForSignup(
+        localeStorageKey: localeKey,
+      );
+
       final appUser = await ref.read(authRepositoryProvider).registerWithProfile(
             email: _emailController.text,
             password: _passwordController.text,
@@ -185,6 +198,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             extraInfo: role == 'hobby_farmer' || role == 'professional_farmer'
                 ? _extraController.text
                 : '',
+            preferredLanguage: localeKey,
+            signupAttribution: signupAttribution,
           );
 
       if (!mounted) return;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/legal_config.dart';
+import '../../widgets/agro_glass_chrome.dart';
 
 /// Politika privatnosti — Play Store zahtijeva dostupnost u appu i/ili na webu.
 class PrivacyPolicyScreen extends StatelessWidget {
@@ -147,27 +148,19 @@ class ProfilePrivacyPolicyTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+    return ProfileCreamListTile(
+      leading: CircleAvatar(
+        backgroundColor: Colors.blue.shade50,
+        child: Icon(Icons.privacy_tip_outlined, color: Colors.blue.shade800),
       ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.blue.shade50,
-          child: Icon(Icons.privacy_tip_outlined, color: Colors.blue.shade800),
-        ),
-        title: Text(
-          'privacy_policy_profile_title'.tr(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('privacy_policy_profile_subtitle'.tr()),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
-        ),
+      title: Text(
+        'privacy_policy_profile_title'.tr(),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text('privacy_policy_profile_subtitle'.tr()),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
       ),
     );
   }

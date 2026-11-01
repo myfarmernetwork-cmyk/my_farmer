@@ -350,13 +350,45 @@ class ProductUploadService {
   }
 
   static String normalizeCompanyCategory(dynamic raw) {
+    final resolved = tryResolveCompanyCategory(raw);
+    return resolved ?? companyCategories.first.id;
+  }
+
+  /// Returns a company category id when [raw] matches id, label, or keywords.
+  static String? tryResolveCompanyCategory(dynamic raw) {
     final value = raw?.toString().trim().toLowerCase() ?? '';
+    if (value.isEmpty) return null;
+
     for (final cat in companyCategories) {
       if (cat.id == value) return cat.id;
       if (cat.hr.toLowerCase() == value) return cat.id;
       if (cat.de.toLowerCase() == value) return cat.id;
+      for (final keyword in cat.searchKeywords) {
+        if (value == keyword || value.contains(keyword)) return cat.id;
+      }
+      for (final sub in cat.subTags) {
+        if (sub.id == value) return cat.id;
+        if (sub.hr.toLowerCase() == value) return cat.id;
+        if (sub.de.toLowerCase() == value) return cat.id;
+        for (final keyword in sub.searchKeywords) {
+          if (value == keyword || value.contains(keyword)) return cat.id;
+        }
+      }
     }
-    return companyCategories.first.id;
+    return null;
+  }
+
+  static ProductCategoryMatch inferCompanyCategoryFromText(String text) {
+    return _matchCompanyCategory(text.toLowerCase());
+  }
+
+  static String resolveCompanyCategoryForImport({
+    String? rawCategory,
+    required String productName,
+  }) {
+    final fromColumn = tryResolveCompanyCategory(rawCategory);
+    if (fromColumn != null) return fromColumn;
+    return inferCompanyCategoryFromText(productName).categoryId;
   }
 
   static List<String> categoryCodesForRole(String? role) {

@@ -4,7 +4,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../widgets/product_image_framer.dart';
+import 'community_gallery_image.dart';
+import '../../../theme/agro_accent_colors.dart';
+import '../../../widgets/agro_glass_chrome.dart';
 
 class CommunityPostDraft {
   const CommunityPostDraft({
@@ -18,21 +20,33 @@ class CommunityPostDraft {
 
 Future<CommunityPostDraft?> showCommunityPostComposer({
   required BuildContext context,
-  required File initialImage,
+  File? initialImage,
+  String initialDescription = '',
+  bool isEditing = false,
 }) {
   return showModalBottomSheet<CommunityPostDraft>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     isDismissible: false,
-    builder: (ctx) => _CommunityPostComposerSheet(initialImage: initialImage),
+    builder: (ctx) => _CommunityPostComposerSheet(
+      initialImage: initialImage,
+      initialDescription: initialDescription,
+      isEditing: isEditing,
+    ),
   );
 }
 
 class _CommunityPostComposerSheet extends StatefulWidget {
-  const _CommunityPostComposerSheet({required this.initialImage});
+  const _CommunityPostComposerSheet({
+    this.initialImage,
+    this.initialDescription = '',
+    this.isEditing = false,
+  });
 
-  final File initialImage;
+  final File? initialImage;
+  final String initialDescription;
+  final bool isEditing;
 
   @override
   State<_CommunityPostComposerSheet> createState() =>
@@ -40,16 +54,19 @@ class _CommunityPostComposerSheet extends StatefulWidget {
 }
 
 class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet> {
-  final GlobalKey _imageFrameKey = GlobalKey();
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+  static const _priceYellow = Color(0xFFFFEB3B);
+
   final TextEditingController _descriptionController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
-  late File _imageFile;
+  File? _imageFile;
   bool _publishing = false;
 
   @override
   void initState() {
     super.initState();
     _imageFile = widget.initialImage;
+    _descriptionController.text = widget.initialDescription;
   }
 
   @override
@@ -96,18 +113,16 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
   }
 
   Future<void> _publish() async {
-    if (_publishing) return;
+    if (_publishing || _imageFile == null) return;
     setState(() => _publishing = true);
 
     try {
-      final framed = await ProductImageFramer.exportFrame(_imageFrameKey);
-      final file = framed ?? _imageFile;
       if (!mounted) return;
 
       Navigator.pop(
         context,
         CommunityPostDraft(
-          imageFile: file,
+          imageFile: _imageFile!,
           description: _descriptionController.text.trim(),
         ),
       );
@@ -148,7 +163,7 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
                 padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.landscape, color: Colors.green[800], size: 28),
+                    Icon(Icons.landscape, color: _chipGreen, size: 28),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -156,6 +171,7 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: _chipGreen,
                         ),
                       ),
                     ),
@@ -175,31 +191,24 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ProductImageFramer(
-                        frameKey: _imageFrameKey,
+                      CommunityComposeImagePreview(
                         imageFile: _imageFile,
-                        height: 220,
-                        borderRadius: 16,
                         onChangePhoto: _showPhotoSourcePicker,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'community_add_description'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey[800],
+                          color: _chipGreen,
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _descriptionController,
-                        decoration: InputDecoration(
+                        style: marketplaceFormFieldTextStyle,
+                        decoration: marketplaceFormInputDecoration(
                           hintText: 'community_description_hint'.tr(),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey[50],
                         ),
                         maxLines: 4,
                         minLines: 3,
@@ -221,20 +230,30 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
                           onPressed: _publishing
                               ? null
                               : () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _chipGreen,
+                            side: BorderSide(
+                              color: _chipGreen.withValues(alpha: 0.5),
+                            ),
+                          ),
                           child: Text('cart_cancel'.tr()),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
-                        child: ElevatedButton.icon(
-                          onPressed: _publishing ? null : _publish,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green[800],
-                            foregroundColor: Colors.white,
+                        child: FilledButton.icon(
+                          onPressed: _publishing || _imageFile == null
+                              ? null
+                              : _publish,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _chipGreen,
+                            foregroundColor: _priceYellow,
                             minimumSize: const Size.fromHeight(48),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(
+                                AgroAccentColors.marketplacePillRadius,
+                              ),
                             ),
                           ),
                           icon: _publishing
@@ -243,11 +262,16 @@ class _CommunityPostComposerSheetState extends State<_CommunityPostComposerSheet
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    color: _priceYellow,
                                   ),
                                 )
                               : const Icon(Icons.publish_rounded),
-                          label: Text('community_publish'.tr()),
+                          label: Text(
+                            widget.isEditing
+                                ? 'community_save'.tr()
+                                : 'community_publish'.tr(),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ],

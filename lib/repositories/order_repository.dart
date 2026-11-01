@@ -9,7 +9,9 @@ import '../models/order.dart';
 import '../models/payment_result.dart';
 import '../models/product.dart';
 import '../utils/order_status.dart';
+import '../providers/auth_provider.dart';
 import 'product_repository.dart';
+import 'chat_repository.dart';
 
 class OrderRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -45,6 +47,7 @@ class OrderRepository {
         'transactionId': transactionId,
       'deliveryType': deliveryType,
       'status': OrderStatus.newOrder,
+      'stockReserved': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -83,10 +86,6 @@ class OrderRepository {
       paymentStatus: paymentStatus,
       transactionId: transactionId,
     );
-
-    await _productRepository.decreaseStockForOrderItems([
-      (productId: product.id, quantity: normalizedQty),
-    ]);
   }
 
   Future<int> createOrdersFromCart({
@@ -106,8 +105,6 @@ class OrderRepository {
     for (final item in items) {
       grouped.putIfAbsent(item.sellerId, () => []).add(item);
     }
-
-    final stockUpdates = <({String productId, double quantity})>[];
 
     for (final entry in grouped.entries) {
       final sellerItems = entry.value;
@@ -138,23 +135,25 @@ class OrderRepository {
         deliveryType:
             deliveryBySeller?[entry.key]?.firestoreValue ?? 'pickup',
       );
-
-      for (final item in sellerItems) {
-        stockUpdates.add((productId: item.id, quantity: item.quantity));
-      }
     }
-
-    await _productRepository.decreaseStockForOrderItems(stockUpdates);
 
     return grouped.length;
   }
 
   Stream<List<Order>> watchBuyerOrders(String buyerId) {
-    return _firestore
+    final buyerStream = _firestore
         .collection('orders')
         .where('buyerId', isEqualTo: buyerId)
         .snapshots()
         .map(_sortOrdersNewestFirst);
+
+    final legacyStream = _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: buyerId)
+        .snapshots()
+        .map(_sortOrdersNewestFirst);
+
+    return _mergeOrderStreams([buyerStream, legacyStream]);
   }
 
   Stream<List<Order>> watchSellerOrders(String sellerId) {
@@ -250,39 +249,168 @@ class OrderRepository {
     await _firestore.collection('orders').doc(orderId).update(payload);
   }
 
-  /// True when the signed-in buyer has at least one completed order from [sellerId].
-  Future<bool> hasCompletedOrderFromSeller(String sellerId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null || sellerId.isEmpty) return false;
+  List<({String productId, double quantity})> _stockEntries(Order order) {
+    return order.items
+        .where((item) => item.productId.isNotEmpty)
+        .map((item) => (productId: item.productId, quantity: item.quantity))
+        .toList();
+  }
 
-    final snapshot = await _firestore
-        .collection('orders')
-        .where('buyerId', isEqualTo: user.uid)
-        .get();
+  bool _shouldReserveStockOnAccept(Order order) => order.stockReserved == false;
 
-    for (final doc in snapshot.docs) {
-      final data = doc.data();
-      final orderSellerId =
-          data['sellerId']?.toString() ?? data['farmerId']?.toString() ?? '';
-      if (orderSellerId != sellerId) continue;
-      if (OrderStatus.isHistory(OrderStatus.normalize(data['status']))) {
-        return true;
+  bool _shouldRestoreStockOnReject(Order order) {
+    if (order.stockReserved == true) return true;
+    if (order.stockReserved == null) return true;
+    return false;
+  }
+
+  Future<void> acceptOrder(Order order) async {
+    final payload = <String, dynamic>{
+      'status': OrderStatus.preparing,
+      'sellerAcceptedAt': FieldValue.serverTimestamp(),
+      'paymentStatus': PaymentStatus.pending,
+    };
+
+    if (_shouldReserveStockOnAccept(order)) {
+      await _productRepository.decreaseStockForOrderItems(_stockEntries(order));
+      payload['stockReserved'] = true;
+    }
+
+    await _firestore.collection('orders').doc(order.id).update(payload);
+  }
+
+  Future<void> rejectOrder({
+    required Order order,
+    String? message,
+  }) async {
+    if (_shouldRestoreStockOnReject(order)) {
+      await _productRepository.restoreStockForOrderItems(_stockEntries(order));
+    }
+
+    final trimmed = message?.trim() ?? '';
+    final payload = <String, dynamic>{
+      'status': OrderStatus.rejected,
+      'rejectedAt': FieldValue.serverTimestamp(),
+      'paymentStatus': PaymentStatus.pending,
+      if (order.stockReserved == true) 'stockReserved': false,
+    };
+    if (trimmed.isNotEmpty) {
+      payload['sellerMessage'] = trimmed;
+    }
+
+    await _firestore.collection('orders').doc(order.id).update(payload);
+
+    if (trimmed.isNotEmpty) {
+      await _notifyBuyerInChat(order: order, message: trimmed);
+    }
+  }
+
+  Future<void> _notifyBuyerInChat({
+    required Order order,
+    required String message,
+  }) async {
+    final sellerId = FirebaseAuth.instance.currentUser?.uid;
+    if (sellerId == null || order.buyerId.isEmpty) return;
+
+    final chatRepo = ChatRepository();
+    final roomId = ChatRepository.roomIdFor(sellerId, order.buyerId);
+    final preview = message.length > 80 ? '${message.substring(0, 80)}…' : message;
+
+    await _firestore
+        .collection('chat_rooms')
+        .doc(roomId)
+        .collection('messages')
+        .add({
+      'senderId': sellerId,
+      'receiverId': order.buyerId,
+      'message': message,
+      'sourceLanguage': 'hr',
+      'messageType': 'text',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    await chatRepo.touchRoom(
+      roomId: roomId,
+      senderId: sellerId,
+      receiverId: order.buyerId,
+      preview: preview,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchBuyerOrderDocs(String buyerId) async {
+    final snapshots = await Future.wait([
+      _firestore.collection('orders').where('buyerId', isEqualTo: buyerId).get(),
+      _firestore.collection('orders').where('userId', isEqualTo: buyerId).get(),
+    ]);
+
+    final seen = <String>{};
+    final docs = <Map<String, dynamic>>[];
+    for (final snapshot in snapshots) {
+      for (final doc in snapshot.docs) {
+        if (seen.add(doc.id)) {
+          docs.add(doc.data());
+        }
       }
     }
+    return docs;
+  }
+
+  static String _orderSellerIdFrom(Map<String, dynamic> data) =>
+      (data['sellerId']?.toString() ?? data['farmerId']?.toString() ?? '')
+          .trim();
+
+  static bool _orderAllowsBuyerReview(Map<String, dynamic> data) {
+    final status = OrderStatus.normalize(data['status']);
+    return OrderStatus.allowsBuyerReview(status);
+  }
+
+  /// True when the signed-in buyer has at least one accepted/completed order
+  /// from [sellerId] (works for all buyer roles, including company/pharmacy).
+  Future<bool> hasCompletedOrderFromSeller(String sellerId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final normalizedSellerId = sellerId.trim();
+    if (user == null || normalizedSellerId.isEmpty) return false;
+
+    final orders = await _fetchBuyerOrderDocs(user.uid);
+    for (final data in orders) {
+      if (_orderSellerIdFrom(data) != normalizedSellerId) continue;
+      if (_orderAllowsBuyerReview(data)) return true;
+    }
     return false;
+  }
+
+  /// Translation key explaining why a review is still blocked.
+  Future<String> reviewBlockMessageKey(String sellerId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final normalizedSellerId = sellerId.trim();
+    if (user == null || normalizedSellerId.isEmpty) {
+      return 'product_review_purchase_required';
+    }
+
+    final orders = await _fetchBuyerOrderDocs(user.uid);
+    var hasAnyOrder = false;
+    for (final data in orders) {
+      if (_orderSellerIdFrom(data) != normalizedSellerId) continue;
+      hasAnyOrder = true;
+      break;
+    }
+
+    return hasAnyOrder
+        ? 'product_review_order_pending'
+        : 'product_review_purchase_required';
   }
 }
 
 final orderRepositoryProvider = Provider((ref) => OrderRepository());
 
 final buyerOrdersProvider = StreamProvider.autoDispose<List<Order>>((ref) {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(currentAuthUidProvider);
   if (uid == null) return Stream.value([]);
   return ref.watch(orderRepositoryProvider).watchBuyerOrders(uid);
 });
 
 final sellerOrdersProvider = StreamProvider.autoDispose<List<Order>>((ref) {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(currentAuthUidProvider);
   if (uid == null) return Stream.value([]);
   return ref.watch(orderRepositoryProvider).watchSellerOrders(uid);
 });

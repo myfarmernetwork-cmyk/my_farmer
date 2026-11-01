@@ -8,12 +8,144 @@ import '../models/app_user.dart';
 import '../models/premium_access.dart';
 import '../models/scan_market_limits.dart';
 import '../models/scan_quota.dart';
+import '../models/subscription_tier.dart';
 import '../providers/locale_settings_provider.dart';
 import 'payment_service.dart';
 import 'scan_topup_service.dart';
 
 class ScanLimitService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _fetchUserQuotaDoc(
+    String userId,
+  ) async {
+    final ref = _firestore.collection('users').doc(userId);
+    try {
+      return await ref.get(const GetOptions(source: Source.server));
+    } catch (_) {
+      return ref.get();
+    }
+  }
+
+  _UserQuotaSnapshot _quotaSnapshot(Map<String, dynamic> data) {
+    return _UserQuotaSnapshot(
+      scansThisMonth: _asInt(data['scansThisMonth']),
+      introScansUsed: _asInt(data['introScansUsed']),
+      bonusRemaining: _asInt(data[ScanTopUpService.bonusScansField]),
+      hasFreeScans: data['hasFreeScans'] != false,
+      isTrialUsed: data['isTrialUsed'] == true,
+      lastScanReset: _asDateTime(data['lastScanReset']),
+    );
+  }
+
+  bool _usingIntro({
+    required _UserQuotaSnapshot quota,
+    required PremiumAccess access,
+    required Map<String, dynamic> serverData,
+  }) {
+    if (_hasPaidOrPromoFromServer(access, serverData)) return false;
+    return quota.hasFreeScans &&
+        !quota.isTrialUsed &&
+        quota.introScansUsed < SubscriptionLimits.introAiScansTotal;
+  }
+
+  SubscriptionTier? _resolvedBusinessTier(Map<String, dynamic> data) {
+    return _tierOnServer(data) ??
+        SubscriptionTierX.fromFirestore(
+          data['requestedPremiumTier']?.toString(),
+        );
+  }
+
+  bool _needsAdminVerification(UserRole role) =>
+      role == UserRole.veterinarian || role == UserRole.pharmacy;
+
+  bool _isPremiumApprovedOnServer(Map<String, dynamic> data) {
+    final status = data['premiumApprovalStatus']?.toString().trim().toUpperCase();
+    return status == 'APPROVED';
+  }
+
+  SubscriptionTier? _tierOnServer(Map<String, dynamic> data) {
+    return SubscriptionTierX.fromFirestore(data['subscriptionTier']?.toString());
+  }
+
+  bool _hasPaidOrPromoFromServer(
+    PremiumAccess access,
+    Map<String, dynamic> data,
+  ) {
+    if (access.grantsFullPremium) return true;
+    if (_isPremiumApprovedOnServer(data)) {
+      return true;
+    }
+    return access.hasPaidOrPromoAccess;
+  }
+
+  bool _canUseAiScannerFromServer({
+    required PremiumAccess access,
+    required Map<String, dynamic> serverData,
+    required _UserQuotaSnapshot quota,
+  }) {
+    if (access.grantsFullPremium) return true;
+    if (access.canUse(PremiumFeature.aiScanner)) return true;
+
+    final role = access.role;
+    final approved = _isPremiumApprovedOnServer(serverData);
+    final tier = _resolvedBusinessTier(serverData);
+
+    if (role == UserRole.pharmacy &&
+        approved &&
+        SubscriptionLimits.hasBusinessLicense(tier)) {
+      return true;
+    }
+    if (role == UserRole.pharmacy &&
+        (access.isPremium || access.user?.premiumActive == true)) {
+      return true;
+    }
+    if (role == UserRole.veterinarian &&
+        approved) {
+      return true;
+    }
+
+    if (quota.hasFreeScans &&
+        !quota.isTrialUsed &&
+        quota.introScansUsed < SubscriptionLimits.introAiScansTotal &&
+        !_hasPaidOrPromoFromServer(access, serverData)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String? _blockReasonFromServer({
+    required PremiumAccess access,
+    required Map<String, dynamic> serverData,
+    required _UserQuotaSnapshot quota,
+  }) {
+    final pending =
+        access.user?.isPremiumPending == true ||
+        serverData['premiumApprovalStatus']?.toString().toUpperCase() ==
+            'PENDING';
+    if (pending &&
+        (access.role == UserRole.pharmacy ||
+            access.role == UserRole.veterinarian)) {
+      return 'premium_pending_admin_approval';
+    }
+    if (!quota.hasFreeScans) {
+      return 'scanner_device_trial_used';
+    }
+    if (quota.introScansUsed >= SubscriptionLimits.introAiScansTotal) {
+      if ((access.role == UserRole.pharmacy ||
+              access.role == UserRole.veterinarian) &&
+          !_isPremiumApprovedOnServer(serverData)) {
+        return 'scanner_intro_exhausted';
+      }
+    }
+    if ((access.role == UserRole.pharmacy ||
+            access.role == UserRole.veterinarian) &&
+        !_isPremiumApprovedOnServer(serverData)) {
+      return 'scanner_subscription_required';
+    }
+    return 'scanner_subscription_required';
+  }
 
   Future<ScanQuotaStatus> getQuotaStatus({
     required String userId,
@@ -27,28 +159,34 @@ class ScanLimitService {
       );
     }
 
-    if (!access.canUse(PremiumFeature.aiScanner)) {
-      final user = access.user;
-      String reason = 'scanner_subscription_required';
-      if (user != null && !user.hasFreeScans) {
-        reason = 'scanner_device_trial_used';
-      } else if (user != null && user.isPremiumPending) {
-        reason = 'premium_pending_admin_approval';
-      }
+    final doc = await _fetchUserQuotaDoc(userId);
+    final data = doc.data() ?? {};
+    final quota = _quotaSnapshot(data);
+
+    if (!_canUseAiScannerFromServer(
+      access: access,
+      serverData: data,
+      quota: quota,
+    )) {
       return ScanQuotaStatus.blocked(
         tier: ScanLimitTier.subscription,
         used: 0,
         limit: 0,
-        blockReasonKey: reason,
+        blockReasonKey: _blockReasonFromServer(
+          access: access,
+          serverData: data,
+          quota: quota,
+        ) ?? 'scanner_subscription_required',
       );
     }
 
-    final doc = await _firestore.collection('users').doc(userId).get();
-    final data = doc.data() ?? {};
-    final counters = _normalizeCounters(data);
-    final bonusRemaining = _asInt(data[ScanTopUpService.bonusScansField]);
+    final counters = _normalizeCountersFromSnapshot(quota);
     final now = DateTime.now();
-    final limit = await _resolveMonthlyLimit(access);
+    final limit = await _resolveMonthlyLimit(
+      access,
+      quota: quota,
+      serverData: data,
+    );
 
     if (limit <= 0) {
       return ScanQuotaStatus.blocked(
@@ -59,37 +197,29 @@ class ScanLimitService {
       );
     }
 
-    final usingIntro = access.user?.hasFreeScans == true &&
-        access.user?.isTrialUsed != true &&
-        (access.user?.introScansUsed ?? 0) <
-            SubscriptionLimits.introAiScansTotal &&
-        !access.hasPaidOrPromoAccess &&
-        !(access.user?.needsAdminVerification ?? false);
-
-    if (usingIntro) {
-      final used = access.user?.introScansUsed ?? 0;
-      if (used >= SubscriptionLimits.introAiScansTotal) {
+    if (_usingIntro(quota: quota, access: access, serverData: data)) {
+      if (quota.introScansUsed >= SubscriptionLimits.introAiScansTotal) {
         return ScanQuotaStatus.blocked(
           tier: ScanLimitTier.intro,
-          used: used,
+          used: quota.introScansUsed,
           limit: SubscriptionLimits.introAiScansTotal,
           blockReasonKey: 'scanner_intro_exhausted',
         );
       }
       return ScanQuotaStatus.allowed(
         tier: ScanLimitTier.intro,
-        used: used,
+        used: quota.introScansUsed,
         limit: SubscriptionLimits.introAiScansTotal,
       );
     }
 
     final monthly = _applyMonthlyReset(counters, now);
-    if (monthly.scansThisMonth >= limit && bonusRemaining <= 0) {
+    if (monthly.scansThisMonth >= limit && quota.bonusRemaining <= 0) {
       return ScanQuotaStatus.blocked(
         tier: ScanLimitTier.monthly,
         used: monthly.scansThisMonth,
         limit: limit,
-        blockReasonKey: _monthlyBlockReasonKey(access),
+        blockReasonKey: _monthlyBlockReasonKey(access, serverData: data),
         resetsAt: DateTime(now.year, now.month + 1, 1),
       );
     }
@@ -99,7 +229,7 @@ class ScanLimitService {
       used: monthly.scansThisMonth,
       limit: limit,
       resetsAt: DateTime(now.year, now.month + 1, 1),
-      bonusRemaining: bonusRemaining,
+      bonusRemaining: quota.bonusRemaining,
     );
   }
 
@@ -114,39 +244,55 @@ class ScanLimitService {
     return PaymentService.topUpPackSizeFromMonthlyLimit(monthly);
   }
 
-  Future<int> _resolveMonthlyLimit(PremiumAccess access) async {
-    if (access.user == null) return 0;
+  Future<int> _resolveMonthlyLimit(
+    PremiumAccess access, {
+    _UserQuotaSnapshot? quota,
+    Map<String, dynamic>? serverData,
+  }) async {
+    if (access.user == null && serverData == null) return 0;
 
-    if (access.user!.hasFreeScans == true &&
-        access.user!.isTrialUsed != true &&
-        (access.user!.introScansUsed) <
-            SubscriptionLimits.introAiScansTotal &&
-        !access.hasPaidOrPromoAccess &&
-        !(access.user!.needsAdminVerification)) {
-      return SubscriptionLimits.introAiScansTotal -
-          access.user!.introScansUsed;
+    final data = serverData ?? const <String, dynamic>{};
+    final snapshot = quota ??
+        _UserQuotaSnapshot(
+          scansThisMonth: access.user?.introScansUsed ?? 0,
+          introScansUsed: access.user?.introScansUsed ?? 0,
+          bonusRemaining: 0,
+          hasFreeScans: access.user?.hasFreeScans ?? true,
+          isTrialUsed: access.user?.isTrialUsed ?? false,
+          lastScanReset: null,
+        );
+
+    if (snapshot.hasFreeScans &&
+        !snapshot.isTrialUsed &&
+        snapshot.introScansUsed < SubscriptionLimits.introAiScansTotal &&
+        !_hasPaidOrPromoFromServer(access, data)) {
+      return SubscriptionLimits.introAiScansTotal - snapshot.introScansUsed;
     }
 
+    final serverApproved = _isPremiumApprovedOnServer(data);
+    final serverTier = _resolvedBusinessTier(data);
+    final user = access.user;
+
     if (access.role == UserRole.veterinarian) {
-      if (access.user!.needsAdminVerification &&
-          !access.user!.isPremiumApproved) {
+      if (_needsAdminVerification(access.role) && !serverApproved) {
         if (access.isInPromoPeriod) {
           return ScanMarketLimits.businessPromoMonthlyLimit;
         }
         return 0;
       }
-      if (access.hasPaidOrPromoAccess || access.isInPromoPeriod) {
-        final user = access.user!;
+      if (serverApproved ||
+          _hasPaidOrPromoFromServer(access, data) ||
+          access.isInPromoPeriod) {
         final billingCountry = PaymentService.resolveBillingCountryForPricing(
-          paymentCountryCode: user.paymentCountryCode ??
+          paymentCountryCode: user?.paymentCountryCode ??
               PaymentService.cachedPaymentCountryCode,
         );
         return PaymentService.resolveVetMonthlyScanCap(
           currencyRegion: resolveCurrencyRegionForUser(
-            locale: Locale(user.languageCode),
-            storedRegion: user.currencyRegion,
+            locale: Locale(user?.languageCode ?? access.languageCode),
+            storedRegion: user?.currencyRegion,
             deviceCountryCode: billingCountry,
-            paymentCountryCode: user.paymentCountryCode ??
+            paymentCountryCode: user?.paymentCountryCode ??
                 PaymentService.cachedPaymentCountryCode,
             role: access.role,
           ),
@@ -158,19 +304,39 @@ class ScanLimitService {
     }
 
     if (access.role == UserRole.pharmacy) {
-      final tier = access.effectiveSubscriptionTier;
+      final tier = serverApproved && serverTier != null
+          ? serverTier
+          : access.effectiveSubscriptionTier;
       if (SubscriptionLimits.hasBusinessLicense(tier)) {
-        final user = access.user!;
         final billingCountry = PaymentService.resolveBillingCountryForPricing(
-          paymentCountryCode: user.paymentCountryCode ??
+          paymentCountryCode: user?.paymentCountryCode ??
               PaymentService.cachedPaymentCountryCode,
         );
         final region = resolveCurrencyRegionForLocale(
-          Locale(user.languageCode),
-          storedRegion: user.currencyRegion,
+          Locale(user?.languageCode ?? access.languageCode),
+          storedRegion: user?.currencyRegion,
           deviceCountryCode: billingCountry,
           paymentCountryCode: resolvePaymentCountryCode(
-            fromProfile: user.paymentCountryCode,
+            fromProfile: user?.paymentCountryCode,
+          ),
+        );
+        return PaymentService.companyMonthlyScanCapForDisplay(
+          languageCode: access.languageCode,
+          currencyRegion: region,
+          countryCode: billingCountry,
+        );
+      }
+      if (access.isPremium || user?.premiumActive == true) {
+        final billingCountry = PaymentService.resolveBillingCountryForPricing(
+          paymentCountryCode: user?.paymentCountryCode ??
+              PaymentService.cachedPaymentCountryCode,
+        );
+        final region = resolveCurrencyRegionForLocale(
+          Locale(user?.languageCode ?? access.languageCode),
+          storedRegion: user?.currencyRegion,
+          deviceCountryCode: billingCountry,
+          paymentCountryCode: resolvePaymentCountryCode(
+            fromProfile: user?.paymentCountryCode,
           ),
         );
         return PaymentService.companyMonthlyScanCapForDisplay(
@@ -187,10 +353,16 @@ class ScanLimitService {
     return access.monthlyScanLimit();
   }
 
-  String _monthlyBlockReasonKey(PremiumAccess access) {
+  String _monthlyBlockReasonKey(
+    PremiumAccess access, {
+    Map<String, dynamic>? serverData,
+  }) {
+    final tier = serverData != null &&
+            _isPremiumApprovedOnServer(serverData)
+        ? _resolvedBusinessTier(serverData)
+        : access.effectiveSubscriptionTier;
     if (access.role == UserRole.pharmacy &&
-        access.hasPharmacyLicense &&
-        SubscriptionLimits.hasBusinessLicense(access.effectiveSubscriptionTier)) {
+        SubscriptionLimits.hasBusinessLicense(tier)) {
       return 'scanner_limit_monthly_package';
     }
     return 'scanner_limit_monthly';
@@ -210,34 +382,32 @@ class ScanLimitService {
     final userRef = _firestore.collection('users').doc(userId);
     final now = DateTime.now();
 
-    final usingIntro = access.user?.hasFreeScans == true &&
-        access.user?.isTrialUsed != true &&
-        (access.user?.introScansUsed ?? 0) <
-            SubscriptionLimits.introAiScansTotal &&
-        !access.hasPaidOrPromoAccess &&
-        !(access.user?.needsAdminVerification ?? false);
-
-    final monthlyLimit = usingIntro
-        ? 0
-        : await _resolveMonthlyLimit(access);
-
     await _firestore.runTransaction((transaction) async {
       final snapshot = await transaction.get(userRef);
       final data = snapshot.data() ?? {};
-      var counters = _normalizeCounters(data);
+      final quota = _quotaSnapshot(data);
+      final usingIntro = _usingIntro(
+        quota: quota,
+        access: access,
+        serverData: data,
+      );
+      var counters = _normalizeCountersFromSnapshot(quota);
 
       if (usingIntro) {
-        final current = _asInt(data['introScansUsed']);
         transaction.set(
           userRef,
-          {'introScansUsed': current + 1},
+          {'introScansUsed': quota.introScansUsed + 1},
           SetOptions(merge: true),
         );
         return;
       }
 
+      final monthlyLimit = await _resolveMonthlyLimit(
+        access,
+        quota: quota,
+        serverData: data,
+      );
       counters = _applyMonthlyReset(counters, now);
-      final bonus = _asInt(data[ScanTopUpService.bonusScansField]);
 
       if (counters.scansThisMonth < monthlyLimit) {
         transaction.set(
@@ -248,11 +418,11 @@ class ScanLimitService {
           },
           SetOptions(merge: true),
         );
-      } else if (bonus > 0) {
+      } else if (quota.bonusRemaining > 0) {
         transaction.set(
           userRef,
           {
-            ScanTopUpService.bonusScansField: bonus - 1,
+            ScanTopUpService.bonusScansField: quota.bonusRemaining - 1,
             'lastScanReset': Timestamp.fromDate(now),
           },
           SetOptions(merge: true),
@@ -261,10 +431,10 @@ class ScanLimitService {
     });
   }
 
-  _ScanCounters _normalizeCounters(Map<String, dynamic> data) {
+  _ScanCounters _normalizeCountersFromSnapshot(_UserQuotaSnapshot quota) {
     return _ScanCounters(
-      scansThisMonth: _asInt(data['scansThisMonth']),
-      lastScanReset: _asDateTime(data['lastScanReset']),
+      scansThisMonth: quota.scansThisMonth,
+      lastScanReset: quota.lastScanReset,
     );
   }
 
@@ -304,6 +474,24 @@ class _ScanCounters {
     required this.scansThisMonth,
     this.lastScanReset,
   });
+}
+
+class _UserQuotaSnapshot {
+  const _UserQuotaSnapshot({
+    required this.scansThisMonth,
+    required this.introScansUsed,
+    required this.bonusRemaining,
+    required this.hasFreeScans,
+    required this.isTrialUsed,
+    required this.lastScanReset,
+  });
+
+  final int scansThisMonth;
+  final int introScansUsed;
+  final int bonusRemaining;
+  final bool hasFreeScans;
+  final bool isTrialUsed;
+  final DateTime? lastScanReset;
 }
 
 final scanLimitServiceProvider = Provider<ScanLimitService>(

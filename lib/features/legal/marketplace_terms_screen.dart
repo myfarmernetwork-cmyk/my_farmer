@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../widgets/agro_glass_chrome.dart';
+
 /// Uvjeti korištenja tržnice — My Farmer nije platni posrednik.
 class MarketplaceTermsScreen extends StatelessWidget {
   const MarketplaceTermsScreen({super.key});
@@ -113,28 +115,20 @@ class ProfileLegalTermsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade300),
+    return ProfileCreamListTile(
+      leading: CircleAvatar(
+        backgroundColor: Colors.grey.shade100,
+        child: Icon(Icons.description_outlined, color: Colors.grey.shade800),
       ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.grey.shade100,
-          child: Icon(Icons.description_outlined, color: Colors.grey.shade800),
-        ),
-        title: Text(
-          'legal_terms_profile_title'.tr(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('legal_terms_profile_subtitle'.tr()),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const MarketplaceTermsScreen(),
-          ),
+      title: Text(
+        'legal_terms_profile_title'.tr(),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      subtitle: Text('legal_terms_profile_subtitle'.tr()),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MarketplaceTermsScreen(),
         ),
       ),
     );

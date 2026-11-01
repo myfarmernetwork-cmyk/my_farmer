@@ -8,6 +8,8 @@ import '../screens/company_catalog_pdf_screen.dart';
 import '../services/company_catalog_csv_parser.dart';
 import '../services/company_catalog_prefs.dart';
 import '../services/company_catalog_template_service.dart';
+import '../theme/agro_accent_colors.dart';
+import 'agro_glass_chrome.dart';
 import 'farmer_screen_guide.dart';
 
 /// Koraci koje firma treba proći nakon instalacije (bez ERP integracije).
@@ -496,25 +498,17 @@ class CompanyCatalogPdfProfileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.red.shade200),
+    return ProfileCreamListTile(
+      leading: CircleAvatar(
+        backgroundColor: Colors.red.shade50,
+        child: Icon(Icons.picture_as_pdf_outlined, color: Colors.red.shade700),
       ),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.red.shade50,
-          child: Icon(Icons.picture_as_pdf_outlined, color: Colors.red.shade700),
-        ),
-        title: Text(
-          'company_catalog_pdf_always_title'.tr(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('company_catalog_pdf_profile_subtitle'.tr()),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => CompanyCatalogPdfScreen.open(context),
+      title: Text(
+        'company_catalog_pdf_always_title'.tr(),
+        style: const TextStyle(fontWeight: FontWeight.bold),
       ),
+      subtitle: Text('company_catalog_pdf_profile_subtitle'.tr()),
+      onTap: () => CompanyCatalogPdfScreen.open(context),
     );
   }
 }
@@ -527,50 +521,80 @@ class CompanyCatalogQuickHelpBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final localeTag = context.locale.toLanguageTag();
+    const chipGreen = AgroAccentColors.marketplaceChipGreen;
+    const radius = AgroAccentColors.marketplaceCornerRadius;
 
     return Padding(
       key: ValueKey('company_catalog_pdf_banner_$localeTag'),
       padding: padding ?? const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Material(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(12),
+        color: chipGreen,
+        borderRadius: BorderRadius.circular(radius),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(radius),
           onTap: () => CompanyCatalogPdfScreen.open(context),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Icon(Icons.picture_as_pdf_outlined,
-                    color: Colors.deepPurple.shade700),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'company_catalog_pdf_always_title'.tr(context: context),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple.shade900,
-                        ),
-                      ),
-                      Text(
-                        'company_catalog_pdf_always_hint'.tr(context: context),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.deepPurple.shade800,
-                          height: 1.3,
-                        ),
-                      ),
-                    ],
+          splashColor: Colors.white.withValues(alpha: 0.12),
+          highlightColor: Colors.white.withValues(alpha: 0.06),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.20),
+                width: 0.8,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.picture_as_pdf_outlined,
+                    color: Colors.white.withValues(alpha: 0.96),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => CompanyCatalogPdfScreen.open(context),
-                  child: Text('company_catalog_pdf_open'.tr(context: context)),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'company_catalog_pdf_always_title'.tr(context: context),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'company_catalog_pdf_always_hint'.tr(context: context),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.82),
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => CompanyCatalogPdfScreen.open(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: chipGreen,
+                      backgroundColor: Colors.white.withValues(alpha: 0.96),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AgroAccentColors.marketplacePillRadius,
+                        ),
+                      ),
+                    ),
+                    child: Text('company_catalog_pdf_open'.tr(context: context)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -603,62 +627,61 @@ class _CompanyCatalogProfileTileState extends State<CompanyCatalogProfileTile> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: _showStartBadge ? Colors.teal.shade400 : Colors.teal.shade200,
+    return ProfileCreamListTile(
+      decoration: BoxDecoration(
+        color: _showStartBadge
+            ? Colors.teal.shade50.withValues(alpha: 0.96)
+            : AgroAccentColors.glassTop.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(AgroAccentColors.marketplaceCornerRadius),
+        border: Border.all(
+          color: _showStartBadge ? Colors.teal.shade400 : AgroAccentColors.borderLight,
           width: _showStartBadge ? 2 : 1,
         ),
+        boxShadow: AgroAccentColors.marketplaceCardShadow,
       ),
-      color: _showStartBadge ? Colors.teal.shade50 : null,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Colors.teal.shade50,
-          child: Icon(
-            Icons.inventory_2_outlined,
-            color: Colors.teal.shade700,
+      leading: CircleAvatar(
+        backgroundColor: Colors.teal.shade50,
+        child: Icon(
+          Icons.inventory_2_outlined,
+          color: Colors.teal.shade700,
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'company_catalog_title'.tr(),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
+          if (_showStartBadge)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade700,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Text(
-                'company_catalog_title'.tr(),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            if (_showStartBadge)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.teal.shade700,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'company_catalog_start_here'.tr(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                'company_catalog_start_here'.tr(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-          ],
-        ),
-        subtitle: Text('company_catalog_profile_subtitle'.tr()),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => const CompanyCatalogScreen(),
             ),
-          );
-          _loadBadge();
-        },
+        ],
       ),
+      subtitle: Text('company_catalog_profile_subtitle'.tr()),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const CompanyCatalogScreen(),
+          ),
+        );
+        _loadBadge();
+      },
     );
   }
 }

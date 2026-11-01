@@ -11,6 +11,7 @@ class CommunityPost {
   final bool isReported;
   final List<String> reportedBy;
   final List<String> applaudedBy;
+  final double? imageAspectRatio;
 
   const CommunityPost({
     required this.id,
@@ -21,13 +22,27 @@ class CommunityPost {
     this.isReported = false,
     this.reportedBy = const [],
     this.applaudedBy = const [],
+    this.imageAspectRatio,
   });
 
-  int get applauseCount => applaudedBy.length;
+  int get applauseCount =>
+      applaudedBy.where((id) => id.trim().isNotEmpty).toSet().length;
 
   bool hasApplauded(String? userId) {
     if (userId == null || userId.isEmpty) return false;
     return applaudedBy.contains(userId);
+  }
+
+  static List<String> _uniqueUserIds(List<String> ids) {
+    final seen = <String>{};
+    final unique = <String>[];
+    for (final id in ids) {
+      final trimmed = id.trim();
+      if (trimmed.isEmpty || seen.contains(trimmed)) continue;
+      seen.add(trimmed);
+      unique.add(trimmed);
+    }
+    return unique;
   }
 
   factory CommunityPost.fromFirestore(
@@ -45,8 +60,18 @@ class CommunityPost {
       timestamp: FirestoreParse.timestampOrNull(data['timestamp']),
       isReported: FirestoreParse.boolOr(data['isReported']),
       reportedBy: FirestoreParse.stringListOrEmpty(data['reportedBy']),
-      applaudedBy: FirestoreParse.stringListOrEmpty(data['applaudedBy']),
+      applaudedBy: _uniqueUserIds(
+        FirestoreParse.stringListOrEmpty(data['applaudedBy']),
+      ),
+      imageAspectRatio: _parseAspectRatio(data['imageAspectRatio']),
     );
+  }
+
+  static double? _parseAspectRatio(Object? raw) {
+    if (raw is num && raw > 0 && raw.isFinite) {
+      return raw.toDouble();
+    }
+    return null;
   }
 
   static CommunityPost? tryFromFirestore(

@@ -90,6 +90,20 @@ class PlantIdService {
       return _normalizeJsonMap(response.data);
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'failed-precondition') {
+        final message = e.message?.trim() ?? '';
+        if (message.toLowerCase().contains('plantnet') ||
+            message.toLowerCase().contains('server ip')) {
+          throw PlantScannerException(
+            'scanner_plantnet_auth_failed',
+            namedArgs: {'detail': message},
+          );
+        }
+        if (message.isNotEmpty) {
+          throw PlantScannerException(
+            'scanner_api_key_invalid_detail',
+            namedArgs: {'detail': message},
+          );
+        }
         throw PlantScannerException('scanner_api_key_invalid');
       }
       if (e.code == 'resource-exhausted') {

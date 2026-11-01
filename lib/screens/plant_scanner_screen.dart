@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,17 +11,23 @@ import 'package:image_picker/image_picker.dart';
 import '../providers/locale_settings_provider.dart';
 import '../config/plant_scanner_config.dart';
 import '../models/plant_scan_result.dart';
+import '../models/premium_access.dart';
 import '../models/product.dart';
 import '../models/scan_quota.dart';
 import '../models/app_user.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/plant_id_service.dart';
 import '../services/payment_service.dart';
 import '../services/scan_limit_service.dart';
+import '../config/revenuecat_config.dart';
 import '../services/scan_topup_service.dart';
 import '../services/sponsored_product_service.dart';
 import '../repositories/scan_history_repository.dart';
 import '../models/screen_guide_step.dart';
+import '../theme/agro_accent_colors.dart';
+import '../utils/scroll_bottom_padding.dart';
+import '../widgets/agro_glass_chrome.dart';
 import '../widgets/farmer_helper_button.dart';
 import '../widgets/farmer_help_widgets.dart';
 import '../widgets/product_card.dart';
@@ -36,6 +43,9 @@ class PlantScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+  static const _priceYellow = Color(0xFFFFEB3B);
+
   final _plantIdService = PlantIdService();
   final _picker = ImagePicker();
 
@@ -46,7 +56,10 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
   ScanQuotaStatus? _quota;
   bool _isLoadingQuota = true;
   bool _isPurchasingTopUp = false;
+  bool _isRefreshingQuota = false;
+  bool _quotaRefreshScheduled = false;
   int? _topUpPackSize;
+  String? _topUpStorePrice;
   Locale? _trackedLocale;
   String? _trackedBillingRegion;
   List<Product> _sponsoredProducts = [];
@@ -84,6 +97,22 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
   void initState() {
     super.initState();
     _purgeOldScans();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshQuota();
+      _loadTopUpStorePrice();
+    });
+  }
+
+  Future<void> _loadTopUpStorePrice() async {
+    try {
+      final price = await ref
+          .read(subscriptionServiceProvider)
+          .storePriceStringForProductId(RevenueCatConfig.scanTopUpPack);
+      if (!mounted || price == null || price.trim().isEmpty) return;
+      setState(() => _topUpStorePrice = price.trim());
+    } catch (_) {
+      // Fallback ostaje PaymentService.scanTopUpPackPriceEur (7,50 €).
+    }
   }
 
   Future<void> _purgeOldScans() async {
@@ -100,9 +129,57 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     _trackedLocale = locale;
     _trackedBillingRegion = region;
     _syncCurrencyRegionFromProfile();
-    if (localeChanged || regionChanged || _quota == null) {
-      _refreshQuota();
+    if (localeChanged || regionChanged) {
+      _scheduleQuotaRefresh();
+    } else if (_quota == null) {
+      _refreshQuota(showLoading: true);
     }
+  }
+
+  bool _scanQuotaUserChanged(AppUser? previous, AppUser? next) {
+    if (previous?.uid != next?.uid) return true;
+    if (previous == null || next == null) return previous != next;
+
+    bool fieldChanged(String? a, String? b) => (a ?? '') != (b ?? '');
+
+    return fieldChanged(previous.subscriptionTier, next.subscriptionTier) ||
+        fieldChanged(
+          previous.premiumApprovalStatus,
+          next.premiumApprovalStatus,
+        ) ||
+        fieldChanged(previous.requestedPremiumTier, next.requestedPremiumTier) ||
+        fieldChanged(previous.currencyRegion, next.currencyRegion) ||
+        fieldChanged(previous.paymentCountryCode, next.paymentCountryCode) ||
+        previous.premiumActive != next.premiumActive ||
+        previous.isPremiumApproved != next.isPremiumApproved ||
+        previous.isInPromotionalPeriod != next.isInPromotionalPeriod ||
+        previous.hasFreeScans != next.hasFreeScans ||
+        previous.isTrialUsed != next.isTrialUsed ||
+        previous.introScansUsed != next.introScansUsed ||
+        previous.role != next.role;
+  }
+
+  bool _scanQuotaAccessChanged(PremiumAccess? previous, PremiumAccess? next) {
+    if (previous == null || next == null) return previous != next;
+    return previous.isPremium != next.isPremium ||
+        previous.isAdminBypass != next.isAdminBypass ||
+        previous.closedTestFreePremium != next.closedTestFreePremium ||
+        previous.closedTestingFreeAiScanner !=
+            next.closedTestingFreeAiScanner ||
+        previous.effectiveRole != next.effectiveRole ||
+        previous.canUse(PremiumFeature.aiScanner) !=
+            next.canUse(PremiumFeature.aiScanner);
+  }
+
+  void _scheduleQuotaRefresh() {
+    if (_quotaRefreshScheduled) return;
+    _quotaRefreshScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _quotaRefreshScheduled = false;
+      if (mounted) {
+        unawaited(_refreshQuota());
+      }
+    });
   }
 
   String? _effectiveCurrencyRegion() {
@@ -138,7 +215,9 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     }
   }
 
-  Future<void> _refreshQuota() async {
+  Future<void> _refreshQuota({bool showLoading = false}) async {
+    if (_isRefreshingQuota) return;
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
@@ -150,7 +229,11 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
       return;
     }
 
-    setState(() => _isLoadingQuota = true);
+    _isRefreshingQuota = true;
+    final shouldShowLoading = showLoading || _quota == null;
+    if (shouldShowLoading && mounted) {
+      setState(() => _isLoadingQuota = true);
+    }
 
     try {
       final access = ref.read(premiumAccessProvider);
@@ -172,6 +255,8 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
       if (mounted) {
         setState(() => _isLoadingQuota = false);
       }
+    } finally {
+      _isRefreshingQuota = false;
     }
   }
 
@@ -270,6 +355,18 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _loadingSponsored = false);
+    }
+  }
+
+  String _limitTitle(ScanQuotaStatus quota) {
+    switch (quota.blockReasonKey) {
+      case 'premium_pending_admin_approval':
+        return 'scanner_pending_verification'.tr();
+      case 'scanner_subscription_required':
+      case 'scanner_intro_exhausted':
+        return 'scanner_limit_title'.tr();
+      default:
+        return 'scanner_limit_title'.tr();
     }
   }
 
@@ -405,10 +502,10 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     if (packSize <= 0) return const SizedBox.shrink();
 
     final price = PaymentService.scanTopUpPackPriceLine(
-      packSize: packSize,
       languageCode: uiLanguage,
       currencyRegion: region,
       countryCode: billingCountry,
+      storePriceOverride: _topUpStorePrice,
     );
     var label = 'scanner_topup_button'.tr(
       namedArgs: {
@@ -422,6 +519,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
         languageCode: uiLanguage,
         currencyRegion: region,
         countryCode: billingCountry,
+        storePriceOverride: _topUpStorePrice,
       );
     }
 
@@ -431,6 +529,16 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
         width: double.infinity,
         child: FilledButton.icon(
           onPressed: _isPurchasingTopUp ? null : _purchaseScanTopUp,
+          style: FilledButton.styleFrom(
+            backgroundColor: _chipGreen,
+            foregroundColor: _priceYellow,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                AgroAccentColors.marketplacePillRadius,
+              ),
+            ),
+          ),
           icon: _isPurchasingTopUp
               ? const SizedBox(
                   width: 18,
@@ -494,17 +602,54 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     return true;
   }
 
+  Widget _marketplacePanel({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(16),
+    BoxDecoration? decoration,
+  }) {
+    return Container(
+      width: double.infinity,
+      decoration: decoration ??
+          BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(
+              AgroAccentColors.marketplaceCornerRadius,
+            ),
+            border: Border.all(color: _chipGreen.withValues(alpha: 0.22)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+      child: Padding(padding: padding, child: child),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    ref.listen(premiumAccessProvider, (_, __) => _refreshQuota());
+    ref.listen(userDocProvider, (previous, next) {
+      if (_scanQuotaUserChanged(
+        previous?.valueOrNull,
+        next.valueOrNull,
+      )) {
+        _scheduleQuotaRefresh();
+      }
+    });
+    ref.listen(premiumAccessProvider, (previous, next) {
+      if (_scanQuotaAccessChanged(previous, next)) {
+        _scheduleQuotaRefresh();
+      }
+    });
 
     return Scaffold(
       key: ValueKey('plant_scanner_${context.locale}'),
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text('scanner_title'.tr()),
-        backgroundColor: Colors.green[800],
-        foregroundColor: Colors.white,
         actions: [
           KeyedSubtree(
             key: _aiHistoryKey,
@@ -520,9 +665,21 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
           FarmerHelperIconButton(guideSteps: _guideSteps),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: RefreshIndicator(
+          color: _chipGreen,
+          onRefresh: () => _refreshQuota(showLoading: true),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: ScrollBottomPadding.list(
+              context,
+              mainTab: true,
+              base: const EdgeInsets.all(16),
+            ),
+            children: [
           _buildInfoCard(),
           KeyedSubtree(
             key: _aiLimitKey,
@@ -558,7 +715,9 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             if (_loadingSponsored)
               const Padding(
                 padding: EdgeInsets.only(top: 16),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: CircularProgressIndicator(color: _chipGreen),
+                ),
               )
             else if (_sponsoredProducts.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -566,20 +725,26 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             ],
           ],
         ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildLimitBanner(ScanQuotaStatus quota) {
-    return Container(
-      width: double.infinity,
+    return _marketplacePanel(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.orange[50]!, Colors.amber[50]!],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange[300]!),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AgroAccentColors.marketplaceCornerRadius),
+        border: Border.all(color: Colors.orange.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,7 +763,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'scanner_limit_title'.tr(),
+                  _limitTitle(quota),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -662,20 +827,14 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
           )
         : null;
 
-    return Container(
-      width: double.infinity,
+    return _marketplacePanel(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.green[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green[200]!),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.analytics_outlined, color: Colors.green[800], size: 20),
+              Icon(Icons.analytics_outlined, color: _chipGreen, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -683,8 +842,8 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                     remaining: monthlyRemaining,
                     limit: quota.limit,
                   ),
-                  style: TextStyle(
-                    color: Colors.green[900],
+                  style: const TextStyle(
+                    color: _chipGreen,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -696,14 +855,14 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             const SizedBox(height: 4),
             Text(
               bonusNote,
-              style: TextStyle(color: Colors.green[800], fontSize: 12),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
           ],
           if (_canBuyScanTopUp()) ...[
             const SizedBox(height: 4),
             Text(
               _scanTopUpHintText(),
-              style: TextStyle(color: Colors.green[800], fontSize: 12),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
             _buildTopUpButton(compact: true),
           ],
@@ -713,16 +872,13 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
   }
 
   Widget _buildInfoCard() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+    return _marketplacePanel(
+      child: Row(
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: Colors.green[100],
-              child: Icon(Icons.biotech, color: Colors.green[800], size: 30),
+              backgroundColor: _chipGreen.withValues(alpha: 0.14),
+              child: const Icon(Icons.biotech, color: _chipGreen, size: 30),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -731,17 +887,34 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                 children: [
                   Text(
                     'scanner_plant_id_title'.tr(),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: _chipGreen,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'scanner_subtitle'.tr(),
                     style: TextStyle(color: Colors.grey[700], fontSize: 13),
                   ),
-                  if (kDebugMode && !PlantScannerConfig.isConfigured) ...[
+                  if (!PlantScannerConfig.isConfigured) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'scanner_no_api_key'.tr(),
+                      PlantScannerConfig.useCloudFunction
+                          ? farmerGuideTr(
+                              context,
+                              'scanner_cloud_unavailable',
+                              fallbacks: const {
+                                'hr':
+                                    'AI skener koristi cloud — pokrenite app s PLANT_SCANNER_USE_CLOUD=true ili scripts/run_dev.ps1',
+                                'de':
+                                    'KI-Scanner nutzt Cloud — starten Sie die App mit PLANT_SCANNER_USE_CLOUD=true.',
+                                'en':
+                                    'AI scanner uses cloud — run with PLANT_SCANNER_USE_CLOUD=true or run_dev.ps1.',
+                              },
+                            )
+                          : 'scanner_no_api_key'.tr(),
                       style: TextStyle(
                         color: Colors.orange[800],
                         fontSize: 12,
@@ -754,25 +927,32 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildMonthlyLimitCameraReplacement() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
+    return _marketplacePanel(
+      padding: EdgeInsets.zero,
       child: KeyedSubtree(
         key: _aiImageWindowKey,
         child: Container(
           width: double.infinity,
           height: 240,
-          color: Colors.grey[100],
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(
+              AgroAccentColors.marketplaceCornerRadius - 2,
+            ),
+          ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.event_busy, size: 48, color: Colors.grey[600]),
+              Icon(
+                Icons.event_busy,
+                size: 48,
+                color: _chipGreen.withValues(alpha: 0.65),
+              ),
               const SizedBox(height: 16),
               Text(
                 'scanner_limit_monthly_package'.tr(),
@@ -780,7 +960,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                 style: TextStyle(
                   fontSize: 15,
                   height: 1.5,
-                  color: Colors.grey[800],
+                  color: Colors.grey.shade700,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -799,32 +979,43 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
       return _buildMonthlyLimitCameraReplacement();
     }
 
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
+    return _marketplacePanel(
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           KeyedSubtree(
             key: _aiImageWindowKey,
             child: Material(
-              color: Colors.green[50],
+              color: Colors.transparent,
               child: InkWell(
                 onTap: _isAnalyzing ? null : _showImageSourcePicker,
-                child: SizedBox(
+                borderRadius: BorderRadius.circular(
+                  AgroAccentColors.marketplaceCornerRadius,
+                ),
+                child: Container(
                   width: double.infinity,
                   height: 240,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(
+                      AgroAccentColors.marketplaceCornerRadius - 2,
+                    ),
+                  ),
                   child: _imageFile == null
                       ? Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_a_photo,
-                                size: 56, color: Colors.green[700]),
+                            const Icon(
+                              Icons.add_a_photo,
+                              size: 56,
+                              color: _chipGreen,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'scanner_pick_photo'.tr(),
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green[800],
+                                color: _chipGreen,
                               ),
                             ),
                           ],
@@ -832,7 +1023,12 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                       : Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.file(_imageFile!, fit: BoxFit.cover),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                AgroAccentColors.marketplaceCornerRadius - 2,
+                              ),
+                              child: Image.file(_imageFile!, fit: BoxFit.cover),
+                            ),
                             if (!_isAnalyzing)
                               Positioned(
                                 top: 8,
@@ -850,7 +1046,12 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                               ),
                             if (_isAnalyzing)
                               Container(
-                                color: Colors.black45,
+                                decoration: BoxDecoration(
+                                  color: Colors.black45,
+                                  borderRadius: BorderRadius.circular(
+                                    AgroAccentColors.marketplaceCornerRadius - 2,
+                                  ),
+                                ),
                                 child: Center(
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
@@ -861,8 +1062,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                                       const SizedBox(height: 12),
                                       Text(
                                         'scanner_analyzing'.tr(),
-                                        style: const TextStyle(
-                                            color: Colors.white),
+                                        style: const TextStyle(color: Colors.white),
                                       ),
                                     ],
                                   ),
@@ -883,14 +1083,19 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                 children: [
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
+                    child: FilledButton.icon(
                       onPressed: _canAnalyze ? _analyzeImage : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[800],
-                        disabledBackgroundColor: Colors.grey[400],
-                        foregroundColor: Colors.white,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _chipGreen,
+                        disabledBackgroundColor: Colors.grey.shade400,
+                        foregroundColor: _priceYellow,
                         disabledForegroundColor: Colors.white70,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AgroAccentColors.marketplacePillRadius,
+                          ),
+                        ),
                       ),
                       icon: const Icon(Icons.search),
                       label: Text('scanner_analyze'.tr()),
@@ -903,6 +1108,12 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _showImageSourcePicker,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _chipGreen,
+                              side: BorderSide(
+                                color: _chipGreen.withValues(alpha: 0.5),
+                              ),
+                            ),
                             icon: const Icon(Icons.add_a_photo_outlined),
                             label: Text('scanner_new_photo'.tr()),
                           ),
@@ -911,6 +1122,12 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _clearImage,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _chipGreen,
+                              side: BorderSide(
+                                color: _chipGreen.withValues(alpha: 0.5),
+                              ),
+                            ),
                             icon: const Icon(Icons.refresh),
                             label: Text('scanner_clear_photo'.tr()),
                           ),
@@ -928,12 +1145,20 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
   }
 
   Widget _buildErrorCard(String message) {
-    return Card(
-      color: Colors.red[50],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+    return _marketplacePanel(
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(AgroAccentColors.marketplaceCornerRadius),
+        border: Border.all(color: Colors.red.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(Icons.error_outline, color: Colors.red[700]),
@@ -946,27 +1171,24 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildResultCard(PlantScanResult result) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    return _marketplacePanel(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.eco, color: Colors.green[800]),
+                const Icon(Icons.eco, color: _chipGreen),
                 const SizedBox(width: 8),
                 Text(
                   'scanner_result'.tr(),
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: _chipGreen,
                   ),
                 ),
               ],
@@ -999,27 +1221,24 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             _buildHealthSection(result),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildSponsoredSection() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    return _marketplacePanel(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.storefront, color: Colors.green[800]),
+                const Icon(Icons.storefront, color: _chipGreen),
                 const SizedBox(width: 8),
                 Text(
                   farmerGuideTr(context, 'scanner_sponsored_title'),
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
+                    color: _chipGreen,
                   ),
                 ),
               ],
@@ -1041,20 +1260,29 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                     height: 48,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
-                        Icon(Icons.shopping_bag, color: Colors.green[700]),
+                        const Icon(Icons.shopping_bag, color: _chipGreen),
                   ),
                 ),
-                title: Text(product.name),
+                title: Text(
+                  product.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: _chipGreen,
+                  ),
+                ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(product.sellerName),
+                    Text(
+                      product.sellerName,
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
                     ProductCardPriceText(
                       price: product.price,
                       originalCurrency: product.originalCurrency,
                       unit: product.displayUnit,
-                      style: TextStyle(
-                        color: Colors.green[800],
+                      style: const TextStyle(
+                        color: _chipGreen,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -1065,7 +1293,6 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -1209,7 +1436,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: Colors.green[700]),
+        Icon(icon, size: 20, color: _chipGreen),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -1222,6 +1449,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        color: _chipGreen,
                         fontStyle:
                             isItalic ? FontStyle.italic : FontStyle.normal,
                       ),
@@ -1231,6 +1459,7 @@ class _PlantScannerScreenState extends ConsumerState<PlantScannerScreen> {
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
+                        color: _chipGreen,
                         fontStyle:
                             isItalic ? FontStyle.italic : FontStyle.normal,
                       ),

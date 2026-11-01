@@ -28,6 +28,13 @@ class AdminRolePreviewNotifier extends StateNotifier<String> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, state);
   }
+
+  /// Nakon odjave — preview uloga ne smije utjecati na sljedeću prijavu.
+  Future<void> clearOnLogout() async {
+    state = defaultAdminPreviewRole;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefsKey);
+  }
 }
 
 final adminRolePreviewProvider =

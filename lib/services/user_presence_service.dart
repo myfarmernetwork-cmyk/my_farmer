@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'user_attribution_service.dart';
+
 /// Updates Firestore when the user is in the app (`isOnline`, `lastActiveAt`).
 class UserPresenceService {
   UserPresenceService({
@@ -14,6 +16,7 @@ class UserPresenceService {
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final UserAttributionService _attribution = UserAttributionService();
 
   Timer? _heartbeat;
   String? _uid;
@@ -28,6 +31,7 @@ class UserPresenceService {
     _uid = uid;
     _foreground = true;
     unawaited(_touch(online: true));
+    unawaited(_attribution.recordSession(uid: uid));
 
     _heartbeat?.cancel();
     _heartbeat = Timer.periodic(_heartbeatInterval, (_) {

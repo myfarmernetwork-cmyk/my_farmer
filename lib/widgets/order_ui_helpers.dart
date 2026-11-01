@@ -34,6 +34,36 @@ String formatOrderDate(BuildContext context, Timestamp? timestamp) {
   return DateFormat.yMMMd(locale).add_Hm().format(timestamp.toDate());
 }
 
+String orderCreatedLabelKey({required bool isBuyerView}) =>
+    isBuyerView ? 'orders_placed_on' : 'orders_received_on';
+
+Widget orderTimestampRow({
+  required BuildContext context,
+  required Timestamp? timestamp,
+  required String labelKey,
+}) {
+  if (timestamp == null) return const SizedBox.shrink();
+  final formatted = formatOrderDate(context, timestamp);
+  if (formatted.isEmpty) return const SizedBox.shrink();
+
+  return Row(
+    children: [
+      Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+      const SizedBox(width: 4),
+      Expanded(
+        child: Text(
+          labelKey.tr(namedArgs: {'date': formatted}),
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
 String orderStatusLabel(String statusCode, {String deliveryType = 'pickup'}) {
   if (statusCode == OrderStatus.completed) {
     return OrderStatus.completedLabelKey(deliveryType).tr();
@@ -47,6 +77,8 @@ Color orderStatusColor(String statusCode) {
       return Colors.blue;
     case OrderStatus.completed:
       return Colors.green;
+    case OrderStatus.rejected:
+      return Colors.red;
     default:
       return Colors.orange;
   }
@@ -58,6 +90,8 @@ IconData orderStatusIcon(String statusCode) {
       return Icons.inventory_2_outlined;
     case OrderStatus.completed:
       return Icons.check_circle_outline;
+    case OrderStatus.rejected:
+      return Icons.cancel_outlined;
     default:
       return Icons.access_time;
   }
@@ -70,16 +104,16 @@ Widget orderPaymentBadge(String paymentMethod, {bool prominent = false}) {
   final isBank = paymentMethod == 'bank_transfer';
   final isPaypal = paymentMethod == 'paypal';
   final label = isStripe
-      ? '[${'order_badge_stripe'.tr()}]'
+      ? 'order_badge_stripe'.tr()
       : isGooglePay
-          ? '[${'order_badge_google_pay'.tr()}]'
+          ? 'order_badge_google_pay'.tr()
           : isDirectPaypal
-              ? '[${'order_badge_direct_paypal'.tr()}]'
+              ? 'order_badge_direct_paypal'.tr()
               : isBank
-                  ? '[${'order_badge_bank'.tr()}]'
+                  ? 'order_badge_bank'.tr()
                   : isPaypal
-                      ? '[${'order_badge_paypal'.tr()}]'
-                      : '[${'order_badge_cash'.tr()}]';
+                      ? 'order_badge_paypal'.tr()
+                      : 'order_badge_cash'.tr();
   final bgColor = isStripe
       ? Colors.deepPurple.withValues(alpha: prominent ? 0.14 : 0.08)
       : isGooglePay

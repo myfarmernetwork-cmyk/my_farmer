@@ -69,6 +69,7 @@ class _SellerOrderAlertListenerState
         summary: order.summaryTitle,
         total: order.total,
         orderId: order.id,
+        systemTray: false,
       );
     }
   }

@@ -5,11 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/farmer_shop_settings.dart';
 import '../models/order.dart';
+import '../providers/notification_navigation_provider.dart';
 import '../repositories/order_repository.dart';
 import '../utils/farmer_shop_localization.dart';
 import '../utils/order_status.dart';
 
-/// Obavijest kupcu u app-u kad farmer promijeni status narudžbe.
+/// In-app obavijest kupcu kad farmer promijeni status narudžbe.
 class BuyerOrderStatusListener extends ConsumerStatefulWidget {
   const BuyerOrderStatusListener({
     super.key,
@@ -66,19 +67,21 @@ class _BuyerOrderStatusListenerState
       _lastStatusByOrder[order.id] = current;
 
       if (previous == null || previous == current) continue;
-      if (current != OrderStatus.preparing && current != OrderStatus.completed) {
+      if (current != OrderStatus.preparing &&
+          current != OrderStatus.completed &&
+          current != OrderStatus.rejected) {
         continue;
       }
 
-      final message = await _messageForStatus(order, current);
-      if (!mounted || message == null) continue;
+      final body = await _messageForStatus(order, current);
+      if (!mounted || body == null) continue;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor:
-              current == OrderStatus.completed ? Colors.green[700] : Colors.blue[700],
-          duration: const Duration(seconds: 5),
+      NotificationNavigationBridge.dispatch(
+        NotificationNavigationIntent(
+          target: NotificationTarget.buyerOrders,
+          orderId: order.id,
+          orderStatus: current,
+          body: body,
         ),
       );
     }
@@ -89,6 +92,12 @@ class _BuyerOrderStatusListenerState
       return 'notification_order_preparing_body'.tr(
         namedArgs: {'seller': order.sellerName},
       );
+    }
+
+    if (statusCode == OrderStatus.rejected) {
+      final msg = order.sellerMessage?.trim();
+      if (msg != null && msg.isNotEmpty) return msg;
+      return 'notification_order_rejected_body_short'.tr();
     }
 
     if (statusCode == OrderStatus.completed) {

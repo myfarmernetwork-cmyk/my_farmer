@@ -39,10 +39,23 @@ class FarmWeatherSnapshot {
   bool get hasHeavyRainAlert =>
       condition == WeatherCondition.rainy && precipitationChance >= 70;
 
-  bool get requiresPremiumAlert =>
-      hasHighWind ||
-      hasExtremeHeat ||
-      hasSevereRisk ||
-      hasStormAlert ||
-      hasHeavyRainAlert;
+  bool get requiresPremiumAlert => activeAlertKeys.isNotEmpty;
+
+  /// Aktivne vrste nepogode — ista logika kao [functions/weather_alerts.js].
+  List<String> get activeAlertKeys {
+    final keys = <String>[];
+    if (hasHighWind) keys.add('weather_alert_high_wind');
+    if (hasExtremeHeat) keys.add('weather_alert_extreme_heat');
+    if (hailRisk) keys.add('weather_alert_hail');
+    if (frostRisk) keys.add('weather_alert_frost');
+    if (hasStormAlert) keys.add('weather_alert_storm');
+    if (hasHeavyRainAlert) keys.add('weather_alert_heavy_rain');
+    return keys;
+  }
+
+  Map<String, String> get alertMessageArgs => {
+        'temp': temperatureC.toStringAsFixed(0),
+        'wind': windSpeedKmh.toStringAsFixed(0),
+        'rain': '$precipitationChance',
+      };
 }

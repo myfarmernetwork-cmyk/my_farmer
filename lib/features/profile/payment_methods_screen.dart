@@ -6,8 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/saved_payment_method.dart';
 import '../../repositories/payment_methods_repository.dart';
 import '../../providers/auth_provider.dart';
+import '../../theme/agro_accent_colors.dart';
+import '../../widgets/agro_glass_chrome.dart';
 import '../../widgets/simulated_card_entry_sheet.dart';
 import '../../utils/payment_methods_error_helper.dart';
+import '../../utils/scroll_bottom_padding.dart';
 
 class PaymentMethodsScreen extends ConsumerWidget {
   const PaymentMethodsScreen({super.key});
@@ -16,20 +19,14 @@ class PaymentMethodsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final methodsAsync = ref.watch(userPaymentMethodsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('profile_payment_methods_title'.tr()),
-        backgroundColor: Colors.green[700],
-        foregroundColor: Colors.white,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddOptions(context, ref),
-        backgroundColor: Colors.green[700],
-        icon: const Icon(Icons.add),
-        label: Text('profile_payment_methods_add'.tr()),
-      ),
+    return MarketplaceScreenScaffold(
+      title: Text('profile_payment_methods_title'.tr()),
       body: methodsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: AgroAccentColors.marketplaceChipGreen,
+          ),
+        ),
         error: (e, _) => _LoadErrorState(
           message: paymentMethodsErrorMessage(e),
           showAdminHint: isPaymentMethodsPermissionError(e),
@@ -39,37 +36,67 @@ class PaymentMethodsScreen extends ConsumerWidget {
           if (methods.isEmpty) {
             return _EmptyState(onAdd: () => _showAddOptions(context, ref));
           }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            itemCount: methods.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.shade200),
-                  ),
-                  child: Text(
-                    'profile_payment_methods_peer_hint'.tr(),
-                    style: TextStyle(
-                      color: Colors.amber.shade900,
-                      fontSize: 13,
-                      height: 1.35,
+          return Stack(
+            children: [
+              ListView.separated(
+                padding: ScrollBottomPadding.list(
+                  context,
+                  base: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                ),
+                itemCount: methods.length + 1,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return ProfileCreamCard(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(
+                          AgroAccentColors.marketplaceCornerRadius,
+                        ),
+                        border: Border.all(color: Colors.amber.shade200),
+                        boxShadow: AgroAccentColors.marketplaceCardShadow,
+                      ),
+                      child: Text(
+                        'profile_payment_methods_peer_hint'.tr(),
+                        style: TextStyle(
+                          color: Colors.amber.shade900,
+                          fontSize: 13,
+                          height: 1.35,
+                        ),
+                      ),
+                    );
+                  }
+                  final method = methods[index - 1];
+                  return _PaymentMethodCard(
+                    method: method,
+                    onSetDefault: () => _setDefault(ref, method),
+                    onEdit: () => _editMethod(context, ref, method),
+                    onDelete: () => _confirmDelete(context, ref, method),
+                  );
+                },
+              ),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.paddingOf(context).bottom + 16,
+                child: FilledButton.icon(
+                  onPressed: () => _showAddOptions(context, ref),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AgroAccentColors.marketplaceChipGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        AgroAccentColors.marketplaceCornerRadius,
+                      ),
                     ),
                   ),
-                );
-              }
-              final method = methods[index - 1];
-              return _PaymentMethodCard(
-                method: method,
-                onSetDefault: () => _setDefault(ref, method),
-                onEdit: () => _editMethod(context, ref, method),
-                onDelete: () => _confirmDelete(context, ref, method),
-              );
-            },
+                  icon: const Icon(Icons.add),
+                  label: Text('profile_payment_methods_add'.tr()),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -460,7 +487,7 @@ class _LoadErrorState extends StatelessWidget {
             FilledButton.icon(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.green.shade700,
+                backgroundColor: AgroAccentColors.marketplaceChipGreen,
               ),
               icon: const Icon(Icons.refresh),
               label: Text('profile_payment_methods_error_retry'.tr()),
@@ -485,22 +512,29 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.payment_outlined, size: 64, color: Colors.grey[400]),
+            Icon(Icons.payment_outlined,
+                size: 64, color: Colors.white.withValues(alpha: 0.45)),
             const SizedBox(height: 16),
             Text(
               'profile_payment_methods_empty'.tr(),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'profile_payment_methods_empty_hint'.tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey[600]),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.72)),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: onAdd,
+              style: FilledButton.styleFrom(
+                backgroundColor: AgroAccentColors.marketplaceChipGreen,
+              ),
               icon: const Icon(Icons.add),
               label: Text('profile_payment_methods_add'.tr()),
             ),
@@ -591,15 +625,15 @@ class _PaymentMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: _color.withValues(alpha: 0.35)),
+    return ProfileCreamCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
+      decoration: BoxDecoration(
+        color: AgroAccentColors.glassTop.withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(AgroAccentColors.marketplaceCornerRadius),
+        border: Border.all(color: _color.withValues(alpha: 0.35)),
+        boxShadow: AgroAccentColors.marketplaceCardShadow,
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 8, 8),
-        child: Column(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -688,7 +722,6 @@ class _PaymentMethodCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

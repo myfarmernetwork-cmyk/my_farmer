@@ -61,6 +61,7 @@ class _VetIntakeAlertListenerState extends ConsumerState<VetIntakeAlertListener>
         requestId: request.id,
         animalName: request.animalName,
         clientName: request.clientName,
+        systemTray: false,
       );
     }
   }

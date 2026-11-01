@@ -5,7 +5,6 @@ import '../models/company_catalog_item.dart';
 import '../models/product.dart';
 import '../utils/firestore_error_helper.dart';
 import 'company_catalog_repository.dart';
-import '../services/notification_service.dart';
 
 class ProductRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -235,7 +234,6 @@ class ProductRepository {
 
       final docRef = _firestore.collection('products').doc(entry.productId);
       String sellerId = '';
-      String productName = 'Proizvod';
       double nextStock = 0;
 
       await _firestore.runTransaction((transaction) async {
@@ -259,7 +257,6 @@ class ProductRepository {
         nextStock =
             (currentStock - entry.quantity).clamp(0.0, double.infinity);
         sellerId = data['sellerId'] as String? ?? '';
-        productName = data['name'] as String? ?? 'Proizvod';
 
         transaction.update(docRef, {
           'stock': nextStock,
@@ -277,12 +274,47 @@ class ProductRepository {
         } on FirebaseException catch (e) {
           if (e.code != 'permission-denied') rethrow;
         }
-        if (nextStock > 0 && nextStock <= 10) {
-          await NotificationService().showLowStockAlert(
-            productName: productName,
-            stock: nextStock,
+      }
+    }
+  }
+
+  Future<void> restoreStockForOrderItems(
+    List<({String productId, double quantity})> items,
+  ) async {
+    for (final entry in items) {
+      if (entry.productId.isEmpty || entry.quantity <= 0) continue;
+
+      final docRef = _firestore.collection('products').doc(entry.productId);
+      String sellerId = '';
+      double nextStock = 0;
+
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() ?? {};
+        final currentStock = data['stock'] is num
+            ? (data['stock'] as num).toDouble()
+            : 0.0;
+
+        nextStock = currentStock + entry.quantity;
+        sellerId = data['sellerId'] as String? ?? '';
+
+        transaction.update(docRef, {
+          'stock': nextStock,
+          'isSoldOut': false,
+        });
+      });
+
+      if (sellerId.isNotEmpty) {
+        try {
+          await _catalogRepository.syncStockFromProduct(
+            sellerId: sellerId,
             productId: entry.productId,
+            newStock: nextStock,
           );
+        } on FirebaseException catch (e) {
+          if (e.code != 'permission-denied') rethrow;
         }
       }
     }

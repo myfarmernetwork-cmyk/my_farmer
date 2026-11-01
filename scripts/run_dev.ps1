@@ -11,6 +11,7 @@ $serverOnlyKeys = @(
   "SENTINEL2_API_SECRET",
   "NIRS_API_KEY",
   "PLANT_ID_API_KEY",
+  "PLANTNET_API_KEY",
   "STRIPE_SECRET_KEY",
   "PAYPAL_CLIENT_SECRET",
   "PAYPAL_ENV"
@@ -32,6 +33,11 @@ foreach ($prop in $secrets.PSObject.Properties) {
   if ($value.Trim().Length -gt 0) {
     $defines += "--dart-define=${name}=$value"
   }
+}
+
+# AI skener ide preko Firebase Cloud Function (Pl@ntNet/Plant.id na serveru).
+if ($defines -notcontains "--dart-define=PLANT_SCANNER_USE_CLOUD=true") {
+  $defines += "--dart-define=PLANT_SCANNER_USE_CLOUD=true"
 }
 
 Push-Location $root

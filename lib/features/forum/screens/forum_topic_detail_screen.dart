@@ -4,16 +4,22 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../../providers/subscription_provider.dart';
 
 import '../models/forum_comment.dart';
 import '../models/forum_topic.dart';
 import '../repositories/forum_repository.dart';
 import '../utils/forum_author_name.dart';
+import '../../../utils/scroll_bottom_padding.dart';
+import '../../../theme/agro_accent_colors.dart';
+import '../../../widgets/agro_glass_chrome.dart';
 import 'forum_create_topic_screen.dart';
 
-class ForumTopicDetailScreen extends StatefulWidget {
+class ForumTopicDetailScreen extends ConsumerStatefulWidget {
   const ForumTopicDetailScreen({
     super.key,
     required this.topicId,
@@ -22,10 +28,14 @@ class ForumTopicDetailScreen extends StatefulWidget {
   final String topicId;
 
   @override
-  State<ForumTopicDetailScreen> createState() => _ForumTopicDetailScreenState();
+  ConsumerState<ForumTopicDetailScreen> createState() =>
+      _ForumTopicDetailScreenState();
 }
 
-class _ForumTopicDetailScreenState extends State<ForumTopicDetailScreen> {
+class _ForumTopicDetailScreenState extends ConsumerState<ForumTopicDetailScreen> {
+  static const _chipGreen = AgroAccentColors.marketplaceChipGreen;
+  static const _priceYellow = Color(0xFFFFEB3B);
+
   final ForumRepository _repository = ForumRepository();
   final TextEditingController _commentController = TextEditingController();
   bool _isSending = false;
@@ -83,6 +93,10 @@ class _ForumTopicDetailScreenState extends State<ForumTopicDetailScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     return uid != null && _topic?.authorId == uid;
   }
+
+  bool get _isForumAdmin => ref.watch(adminPremiumBypassProvider);
+
+  bool get _canDeleteTopic => _isTopicOwner || _isForumAdmin;
 
   Future<void> _editTopic() async {
     final topic = _topic;
@@ -346,167 +360,227 @@ class _ForumTopicDetailScreenState extends State<ForumTopicDetailScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Widget _whitePanel({required Widget child, EdgeInsetsGeometry? padding}) {
+    return Material(
+      color: Colors.white,
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
+        ),
+        side: BorderSide(color: _chipGreen.withValues(alpha: 0.22)),
+      ),
+      child: Padding(
+        padding: padding ?? const EdgeInsets.all(14),
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor: AgroAccentColors.marketplaceUnifiedGreen,
+      appBar: AgroGlassAppBar(
+        unifiedMarketplaceHeader: true,
         title: Text('forum_topic_detail'.tr()),
-        backgroundColor: Colors.green.shade800,
-        foregroundColor: Colors.white,
         actions: [
-          if (_isTopicOwner) ...[
+          if (_isTopicOwner)
             IconButton(
               tooltip: 'forum_edit_topic'.tr(),
               onPressed: _editTopic,
               icon: const Icon(Icons.edit_outlined),
             ),
+          if (_canDeleteTopic)
             IconButton(
               tooltip: 'forum_delete_topic'.tr(),
               onPressed: _deleteTopic,
               icon: const Icon(Icons.delete_outline),
             ),
-          ],
         ],
       ),
-      body: !_loaded
-          ? const Center(child: CircularProgressIndicator())
-          : _topic == null
-              ? Center(child: Text('forum_topic_not_found'.tr()))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Text(
-                            _topic!.title,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                            ),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: AgroAccentColors.marketplaceUnifiedBackgroundGradient,
+        ),
+        child: !_loaded
+            ? const Center(
+                child: CircularProgressIndicator(color: _chipGreen),
+              )
+            : _topic == null
+                ? Center(
+                    child: Text(
+                      'forum_topic_not_found'.tr(),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.88),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: ScrollBottomPadding.list(
+                            context,
+                            base: const EdgeInsets.all(12),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _displayName(_topic!.authorId, _topic!.authorName),
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                          if (_topic!.updatedAt != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'forum_comment_edited'.tr(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade500,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          if (_topic!.hasImage)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                _topic!.imageUrl!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          if (_topic!.hasImage) const SizedBox(height: 16),
-                          if (_topic!.hasLink) ...[
-                            InkWell(
-                              onTap: () => _openLink(_topic!.linkUrl!),
-                              child: Row(
+                          children: [
+                            _whitePanel(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(Icons.link,
-                                      size: 18, color: Colors.blue.shade700),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      _topic!.linkUrl!,
+                                  Text(
+                                    _topic!.title,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: _chipGreen,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _displayName(
+                                      _topic!.authorId,
+                                      _topic!.authorName,
+                                    ),
+                                    style: TextStyle(color: Colors.grey.shade600),
+                                  ),
+                                  if (_topic!.updatedAt != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'forum_comment_edited'.tr(),
                                       style: TextStyle(
-                                        color: Colors.blue.shade700,
-                                        decoration: TextDecoration.underline,
+                                        fontSize: 12,
+                                        color: Colors.grey.shade500,
+                                        fontStyle: FontStyle.italic,
                                       ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 16),
+                                  if (_topic!.hasImage)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        _topic!.imageUrl!,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  if (_topic!.hasImage) const SizedBox(height: 16),
+                                  if (_topic!.hasLink) ...[
+                                    InkWell(
+                                      onTap: () => _openLink(_topic!.linkUrl!),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.link,
+                                              size: 18,
+                                              color: Colors.blue.shade700),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            child: Text(
+                                              _topic!.linkUrl!,
+                                              style: TextStyle(
+                                                color: Colors.blue.shade700,
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                  ],
+                                  Text(
+                                    _topic!.body,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      height: 1.5,
+                                      color: Colors.grey.shade800,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 16),
-                          ],
-                          Text(
-                            _topic!.body,
-                            style: const TextStyle(fontSize: 16, height: 1.5),
-                          ),
-                          const Divider(height: 32),
-                          Text(
-                            'forum_comments'.tr(),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade800,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          if (_comments.isEmpty)
+                            const SizedBox(height: 12),
                             Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
                               child: Text(
-                                'forum_no_comments'.tr(),
-                                style: TextStyle(color: Colors.grey.shade600),
+                                'forum_comments'.tr(),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
-                            )
-                          else
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _comments.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 10),
-                              itemBuilder: (context, index) {
-                                final comment = _comments[index];
-                                final uid =
-                                    FirebaseAuth.instance.currentUser?.uid;
-                                final isOwn = uid == comment.authorId;
-                                return _ForumCommentCard(
-                                  comment: comment,
-                                  authorLabel: _displayName(
-                                    comment.authorId,
-                                    comment.authorName,
-                                  ),
-                                  isOwn: isOwn,
-                                  onEdit: isOwn
-                                      ? () => _startEditing(comment)
-                                      : null,
-                                  onDelete: isOwn
-                                      ? () => _deleteComment(comment)
-                                      : null,
-                                  onOpenLink: _openLink,
-                                );
-                              },
                             ),
-                        ],
+                            const SizedBox(height: 8),
+                            if (_comments.isEmpty)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                child: Text(
+                                  'forum_no_comments'.tr(),
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                  ),
+                                ),
+                              )
+                            else
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _comments.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 10),
+                                itemBuilder: (context, index) {
+                                  final comment = _comments[index];
+                                  final uid =
+                                      FirebaseAuth.instance.currentUser?.uid;
+                                  final isOwn = uid == comment.authorId;
+                                  final canDeleteComment =
+                                      isOwn || _isForumAdmin;
+                                  return _ForumCommentCard(
+                                    comment: comment,
+                                    authorLabel: _displayName(
+                                      comment.authorId,
+                                      comment.authorName,
+                                    ),
+                                    isOwn: isOwn,
+                                    onEdit: isOwn
+                                        ? () => _startEditing(comment)
+                                        : null,
+                                    onDelete: canDeleteComment
+                                        ? () => _deleteComment(comment)
+                                        : null,
+                                    onOpenLink: _openLink,
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                    _ForumCommentComposer(
-                      controller: _commentController,
-                      isSending: _isSending,
-                      isEditing: _editingCommentId != null,
-                      pendingImageFile: _pendingImageFile,
-                      existingImageUrl: _existingImageUrl,
-                      pendingLinkUrl: _pendingLinkUrl,
-                      onPickImage: _pickImage,
-                      onAddLink: _addLink,
-                      onRemoveImage: () => setState(() {
-                        _pendingImageFile = null;
-                        _existingImageUrl = null;
-                      }),
-                      onRemoveLink: () => setState(() => _pendingLinkUrl = null),
-                      onCancelEdit: _clearComposer,
-                      onSubmit: _submitComment,
-                    ),
-                  ],
-                ),
+                      _ForumCommentComposer(
+                        controller: _commentController,
+                        isSending: _isSending,
+                        isEditing: _editingCommentId != null,
+                        pendingImageFile: _pendingImageFile,
+                        existingImageUrl: _existingImageUrl,
+                        pendingLinkUrl: _pendingLinkUrl,
+                        onPickImage: _pickImage,
+                        onAddLink: _addLink,
+                        onRemoveImage: () => setState(() {
+                          _pendingImageFile = null;
+                          _existingImageUrl = null;
+                        }),
+                        onRemoveLink: () =>
+                            setState(() => _pendingLinkUrl = null),
+                        onCancelEdit: _clearComposer,
+                        onSubmit: _submitComment,
+                      ),
+                    ],
+                  ),
+      ),
     );
   }
 }
@@ -530,9 +604,18 @@ class _ForumCommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Material(
+      color: Colors.white,
       elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shadowColor: Colors.black.withValues(alpha: 0.12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          AgroAccentColors.marketplaceCornerRadius,
+        ),
+        side: BorderSide(
+          color: _ForumTopicDetailScreenState._chipGreen.withValues(alpha: 0.22),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -544,8 +627,9 @@ class _ForumCommentCard extends StatelessWidget {
                   child: Text(
                     authorLabel,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       fontSize: 14,
+                      color: _ForumTopicDetailScreenState._chipGreen,
                     ),
                   ),
                 ),
@@ -563,8 +647,11 @@ class _ForumCommentCard extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'forum_edit_comment'.tr(),
                     onPressed: onEdit,
-                    icon: Icon(Icons.edit_outlined, size: 18,
-                        color: Colors.green.shade700),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                      color: _ForumTopicDetailScreenState._chipGreen,
+                    ),
                   ),
                 ],
                 if (onDelete != null)
@@ -572,15 +659,19 @@ class _ForumCommentCard extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     tooltip: 'forum_delete_comment'.tr(),
                     onPressed: onDelete,
-                    icon: Icon(Icons.delete_outline, size: 18,
-                        color: Colors.red.shade700),
+                    icon: Icon(Icons.delete_outline,
+                        size: 18, color: Colors.red.shade700),
                   ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
               comment.text,
-              style: const TextStyle(fontSize: 15, height: 1.45),
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.45,
+                color: Colors.grey.shade800,
+              ),
             ),
             if (comment.hasLink) ...[
               const SizedBox(height: 8),
@@ -688,7 +779,8 @@ class _ForumCommentComposer extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Icon(Icons.edit, size: 16, color: Colors.orange.shade800),
+                      Icon(Icons.edit,
+                          size: 16, color: Colors.orange.shade800),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -708,15 +800,34 @@ class _ForumCommentComposer extends StatelessWidget {
                 ),
               TextField(
                 controller: controller,
-                decoration: InputDecoration(
-                  hintText: 'forum_comment_hint'.tr(),
-                  border: const OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
+                style: const TextStyle(
+                  color: _ForumTopicDetailScreenState._chipGreen,
                 ),
-                minLines: 4,
-                maxLines: 8,
+                decoration: marketplaceFormInputDecoration(
+                  hintText: 'forum_comment_hint'.tr(),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ).copyWith(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: const BorderSide(
+                      color: _ForumTopicDetailScreenState._chipGreen,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                minLines: 2,
+                maxLines: 6,
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 8),
@@ -773,22 +884,34 @@ class _ForumCommentComposer extends StatelessWidget {
                   IconButton(
                     tooltip: 'forum_add_image'.tr(),
                     onPressed: isSending ? null : onPickImage,
-                    icon: const Icon(Icons.image_outlined),
+                    icon: const Icon(
+                      Icons.image_outlined,
+                      color: _ForumTopicDetailScreenState._chipGreen,
+                    ),
                   ),
                   IconButton(
                     tooltip: 'forum_add_link'.tr(),
                     onPressed: isSending ? null : onAddLink,
-                    icon: const Icon(Icons.link),
+                    icon: const Icon(
+                      Icons.link,
+                      color: _ForumTopicDetailScreenState._chipGreen,
+                    ),
                   ),
                   const Spacer(),
                   FilledButton.icon(
                     onPressed: isSending ? null : onSubmit,
                     style: FilledButton.styleFrom(
-                      backgroundColor: Colors.green.shade700,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _ForumTopicDetailScreenState._chipGreen,
+                      foregroundColor:
+                          _ForumTopicDetailScreenState._priceYellow,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
                         vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AgroAccentColors.marketplacePillRadius,
+                        ),
                       ),
                     ),
                     icon: _isSendingIcon(isSending),
@@ -796,6 +919,7 @@ class _ForumCommentComposer extends StatelessWidget {
                       isEditing
                           ? 'forum_comment_save'.tr()
                           : 'forum_post_comment'.tr(),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -814,7 +938,10 @@ class _ForumCommentComposer extends StatelessWidget {
     return const SizedBox(
       width: 18,
       height: 18,
-      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: _ForumTopicDetailScreenState._priceYellow,
+      ),
     );
   }
 }

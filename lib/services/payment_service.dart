@@ -107,11 +107,26 @@ class PaymentService {
   /// Referenca za proporcionalne limite skenova (BiH / emerging = manje od EU).
   static const double vetEuMonthlyEur = 9.99;
 
-  /// Plant.id (~0,10 €/scan) + vaša marža 0,05 € po dokupu.
+  /// Plant.id (~0,10 €/scan) — referenca za maržu, ne za prikaz cijene dokupa.
   static const double scanApiCostEur = 0.10;
   static const double scanTopUpProfitEur = 0.05;
-  static const double scanTopUpUnitPriceEur =
-      scanApiCostEur + scanTopUpProfitEur;
+
+  /// Fiksna cijena paketa dokupa — usklađena s Play Console (scan_topup_pack).
+  static double get scanTopUpPackPriceEur =>
+      RevenueCatConfig.scanTopUpPackPriceCentsEur / 100.0;
+
+  /// Kupac Premium — sidro za proporcionalne skenove (Play Console).
+  static const double buyerScanAnchorPriceEur = 2.0;
+  static const int buyerScanAnchorCount = 10;
+  static const int buyerScanMinCap = 3;
+
+  /// Play jeftina zona (~0,99 USD) — Albanija, Makedonija, Moldova…
+  static const String cheapUsdSubscriptionDisplay = r'$0.99';
+  static const double serbiaBuyerMonthlyRsd = 199;
+
+  /// Hobi Farmer — 2× Kupac cijena, sidro ~4 € → 20 skenova (ista formula: 10× cijena/2€).
+  static const String cheapUsdHobbyDisplay = r'$1.99';
+  static const double serbiaHobbyMonthlyRsd = 399;
 
   /// Dinamički mjesečni limit AI skenova za firmu — usklađen s cijenom regije.
   /// EU/razvijeno (19,99 €): 100 · Balkan (19,99 KM): 50 · Ostalo/min: 25.
@@ -346,13 +361,31 @@ class PaymentService {
     return template.replaceAll('{count}', '$count');
   }
 
+  /// Zamijeni `{count}` u prevodu stvarnim mjesečnim limitom pretplate za regiju.
+  static String applySubscriptionScanCountTemplate(
+    String template, {
+    required SubscriptionTier tier,
+    required String languageCode,
+    String? countryCode,
+    String? currencyRegion,
+  }) {
+    if (!template.contains('{count}')) return template;
+    final count = resolveSubscriptionMonthlyScanCap(
+      tier: tier,
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+      countryCode: countryCode,
+    );
+    return template.replaceAll('{count}', '$count');
+  }
+
   /// Fiksni prikaz za domaće balkansko tržište — bez EUR konverzije.
   static const String bihFlatPriceDisplay = '19,99 KM';
   static const String serbiaFlatPriceDisplay = '1.199 RSD';
   static const String vetSerbiaFlatPriceDisplay = '599 RSD';
-  static const String balkanBuyerKmDisplay = '1,99 KM';
+  static const String balkanBuyerKmDisplay = cheapUsdSubscriptionDisplay;
   static const String balkanBuyerRsdDisplay = '199 RSD';
-  static const String balkanHobbyKmDisplay = '3,99 KM';
+  static const String balkanHobbyKmDisplay = cheapUsdHobbyDisplay;
   static const String balkanHobbyRsdDisplay = '399 RSD';
   static const String balkanPremiumKmDisplay = '9,99 KM';
   static const String balkanPremiumRsdDisplay = '599 RSD';
@@ -360,6 +393,12 @@ class PaymentService {
   static const double eurToUsd = 1.08;
   static const double eurToGbp = 0.86;
   static const double eurToInr = 92.0;
+
+  /// ~0,99 USD u EUR (Play jeftina zona — Kupac).
+  static const double cheapUsdSubscriptionMonthlyEur = 0.99 / eurToUsd;
+
+  /// ~1,99 USD u EUR (Play jeftina zona — Hobi, 2× Kupac).
+  static const double cheapUsdHobbyMonthlyEur = 1.99 / eurToUsd;
 
   static String? _cachedCountryCode;
   static DeviceRegionSource? _cachedSource;
@@ -613,6 +652,9 @@ class PaymentService {
     // Cijena pretplate prati ISKLJUČIVO GPS državu — ne jezik.
     if (code == 'BA') return BusinessPricingZone.bih;
     if (code == 'RS') return BusinessPricingZone.serbia;
+    if (_cheapUsdSubscriptionCountryCodes.contains(code)) {
+      return BusinessPricingZone.emerging;
+    }
     if (_euCountryCodes.contains(code)) return BusinessPricingZone.eu;
     if (_developedCountryCodes.contains(code)) {
       return BusinessPricingZone.developed;
@@ -692,6 +734,13 @@ class PaymentService {
   ) {
     final base = RevenueCatConfig.monthlyPriceEurForProductId(productId);
     if (base == null) return null;
+
+    if (productId == RevenueCatConfig.premiumBuyerMonthly) {
+      return _buyerMonthlyPriceEurForCountry(countryCode.toUpperCase());
+    }
+    if (productId == RevenueCatConfig.premiumHobbyMonthly) {
+      return _hobbyMonthlyPriceEurForCountry(countryCode.toUpperCase());
+    }
 
     if (countryCode.toUpperCase() == 'IN' || countryCode.toUpperCase() == 'ID') {
       return emergingAsiaAdjustedEur(base);
@@ -1014,16 +1063,409 @@ class PaymentService {
   }
 
   /// Mjesečni limit AI skenova za kupca / farmer pretplatu — proporcionalno cijeni paketa.
-  /// EU / SE / UA / RU / CH @ 9,99 € referenci: puni [SubscriptionLimits] cap.
-  /// BiH @ 9,99 KM: pola capa. Srbija: proporcionalno RSD cijeni (~599 RSD).
+  /// EU / CH: kupac 10, hobi 20 skenova. Developed / UA / RU: referentni cap (15 / 30).
+  /// BiH @ 9,99 KM: pola referentnog capa. Srbija: proporcionalno RSD cijeni (~599 RSD).
   static int resolveSubscriptionMonthlyScanCap({
     required SubscriptionTier tier,
     required String? currencyRegion,
     required String languageCode,
     String? countryCode,
   }) {
-    final euCap = SubscriptionLimits.monthlyScansForTier(tier);
+    if (tier == SubscriptionTier.buyerPremium) {
+      return _resolveBuyerMonthlyScanCap(
+        currencyRegion: currencyRegion,
+        languageCode: languageCode,
+        countryCode: countryCode,
+      );
+    }
+    if (tier == SubscriptionTier.hobbyFarmerPremium) {
+      return _resolveHobbyMonthlyScanCap(
+        currencyRegion: currencyRegion,
+        languageCode: languageCode,
+        countryCode: countryCode,
+      );
+    }
+    return _resolveRegionalMonthlyCap(
+      euCap: SubscriptionLimits.monthlyScansForTier(tier),
+      euMarketCap: SubscriptionLimits.monthlyScansForTierInEuMarket(tier),
+      baseTierEurForPpp: SubscriptionLimits.monthlyPriceEur(tier),
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+      countryCode: countryCode,
+    );
+  }
 
+  /// Mjesečni limit NIRS učitavanja — ista regionalna logika kao AI skenovi
+  /// (Hobi 20 / Pro 50 u EU referenci).
+  static int resolveSubscriptionMonthlyNirsCap({
+    required SubscriptionTier tier,
+    required String? currencyRegion,
+    required String languageCode,
+    String? countryCode,
+  }) {
+    final euCap = switch (tier) {
+      SubscriptionTier.hobbyFarmerPremium =>
+        SubscriptionLimits.hobbyPremiumNirsMonthlyLoads,
+      SubscriptionTier.professionalFarmerPremium =>
+        SubscriptionLimits.proPremiumNirsMonthlyLoads,
+      _ => 0,
+    };
+    if (euCap <= 0) return 0;
+    return _resolveRegionalMonthlyCap(
+      euCap: euCap,
+      euMarketCap: euCap,
+      baseTierEurForPpp: SubscriptionLimits.monthlyPriceEur(tier),
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+      countryCode: countryCode,
+    );
+  }
+
+  /// Kupac: skenovi = 10 × (cijena ÷ 2 €), min 3, max EU cap (10).
+  static int _resolveBuyerMonthlyScanCap({
+    required String? currencyRegion,
+    required String languageCode,
+    String? countryCode,
+  }) {
+    final billingCountry = (countryCode ??
+            resolveBillingCountryForPricing() ??
+            '')
+        .toUpperCase();
+
+    if (billingCountry.isNotEmpty) {
+      return _buyerScanCapFromPriceEur(
+        _buyerMonthlyPriceEurForCountry(
+          billingCountry,
+          languageCode: languageCode,
+        ),
+      );
+    }
+
+    if (isEmergingAsiaPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _buyerScanCapFromPriceEur(
+        emergingAsiaAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.buyerPremium),
+        ),
+      );
+    }
+    if (isKenyaPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _buyerScanCapFromPriceEur(
+        kenyaAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.buyerPremium),
+        ),
+      );
+    }
+    if (isTurkeyPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _buyerScanCapFromPriceEur(
+        turkeyAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.buyerPremium),
+        ),
+      );
+    }
+    if (ArabicMarketPricing.isArabicPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _buyerScanCapFromPriceEur(
+        ArabicMarketPricing.adjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.buyerPremium),
+          _resolveArabCountryCode(countryCode: countryCode),
+        ),
+      );
+    }
+
+    var region = (currencyRegion ?? '').toLowerCase();
+    if (region.isEmpty) {
+      region = _defaultVetCurrencyRegionForLanguage(
+        languageCode,
+        countryCode: countryCode,
+      );
+    }
+    if (region == 'bih') {
+      return _buyerScanCapFromPriceEur(cheapUsdSubscriptionMonthlyEur);
+    }
+    if (region == 'rs') {
+      return _buyerScanCapFromPriceEur(
+        serbiaBuyerMonthlyRsd / CurrencyService.eurToRsd,
+      );
+    }
+    if (region == 'eu' || region == 'se' || _isSekLockedLanguageCode(languageCode)) {
+      return SubscriptionLimits.buyerEuPremiumMonthlyScans;
+    }
+    if (_isUahLockedLanguageCode(languageCode) ||
+        _isRubLockedLanguageCode(languageCode)) {
+      return SubscriptionLimits.buyerEuPremiumMonthlyScans;
+    }
+
+    final code = _resolvePricingCountryCode(
+      countryCode: countryCode,
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+    );
+    return _buyerScanCapFromPriceEur(
+      _buyerMonthlyPriceEurForCountry(
+        code,
+        languageCode: languageCode,
+      ),
+    );
+  }
+
+  static int _buyerScanCapFromPriceEur(double priceEur) {
+    return _subscriptionScanCapFromPriceEur(
+      priceEur,
+      anchorPriceEur: buyerScanAnchorPriceEur,
+      anchorScanCount: buyerScanAnchorCount,
+      minCap: buyerScanMinCap,
+      maxCap: SubscriptionLimits.buyerEuPremiumMonthlyScans,
+    );
+  }
+
+  static int _hobbyScanCapFromPriceEur(double priceEur) {
+    return _subscriptionScanCapFromPriceEur(
+      priceEur,
+      anchorPriceEur: buyerScanAnchorPriceEur,
+      anchorScanCount: buyerScanAnchorCount,
+      minCap: buyerScanMinCap * 2,
+      maxCap: SubscriptionLimits.hobbyEuPremiumMonthlyScans,
+    );
+  }
+
+  static int _subscriptionScanCapFromPriceEur(
+    double priceEur, {
+    required double anchorPriceEur,
+    required int anchorScanCount,
+    required int minCap,
+    required int maxCap,
+  }) {
+    if (priceEur <= 0) return minCap;
+    final raw = (anchorScanCount * priceEur / anchorPriceEur).round();
+    if (raw < minCap) return minCap;
+    if (raw > maxCap) return maxCap;
+    return raw;
+  }
+
+  /// Mjesečna cijena Kupca u EUR — usklađeno s Play Console regionalnim cijenama.
+  static double _buyerMonthlyPriceEurForCountry(
+    String countryCode, {
+    String? languageCode,
+  }) {
+    final code = countryCode.toUpperCase();
+    final base = SubscriptionLimits.monthlyPriceEur(SubscriptionTier.buyerPremium);
+
+    if (_cheapUsdSubscriptionCountryCodes.contains(code) || code == 'BA') {
+      return cheapUsdSubscriptionMonthlyEur;
+    }
+    if (code == 'RS') {
+      return serbiaBuyerMonthlyRsd / CurrencyService.eurToRsd;
+    }
+    if (code == 'CH') {
+      return SwissMarketPricing.adjustedEur(base);
+    }
+    if (code == 'TR') {
+      return turkeyAdjustedEur(base);
+    }
+    if (code == 'IN' || code == 'ID') {
+      return emergingAsiaAdjustedEur(base);
+    }
+    if (code == 'KE') {
+      return kenyaAdjustedEur(base);
+    }
+    if (ArabicMarketPricing.arabCountries.contains(code)) {
+      return ArabicMarketPricing.adjustedEur(base, code);
+    }
+
+    final zone = zoneForCountry(code, languageCode: languageCode);
+    switch (zone) {
+      case BusinessPricingZone.eu:
+      case BusinessPricingZone.developed:
+        return base;
+      case BusinessPricingZone.bih:
+        return cheapUsdSubscriptionMonthlyEur;
+      case BusinessPricingZone.serbia:
+        return serbiaBuyerMonthlyRsd / CurrencyService.eurToRsd;
+      case BusinessPricingZone.emerging:
+        if (_africaCountryCodes.contains(code)) {
+          return cheapUsdSubscriptionMonthlyEur;
+        }
+        return _emergingTierEur(base, code);
+    }
+  }
+
+  /// Hobi: skenovi = 10 × (cijena ÷ 2 €), min 6, max 20.
+  static int _resolveHobbyMonthlyScanCap({
+    required String? currencyRegion,
+    required String languageCode,
+    String? countryCode,
+  }) {
+    final billingCountry = (countryCode ??
+            resolveBillingCountryForPricing() ??
+            '')
+        .toUpperCase();
+
+    if (billingCountry.isNotEmpty) {
+      return _hobbyScanCapFromPriceEur(
+        _hobbyMonthlyPriceEurForCountry(
+          billingCountry,
+          languageCode: languageCode,
+        ),
+      );
+    }
+
+    if (isEmergingAsiaPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _hobbyScanCapFromPriceEur(
+        emergingAsiaAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.hobbyFarmerPremium),
+        ),
+      );
+    }
+    if (isKenyaPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _hobbyScanCapFromPriceEur(
+        kenyaAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.hobbyFarmerPremium),
+        ),
+      );
+    }
+    if (isTurkeyPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _hobbyScanCapFromPriceEur(
+        turkeyAdjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.hobbyFarmerPremium),
+        ),
+      );
+    }
+    if (ArabicMarketPricing.isArabicPricingContext(
+      languageCode: languageCode,
+      countryCode: countryCode,
+    )) {
+      return _hobbyScanCapFromPriceEur(
+        ArabicMarketPricing.adjustedEur(
+          SubscriptionLimits.monthlyPriceEur(SubscriptionTier.hobbyFarmerPremium),
+          _resolveArabCountryCode(countryCode: countryCode),
+        ),
+      );
+    }
+
+    var region = (currencyRegion ?? '').toLowerCase();
+    if (region.isEmpty) {
+      region = _defaultVetCurrencyRegionForLanguage(
+        languageCode,
+        countryCode: countryCode,
+      );
+    }
+    if (region == 'bih') {
+      return _hobbyScanCapFromPriceEur(cheapUsdHobbyMonthlyEur);
+    }
+    if (region == 'rs') {
+      return _hobbyScanCapFromPriceEur(
+        serbiaHobbyMonthlyRsd / CurrencyService.eurToRsd,
+      );
+    }
+    if (region == 'eu' || region == 'se' || _isSekLockedLanguageCode(languageCode)) {
+      return SubscriptionLimits.hobbyEuPremiumMonthlyScans;
+    }
+    if (_isUahLockedLanguageCode(languageCode) ||
+        _isRubLockedLanguageCode(languageCode)) {
+      return SubscriptionLimits.hobbyEuPremiumMonthlyScans;
+    }
+
+    final code = _resolvePricingCountryCode(
+      countryCode: countryCode,
+      currencyRegion: currencyRegion,
+      languageCode: languageCode,
+    );
+    return _hobbyScanCapFromPriceEur(
+      _hobbyMonthlyPriceEurForCountry(
+        code,
+        languageCode: languageCode,
+      ),
+    );
+  }
+
+  /// Mjesečna cijena Hobi Farmera u EUR — 2× Kupac u jeftinim zonama.
+  static double _hobbyMonthlyPriceEurForCountry(
+    String countryCode, {
+    String? languageCode,
+  }) {
+    final code = countryCode.toUpperCase();
+    final base =
+        SubscriptionLimits.monthlyPriceEur(SubscriptionTier.hobbyFarmerPremium);
+
+    if (_cheapUsdSubscriptionCountryCodes.contains(code) || code == 'BA') {
+      return cheapUsdHobbyMonthlyEur;
+    }
+    if (code == 'RS') {
+      return serbiaHobbyMonthlyRsd / CurrencyService.eurToRsd;
+    }
+    if (code == 'CH') {
+      return SwissMarketPricing.adjustedEur(base);
+    }
+    if (code == 'TR') {
+      return turkeyAdjustedEur(base);
+    }
+    if (code == 'IN' || code == 'ID') {
+      return emergingAsiaAdjustedEur(base);
+    }
+    if (code == 'KE') {
+      return kenyaAdjustedEur(base);
+    }
+    if (ArabicMarketPricing.arabCountries.contains(code)) {
+      return ArabicMarketPricing.adjustedEur(base, code);
+    }
+
+    final zone = zoneForCountry(code, languageCode: languageCode);
+    switch (zone) {
+      case BusinessPricingZone.eu:
+      case BusinessPricingZone.developed:
+        return base;
+      case BusinessPricingZone.bih:
+        return cheapUsdHobbyMonthlyEur;
+      case BusinessPricingZone.serbia:
+        return serbiaHobbyMonthlyRsd / CurrencyService.eurToRsd;
+      case BusinessPricingZone.emerging:
+        if (_africaCountryCodes.contains(code)) {
+          return cheapUsdHobbyMonthlyEur;
+        }
+        return _emergingTierEur(base, code);
+    }
+  }
+
+  /// Play Store cijena + lokalni mjesečni sufiks (npr. „2,39 € / Monat”).
+  static String formatPlayStorePriceLine(
+    String storePriceString, {
+    required String languageCode,
+  }) {
+    final trimmed = storePriceString.trim();
+    if (trimmed.isEmpty) return trimmed;
+    final suffix = _monthlyPeriodSuffix(_normalizeLanguage(languageCode));
+    if (trimmed.contains('/')) return trimmed;
+    return '$trimmed$suffix';
+  }
+
+  static int _resolveRegionalMonthlyCap({
+    required int euCap,
+    required int euMarketCap,
+    required double baseTierEurForPpp,
+    required String? currencyRegion,
+    required String languageCode,
+    String? countryCode,
+  }) {
     final billingCountry = (countryCode ??
             resolveBillingCountryForPricing() ??
             '')
@@ -1055,12 +1497,13 @@ class PaymentService {
             _serbiaPremiumPriceEur(),
           );
         case BusinessPricingZone.eu:
+          return euMarketCap;
         case BusinessPricingZone.developed:
           return euCap;
         case BusinessPricingZone.emerging:
           return _regionalScanCapFromPpp(
             euCap,
-            SubscriptionLimits.monthlyPriceEur(tier),
+            baseTierEurForPpp,
             billingCountry,
           );
       }
@@ -1111,10 +1554,10 @@ class PaymentService {
         _serbiaPremiumPriceEur(),
       );
     }
-    if (region == 'eu' ||
-        region == 'se' ||
-        _isSekLockedLanguageCode(languageCode) ||
-        _isUahLockedLanguageCode(languageCode) ||
+    if (region == 'eu' || region == 'se' || _isSekLockedLanguageCode(languageCode)) {
+      return euMarketCap;
+    }
+    if (_isUahLockedLanguageCode(languageCode) ||
         _isRubLockedLanguageCode(languageCode)) {
       return euCap;
     }
@@ -1134,12 +1577,13 @@ class PaymentService {
           _serbiaPremiumPriceEur(),
         );
       case BusinessPricingZone.eu:
+        return euMarketCap;
       case BusinessPricingZone.developed:
         return euCap;
       case BusinessPricingZone.emerging:
         return _regionalScanCapFromPpp(
           euCap,
-          SubscriptionLimits.monthlyPriceEur(tier),
+          baseTierEurForPpp,
           code,
         );
     }
@@ -1981,10 +2425,6 @@ class PaymentService {
     return quote.activateButtonLabel;
   }
 
-  /// Cijena dokupa skenova — pola mjesečnog paketa, 0,10 € API + 0,05 € marža po skenu.
-  static double scanTopUpPackPriceEur(int packSize) =>
-      packSize * scanTopUpUnitPriceEur;
-
   static String _formatOneTimePriceLine({
     required double amount,
     required String currencyCode,
@@ -1993,12 +2433,16 @@ class PaymentService {
   }
 
   static String scanTopUpPackPriceLine({
-    required int packSize,
     required String languageCode,
     String? currencyRegion,
     String? countryCode,
+    String? storePriceOverride,
   }) {
-    final eur = scanTopUpPackPriceEur(packSize);
+    if (storePriceOverride != null && storePriceOverride.trim().isNotEmpty) {
+      return storePriceOverride.trim();
+    }
+
+    final eur = scanTopUpPackPriceEur;
     final region = (currencyRegion ?? '').toLowerCase();
     final billingCode = (countryCode ??
             resolveBillingCountryForPricing() ??
@@ -2054,12 +2498,13 @@ class PaymentService {
     required String languageCode,
     String? currencyRegion,
     String? countryCode,
+    String? storePriceOverride,
   }) {
     final price = scanTopUpPackPriceLine(
-      packSize: packSize,
       languageCode: languageCode,
       currencyRegion: currencyRegion,
       countryCode: countryCode,
+      storePriceOverride: storePriceOverride,
     );
     final lang = _normalizeLanguage(languageCode);
     switch (lang) {
@@ -2110,9 +2555,9 @@ class PaymentService {
   static double _balkanMonthlyEurForProduct(String productId) {
     switch (productId) {
       case RevenueCatConfig.premiumBuyerMonthly:
-        return 1.99 / CurrencyService.eurToBam;
+        return cheapUsdSubscriptionMonthlyEur;
       case RevenueCatConfig.premiumHobbyMonthly:
-        return 3.99 / CurrencyService.eurToBam;
+        return cheapUsdHobbyMonthlyEur;
       case RevenueCatConfig.premiumProMonthly:
         return 9.99 / CurrencyService.eurToBam;
       case RevenueCatConfig.licenseVetMonthly:
@@ -2502,6 +2947,10 @@ class PaymentService {
     'SI', 'ES', 'SE', 'IS', 'LI', 'NO', 'CH',
   };
 
+  static const Set<String> _cheapUsdSubscriptionCountryCodes = {
+    'AL', 'MK', 'MD', 'SO',
+  };
+
   static const Set<String> _developedCountryCodes = {
     'US', 'CA', 'GB', 'AU', 'NZ', 'JP', 'KR', 'SG', 'HK', 'TW', 'IL', 'AE',
     'SA', 'QA', 'KW', 'OM', 'BH',
@@ -2525,7 +2974,7 @@ class PaymentService {
 
   static const Set<String> _latinAmericaCountryCodes = {
     'MX', 'GT', 'HN', 'SV', 'NI', 'CR', 'PA', 'CO', 'VE', 'EC', 'PE', 'BO',
-    'PY', 'CL', 'AR', 'UY', 'BR', 'DO', 'CU', 'HT', 'JM', 'TT',
+    'PY', 'CL', 'AR', 'UY', 'BR', 'DO', 'CU', 'HT', 'JM', 'TT', 'SR',
   };
 }
 

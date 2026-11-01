@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/premium_access.dart';
+import '../../theme/agro_accent_colors.dart';
 import '../../widgets/premium_gate.dart';
 import '../../widgets/product_price_text.dart';
 import '../../widgets/quantity_stepper.dart';
@@ -13,13 +14,13 @@ import '../../models/payment_result.dart';
 import '../../providers/locale_settings_provider.dart';
 import '../../services/currency_service.dart';
 import '../../services/payment_service.dart';
-import '../../config/payment_config.dart';
-import '../../config/marketplace_payment_config.dart';
 import '../../services/peer_marketplace_payment_service.dart';
+import '../../config/payment_config.dart';
 import '../../repositories/order_repository.dart';
-import '../../repositories/review_repository.dart';
+import '../../widgets/farmer_review_prompt.dart';
 import '../../utils/quantity_helper.dart';
 import '../../widgets/harvest_countdown_overlay.dart';
+import '../../widgets/peer_payment_option_tile.dart';
 import '../../widgets/product_sold_out_overlay.dart';
 import '../chat/chat_screen.dart';
 import 'cart_provider.dart';
@@ -36,7 +37,18 @@ class ProductDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
+  static const _priceYellow = Color(0xFFFFEB3B);
+  static const _soldOutMessageColor = Color(0xFFC62828);
+  static const _actionButtonHeight = 48.0;
+  static const _actionButtonFontSize = 12.0;
+  static const _actionButtonTextStyle = TextStyle(
+    fontWeight: FontWeight.w700,
+    fontSize: _actionButtonFontSize,
+    height: 1.1,
+  );
+
   late double _quantity;
+  bool _isPlacingOrder = false;
 
   Product get product => widget.product;
 
@@ -95,24 +107,18 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     BuildContext context,
     CartPaymentMethod method,
   ) async {
+    if (_isPlacingOrder) return;
+    setState(() => _isPlacingOrder = true);
     try {
-      final converted = _convertedLineTotal;
-      final amountLabel =
-          '${converted.displayAmount.toStringAsFixed(2)} ${converted.displayCurrency}';
-
-      if (MarketplacePaymentConfig.peerToPeerOnly &&
-          !method.requiresDigitalProcessing) {
-        final peerService = PeerMarketplacePaymentService();
-        final seller = await peerService.loadSellerDetails(product.sellerId);
-
-        if (!context.mounted) return;
-
-        final paymentResult = await peerService.confirmPeerPayment(
-          context: context,
-          method: method,
-          seller: seller,
-          amountLabel: amountLabel,
-        );
+      if (_requiresDigitalPayment && method.requiresDigitalProcessing) {
+        final converted = _convertedLineTotal;
+        final paymentResult = await ref.read(paymentServiceProvider).processPayment(
+              context: context,
+              method: method,
+              amount: converted.displayAmount,
+              currency: converted.displayCurrency,
+              sellerId: product.sellerId,
+            );
 
         if (!context.mounted || paymentResult == null) return;
 
@@ -120,33 +126,53 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           context,
           paymentMethod: paymentResult.paymentMethod,
           paymentStatus: paymentResult.paymentStatus,
+          transactionId: paymentResult.transactionId,
         );
         return;
       }
 
-      if (method == CartPaymentMethod.cash) {
+      if (method == CartPaymentMethod.directPaypal ||
+          method == CartPaymentMethod.bankTransfer) {
+        final converted = _convertedLineTotal;
+        final amountLabel = CurrencyService().formatDual(converted);
+        final paymentRef = PeerMarketplacePaymentService.newPaymentReference();
+        final peer = PeerMarketplacePaymentService();
+        final sellerDetails =
+            await peer.loadSellerDetails(product.sellerId);
+        if (!context.mounted) return;
+        final peerResult = await peer.confirmPeerPayment(
+          context: context,
+          method: method,
+          seller: sellerDetails,
+          amountLabel: amountLabel,
+          amountEur: converted.displayAmount,
+          paymentReference: paymentRef,
+          currencyCode: converted.displayCurrency,
+        );
+        if (!context.mounted || peerResult == null) return;
         await _placeOrder(
           context,
-          paymentMethod: 'cash',
+          paymentMethod: peerResult.paymentMethod,
+          paymentStatus: peerResult.paymentStatus,
+          transactionId: peerResult.transactionId,
+        );
+        if (!context.mounted) return;
+        await peer.showAfterOrderInstructions(
+          context: context,
+          method: method,
+          seller: sellerDetails,
+          amountLabel: amountLabel,
+          amountEur: converted.displayAmount,
+          paymentReference: peerResult.transactionId ?? paymentRef,
+          currencyCode: converted.displayCurrency,
         );
         return;
       }
-
-      final paymentResult = await ref.read(paymentServiceProvider).processPayment(
-            context: context,
-            method: method,
-            amount: converted.displayAmount,
-            currency: converted.displayCurrency,
-            sellerId: product.sellerId,
-          );
-
-      if (!context.mounted || paymentResult == null) return;
 
       await _placeOrder(
         context,
-        paymentMethod: paymentResult.paymentMethod,
-        paymentStatus: paymentResult.paymentStatus,
-        transactionId: paymentResult.transactionId,
+        paymentMethod: method.firestoreValue,
+        paymentStatus: PaymentStatus.pending,
       );
     } catch (e) {
       if (context.mounted) {
@@ -154,6 +180,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           SnackBar(content: Text('common_error'.tr(namedArgs: {'error': '$e'}))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isPlacingOrder = false);
     }
   }
 
@@ -210,6 +238,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           SnackBar(content: Text('common_error'.tr(namedArgs: {'error': '$e'}))),
         );
       }
+      rethrow;
     }
   }
 
@@ -319,47 +348,47 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 ],
                 const SizedBox(height: 16),
                 if (!_requiresDigitalPayment) ...[
-                  _buildPaymentOption(
+                  PeerPaymentOptionTile(
                     label: 'product_cash_on_pickup'.tr(),
                     subtitle: 'product_pay_on_delivery'.tr(),
-                    icon: Icons.money,
-                    color: Colors.green.shade700,
+                    icon: Icons.payments_rounded,
+                    color: PeerPaymentColors.cash,
                     onTap: () {
                       Navigator.pop(ctx);
                       _checkoutWithMethod(context, CartPaymentMethod.cash);
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                 ],
                 if (PaymentConfig.isStripeConfigured) ...[
-                  _buildPaymentOption(
+                  PeerPaymentOptionTile(
                     label: 'cart_payment_stripe'.tr(),
                     subtitle: 'payment_option_stripe_live_hint'.tr(),
-                    icon: Icons.credit_card,
-                    color: Colors.indigo.shade700,
+                    icon: Icons.credit_card_rounded,
+                    color: PeerPaymentColors.stripe,
                     onTap: () {
                       Navigator.pop(ctx);
                       _checkoutWithMethod(context, CartPaymentMethod.stripe);
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                 ],
-                _buildPaymentOption(
+                PeerPaymentOptionTile(
                   label: 'peer_payment_option_paypal'.tr(),
                   subtitle: 'peer_payment_option_paypal_hint'.tr(),
-                  icon: Icons.account_balance_wallet,
-                  color: const Color(0xFF003087),
+                  icon: Icons.account_balance_wallet_rounded,
+                  color: PeerPaymentColors.paypal,
                   onTap: () {
                     Navigator.pop(ctx);
                     _checkoutWithMethod(context, CartPaymentMethod.directPaypal);
                   },
                 ),
-                const SizedBox(height: 8),
-                _buildPaymentOption(
+                const SizedBox(height: 12),
+                PeerPaymentOptionTile(
                   label: 'peer_payment_option_bank'.tr(),
                   subtitle: 'peer_payment_option_bank_hint'.tr(),
-                  icon: Icons.account_balance,
-                  color: Colors.teal.shade700,
+                  icon: Icons.account_balance_rounded,
+                  color: PeerPaymentColors.bank,
                   onTap: () {
                     Navigator.pop(ctx);
                     _checkoutWithMethod(context, CartPaymentMethod.bankTransfer);
@@ -373,163 +402,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
-  Widget _buildPaymentOption({
-    required String label,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: color.withValues(alpha: 0.35)),
-      ),
-      tileColor: color.withValues(alpha: 0.06),
-      leading: Icon(icon, color: color, size: 32),
-      title: Text(
-        label,
-        style: TextStyle(fontWeight: FontWeight.bold, color: color),
-      ),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: color),
-      onTap: onTap,
-    );
-  }
-
-  void _showReviewModal(BuildContext context) async {
-    final reviewRepo = ref.read(reviewRepositoryProvider);
-    final orderRepo = ref.read(orderRepositoryProvider);
-    final alreadyReviewed = await reviewRepo.hasReviewed(product.sellerId);
-
-    if (!context.mounted) return;
-
-    if (alreadyReviewed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('product_already_reviewed'.tr())),
-      );
-      return;
-    }
-
-    final hasPurchased =
-        await orderRepo.hasCompletedOrderFromSeller(product.sellerId);
-    if (!context.mounted) return;
-
-    if (!hasPurchased) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('product_review_purchase_required'.tr())),
-      );
-      return;
-    }
-
-    double selectedRating = 5;
-    final commentController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
-
-        return Padding(
-          padding: EdgeInsets.only(bottom: bottomInset),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-              child: StatefulBuilder(
-                builder: (context, setModalState) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'product_rate_farmer'.tr(),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (index) {
-                        return GestureDetector(
-                          onTap: () => setModalState(
-                            () => selectedRating = index + 1.0,
-                          ),
-                          child: Icon(
-                            index < selectedRating
-                                ? Icons.star
-                                : Icons.star_border,
-                            color: Colors.amber,
-                            size: 40,
-                          ),
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: commentController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'product_review_comment'.tr(),
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green[700],
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      onPressed: () async {
-                        try {
-                          await reviewRepo.addReview(
-                            sellerId: product.sellerId,
-                            rating: selectedRating,
-                            comment: commentController.text.trim(),
-                          );
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('product_review_thanks'.tr()),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (!context.mounted) return;
-                          final message = e.toString().contains(
-                                'product_review_purchase_required',
-                              )
-                              ? 'product_review_purchase_required'.tr()
-                              : 'common_error'.tr(
-                                  namedArgs: {'error': '$e'},
-                                );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(message),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      child: Text('product_send_review'.tr()),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+  void _showReviewModal(BuildContext context) {
+    showFarmerReviewPrompt(
+      context,
+      ref,
+      sellerId: product.sellerId,
     );
   }
 
@@ -561,14 +438,30 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const chipGreen = AgroAccentColors.marketplaceChipGreen;
+    const unifiedGreen = AgroAccentColors.marketplaceUnifiedGreen;
+    const cornerRadius = AgroAccentColors.marketplaceCornerRadius;
+    final mutedWhite = Colors.white.withValues(alpha: 0.82);
+    final bodyTextStyle = TextStyle(
+      fontSize: 15,
+      height: 1.35,
+      color: Colors.white.withValues(alpha: 0.92),
+    );
+
     return Scaffold(
+      backgroundColor: unifiedGreen,
       appBar: AppBar(
         title: Text(
           product.name,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        backgroundColor: Colors.green[700],
+        backgroundColor: unifiedGreen,
         foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.star_outline),
@@ -614,8 +507,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             height: 250,
-                            color: Colors.grey[200],
-                            child: const Icon(Icons.image, size: 100),
+                            color: chipGreen,
+                            child: Icon(
+                              Icons.image,
+                              size: 100,
+                              color: Colors.white.withValues(alpha: 0.88),
+                            ),
                           ),
                         ),
                       )
@@ -626,8 +523,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           height: 250,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.image, size: 100),
+                          color: chipGreen,
+                          child: Icon(
+                            Icons.image,
+                            size: 100,
+                            color: Colors.white.withValues(alpha: 0.88),
+                          ),
                         ),
                       ),
               ),
@@ -641,6 +542,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -651,7 +553,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       unitDescription: product.unitDescription,
                       style: const TextStyle(
                         fontSize: 22,
-                        color: Colors.green,
+                        color: _priceYellow,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -667,7 +569,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       ),
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey[700],
+                        color: mutedWhite,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -675,9 +577,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'product_sold_out_message'.tr(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
-                          color: Colors.red[700],
+                          color: _soldOutMessageColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -688,7 +590,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
+                          color: Colors.orange.withValues(alpha: 0.22),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: Colors.orange.shade200),
                         ),
@@ -697,7 +599,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               ? 'product_upcoming_delivery_reserve_hint'.tr()
                               : 'product_upcoming_reserve_hint'.tr(),
                           style: TextStyle(
-                            color: Colors.orange.shade900,
+                            color: Colors.orange.shade200,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -707,7 +609,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         'product_upcoming_card_payment_hint'.tr(),
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.blue.shade800,
+                          color: Colors.white.withValues(alpha: 0.88),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -716,12 +618,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.green[200]!),
+                        color: chipGreen,
+                        borderRadius: BorderRadius.circular(cornerRadius),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.20),
+                        ),
                       ),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(cornerRadius),
                         onTap: product.sellerId.trim().isEmpty
                             ? null
                             : () => openSellerProfile(
@@ -731,8 +635,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: Colors.green[100],
-                              child: const Icon(Icons.person, color: Colors.green),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.18),
+                              child: Icon(
+                                Icons.person,
+                                color: Colors.white.withValues(alpha: 0.96),
+                              ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -741,9 +649,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 children: [
                                   Text(
                                     'product_seller_label'.tr(),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: Colors.grey,
+                                      color: mutedWhite,
                                     ),
                                   ),
                                   Text(
@@ -751,6 +659,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
+                                      color: Colors.white,
                                     ),
                                   ),
                                 ],
@@ -758,7 +667,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ),
                             Icon(
                               Icons.chevron_right,
-                              color: Colors.green[700],
+                              color: Colors.white.withValues(alpha: 0.96),
                             ),
                           ],
                         ),
@@ -770,12 +679,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),
                     product.description.isEmpty
-                        ? Text('product_no_description'.tr())
-                        : TranslatedText(product.description),
+                        ? Text(
+                            'product_no_description'.tr(),
+                            style: bodyTextStyle,
+                          )
+                        : TranslatedText(
+                            product.description,
+                            style: bodyTextStyle,
+                          ),
                     const SizedBox(height: 24),
                     AbsorbPointer(
                       absorbing: _isUnavailable,
@@ -783,8 +699,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         opacity: _isUnavailable ? 0.45 : 1,
                         child: Center(
                           child: QuantityStepper(
+                            marketplaceStyle: true,
                             quantity: _quantity,
                             unit: product.displayUnit,
+                            maxQuantity: _maxSelectableQuantity,
                             onChanged: (qty) {
                               if (qty <= 0) {
                                 _updateQuantity(
@@ -802,16 +720,32 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     Text(
                       '${'cart_line_total'.tr()}: ${ProductPriceText.formatAmountOnly(context, ref, _lineTotal, originalCurrency: product.originalCurrency)}',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green[700],
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: _priceYellow,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: chipGreen,
+                              foregroundColor: _priceYellow,
+                              disabledBackgroundColor:
+                                  chipGreen.withValues(alpha: 0.45),
+                              disabledForegroundColor:
+                                  _priceYellow.withValues(alpha: 0.45),
+                              minimumSize:
+                                  const Size(0, _actionButtonHeight),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              textStyle: _actionButtonTextStyle,
+                              shape: const StadiumBorder(),
+                              elevation: 2,
+                            ),
                             onPressed: _isUnavailable
                                 ? null
                                 : () => PremiumGate.run(
@@ -820,17 +754,32 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                       feature: PremiumFeature.orders,
                                       onUnlocked: () => _addToCart(context),
                                     ),
-                            child: Text('product_add_to_cart'.tr()),
+                            child: Text(
+                              'product_add_to_cart'.tr(),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange[800],
-                              disabledBackgroundColor: Colors.grey,
+                              backgroundColor: _priceYellow,
+                              foregroundColor: chipGreen,
+                              disabledBackgroundColor:
+                                  _priceYellow.withValues(alpha: 0.45),
+                              disabledForegroundColor:
+                                  chipGreen.withValues(alpha: 0.45),
+                              minimumSize:
+                                  const Size(0, _actionButtonHeight),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 8),
+                              textStyle: _actionButtonTextStyle,
+                              shape: const StadiumBorder(),
+                              elevation: 2,
                             ),
-                            onPressed: _isUnavailable
+                            onPressed: _isUnavailable || _isPlacingOrder
                                 ? null
                                 : () => PremiumGate.run(
                                       context,
@@ -843,7 +792,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               _isUpcomingActive
                                   ? 'product_reserve_ahead'.tr()
                                   : 'product_buy_now'.tr(),
-                              style: const TextStyle(color: Colors.white),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
                             ),
                           ),
                         ),

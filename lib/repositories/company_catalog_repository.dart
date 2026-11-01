@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/company_catalog_item.dart';
 import '../utils/firestore_error_helper.dart';
 import '../services/company_catalog_csv_parser.dart';
+import '../services/currency_service.dart';
 import '../services/product_upload_service.dart';
 
 class CatalogImportResult {
@@ -79,24 +80,53 @@ class CompanyCatalogRepository {
   }) async {
     rethrowIfSignedOut();
     try {
-      return await _importCsvImpl(sellerId: sellerId, csvContent: csvContent);
+      final rows = CompanyCatalogCsvParser.parse(csvContent);
+      return await importRows(sellerId: sellerId, rows: rows);
     } on FirebaseException {
       rethrow;
     }
   }
 
-  Future<CatalogImportResult> _importCsvImpl({
+  Future<CatalogImportResult> importRows({
     required String sellerId,
-    required String csvContent,
+    required List<ParsedCatalogRow> rows,
   }) async {
-    final rows = CompanyCatalogCsvParser.parse(csvContent);
+    rethrowIfSignedOut();
+    try {
+      return await _importRowsImpl(sellerId: sellerId, rows: rows);
+    } on FirebaseException {
+      rethrow;
+    }
+  }
+
+  Future<CatalogImportResult> _importRowsImpl({
+    required String sellerId,
+    required List<ParsedCatalogRow> rows,
+  }) async {
+    if (rows.isEmpty) {
+      return const CatalogImportResult(inserted: 0, updated: 0);
+    }
+
+    final userDoc = await _firestore.collection('users').doc(sellerId).get();
+    final userData = userDoc.data() ?? {};
+    final sellerName = userData['name'] as String? ?? 'Firma';
+    final originalCurrency = CurrencyService().resolveSellerCurrencyCode(
+      currencyRegion: userData['currencyRegion'] as String?,
+    );
 
     final existingSnap = await _itemsRef(sellerId).get();
     final skuToDocId = <String, String>{};
+    final skuToPublishedId = <String, String>{};
     for (final doc in existingSnap.docs) {
       final sku = (doc.data()['skuCode'] as String?)?.trim() ?? '';
       if (sku.isNotEmpty) {
-        skuToDocId[sku.toLowerCase()] = doc.id;
+        final skuKey = sku.toLowerCase();
+        skuToDocId[skuKey] = doc.id;
+        final publishedId =
+            (doc.data()['publishedProductId'] as String?)?.trim() ?? '';
+        if (publishedId.isNotEmpty) {
+          skuToPublishedId[skuKey] = publishedId;
+        }
       }
     }
 
@@ -113,17 +143,49 @@ class CompanyCatalogRepository {
       ops = 0;
     }
 
+    Map<String, dynamic> marketplaceFields(
+      ParsedCatalogRow row, {
+      required String category,
+    }) {
+      final trimmedName = row.name.trim();
+      return {
+        'sellerId': sellerId,
+        'sellerName': sellerName,
+        'name': trimmedName,
+        'description': trimmedName,
+        'productDescription': trimmedName,
+        'skuCode': row.skuCode.trim(),
+        'price': row.price,
+        'originalCurrency': originalCurrency,
+        'unit': row.unit,
+        'category': category,
+        'searchTags': ProductUploadService.buildSearchTags(
+          role: 'pharmacy',
+          categoryId: category,
+        ),
+        'productionType': 'conventional',
+        'isService': false,
+        'stock': row.stock,
+        'unitDescription': '',
+        'isSoldOut': row.stock <= 0,
+      };
+    }
+
     for (final row in rows) {
+      final category = ProductUploadService.resolveCompanyCategoryForImport(
+        rawCategory: row.category,
+        productName: row.name,
+      );
       final skuKey = row.skuCode.trim().toLowerCase();
       final payload = <String, dynamic>{
         'sellerId': sellerId,
         'skuCode': row.skuCode.trim(),
         'name': row.name.trim(),
-        'productDescription': '',
+        'productDescription': row.name.trim(),
         'price': row.price,
         'stock': row.stock,
         'unit': row.unit,
-        'category': ProductUploadService.companyCategories.first.id,
+        'category': category,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -131,13 +193,38 @@ class CompanyCatalogRepository {
       if (existingId != null) {
         batch!.update(_itemsRef(sellerId).doc(existingId), payload);
         updated++;
+
+        final publishedId = skuToPublishedId[skuKey];
+        if (publishedId != null) {
+          batch!.update(
+            _firestore.collection('products').doc(publishedId),
+            {
+              ...marketplaceFields(row, category: category),
+              'catalogItemId': existingId,
+            },
+          );
+          ops += 2;
+        } else {
+          ops++;
+        }
       } else {
-        final docRef = _itemsRef(sellerId).doc();
-        batch!.set(docRef, payload);
-        skuToDocId[skuKey] = docRef.id;
+        final catalogRef = _itemsRef(sellerId).doc();
+        final productRef = _firestore.collection('products').doc();
+        batch!.set(catalogRef, {
+          ...payload,
+          'publishedProductId': productRef.id,
+        });
+        batch!.set(productRef, {
+          ...marketplaceFields(row, category: category),
+          'imageUrl': '',
+          'catalogItemId': catalogRef.id,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        skuToDocId[skuKey] = catalogRef.id;
+        skuToPublishedId[skuKey] = productRef.id;
         inserted++;
+        ops += 2;
       }
-      ops++;
 
       await commitIfNeeded(force: false);
     }
@@ -225,6 +312,82 @@ class CompanyCatalogRepository {
       'stock': newStock,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Nakon ručnog uređivanja objavljenog proizvoda — uskladi katalog firme.
+  Future<void> syncCatalogFromProductEdit({
+    required String sellerId,
+    required String catalogItemId,
+    required double price,
+    required double stock,
+    required String name,
+    required String skuCode,
+    required String unit,
+    required String productDescription,
+    required String category,
+  }) async {
+    final catalogId = catalogItemId.trim();
+    if (catalogId.isEmpty) return;
+
+    await _itemsRef(sellerId).doc(catalogId).update(_catalogSyncFields(
+      price: price,
+      stock: stock,
+      name: name,
+      skuCode: skuCode,
+      unit: unit,
+      productDescription: productDescription,
+      category: category,
+    ));
+  }
+
+  /// Fallback kad proizvod nema [catalogItemId], ali je vezan preko publishedProductId.
+  Future<void> syncCatalogFromPublishedProduct({
+    required String sellerId,
+    required String productId,
+    required double price,
+    required double stock,
+    required String name,
+    required String skuCode,
+    required String unit,
+    required String productDescription,
+    required String category,
+  }) async {
+    final snap = await _itemsRef(sellerId)
+        .where('publishedProductId', isEqualTo: productId)
+        .limit(1)
+        .get();
+    if (snap.docs.isEmpty) return;
+
+    await snap.docs.first.reference.update(_catalogSyncFields(
+      price: price,
+      stock: stock,
+      name: name,
+      skuCode: skuCode,
+      unit: unit,
+      productDescription: productDescription,
+      category: category,
+    ));
+  }
+
+  Map<String, dynamic> _catalogSyncFields({
+    required double price,
+    required double stock,
+    required String name,
+    required String skuCode,
+    required String unit,
+    required String productDescription,
+    required String category,
+  }) {
+    return {
+      'price': price,
+      'stock': stock,
+      'name': name.trim(),
+      'skuCode': skuCode.trim(),
+      'unit': unit,
+      'productDescription': productDescription.trim(),
+      'category': category,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
   }
 
   Future<void> deleteItem({

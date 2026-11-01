@@ -76,7 +76,10 @@ async function identifyPlantBody(body) {
   if (response.status !== 200 && response.status !== 201) {
     const text = await response.text();
     const err = new Error(`Plant.id HTTP ${response.status}: ${text}`);
-    err.code = "internal";
+    err.code =
+        response.status === 401 || response.status === 403
+            ? "failed-precondition"
+            : "internal";
     err.httpStatus = response.status;
     throw err;
   }

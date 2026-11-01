@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/community_post.dart';
 import '../repositories/community_post_repository.dart';
 import '../../../widgets/sunflower_applause_icon.dart';
+import '../../../theme/agro_accent_colors.dart';
 
 class CommunityApplauseBar extends StatefulWidget {
   const CommunityApplauseBar({
@@ -27,21 +28,48 @@ class _CommunityApplauseBarState extends State<CommunityApplauseBar> {
   @override
   void initState() {
     super.initState();
-    _applaudedBy = List<String>.from(widget.post.applaudedBy);
+    _applaudedBy = _dedupeUserIds(widget.post.applaudedBy);
   }
 
   @override
   void didUpdateWidget(covariant CommunityApplauseBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_toggling) return;
     if (oldWidget.post.id != widget.post.id ||
         oldWidget.post.applaudedBy != widget.post.applaudedBy) {
-      _applaudedBy = List<String>.from(widget.post.applaudedBy);
+      _applaudedBy = _dedupeUserIds(widget.post.applaudedBy);
     }
+  }
+
+  static List<String> _dedupeUserIds(List<String> ids) {
+    final seen = <String>{};
+    final unique = <String>[];
+    for (final id in ids) {
+      final trimmed = id.trim();
+      if (trimmed.isEmpty || seen.contains(trimmed)) continue;
+      seen.add(trimmed);
+      unique.add(trimmed);
+    }
+    return unique;
   }
 
   bool _hasApplauded(String? userId) {
     if (userId == null || userId.isEmpty) return false;
     return _applaudedBy.contains(userId);
+  }
+
+  void _applyApplauseChange({
+    required String userId,
+    required bool applaud,
+  }) {
+    if (applaud) {
+      if (!_applaudedBy.contains(userId)) {
+        _applaudedBy.add(userId);
+      }
+    } else {
+      _applaudedBy.remove(userId);
+    }
+    _applaudedBy = _dedupeUserIds(_applaudedBy);
   }
 
   Future<void> _toggleApplause() async {
@@ -57,7 +85,10 @@ class _CommunityApplauseBarState extends State<CommunityApplauseBar> {
     }
 
     final currentlyApplauded = _hasApplauded(user.uid);
-    setState(() => _toggling = true);
+    _toggling = true;
+    setState(() {
+      _applyApplauseChange(userId: user.uid, applaud: !currentlyApplauded);
+    });
 
     try {
       await widget.postRepository.toggleApplause(
@@ -65,16 +96,11 @@ class _CommunityApplauseBarState extends State<CommunityApplauseBar> {
         userId: user.uid,
         currentlyApplauded: currentlyApplauded,
       );
-      if (!mounted) return;
-      setState(() {
-        if (currentlyApplauded) {
-          _applaudedBy.remove(user.uid);
-        } else {
-          _applaudedBy.add(user.uid);
-        }
-      });
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _applyApplauseChange(userId: user.uid, applaud: currentlyApplauded);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('common_error'.tr(namedArgs: {'error': '$e'})),
@@ -83,7 +109,8 @@ class _CommunityApplauseBarState extends State<CommunityApplauseBar> {
         );
       }
     } finally {
-      if (mounted) setState(() => _toggling = false);
+      _toggling = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -92,7 +119,7 @@ class _CommunityApplauseBarState extends State<CommunityApplauseBar> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     final hasApplauded = _hasApplauded(userId);
     final count = _applaudedBy.length;
-    final activeColor = Colors.green.shade800;
+    const activeColor = AgroAccentColors.marketplaceChipGreen;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),

@@ -35,6 +35,7 @@ class NotificationNavigationIntent {
     this.title,
     this.body,
     this.pushOrdersScreen = false,
+    this.stockCount,
   });
 
   final NotificationTarget target;
@@ -57,6 +58,7 @@ class NotificationNavigationIntent {
   final String? title;
   final String? body;
   final bool pushOrdersScreen;
+  final double? stockCount;
 }
 
 class NotificationIntentNotifier
@@ -81,16 +83,37 @@ class NotificationNavigationBridge {
   NotificationNavigationBridge._();
 
   static NotificationIntentNotifier? _notifier;
+  static void Function(NotificationNavigationIntent)? _tabSwitcher;
 
   static void register(NotificationIntentNotifier notifier) {
     _notifier = notifier;
   }
 
+  static void registerTabSwitcher(
+    void Function(NotificationNavigationIntent intent) switcher,
+  ) {
+    _tabSwitcher = switcher;
+  }
+
   static void unregister() {
     _notifier = null;
+    _tabSwitcher = null;
   }
 
   static void dispatch(NotificationNavigationIntent intent) {
     _notifier?.dispatch(intent);
+    _inboxSync?.call(intent);
+  }
+
+  static Future<void> Function(NotificationNavigationIntent intent)? _inboxSync;
+
+  static void registerInboxSync(
+    Future<void> Function(NotificationNavigationIntent intent) sync,
+  ) {
+    _inboxSync = sync;
+  }
+
+  static void switchToTabFor(NotificationNavigationIntent intent) {
+    _tabSwitcher?.call(intent);
   }
 }

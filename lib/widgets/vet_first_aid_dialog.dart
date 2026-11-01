@@ -11,6 +11,7 @@ import '../providers/subscription_provider.dart';
 import '../repositories/veterinary_request_repository.dart';
 import '../services/vet_navigation_service.dart';
 import '../services/vet_proximity_radar_service.dart';
+import '../utils/vet_appointment_formatter.dart';
 import 'farmer_help_widgets.dart';
 
 Future<void> showVetFirstAidDialog({
@@ -68,6 +69,7 @@ class _VetReferralSheet extends ConsumerStatefulWidget {
 
 class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
   final _memoController = TextEditingController();
+  final _preferredNoteController = TextEditingController();
   final _searchController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -76,6 +78,8 @@ class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
   bool _loading = true;
   bool _searching = false;
   bool _sending = false;
+  bool _requestPreferredAppointment = false;
+  DateTime? _preferredAppointmentAt;
   String? _error;
   VetProfile? _selectedVet;
 
@@ -88,6 +92,7 @@ class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
   @override
   void dispose() {
     _memoController.dispose();
+    _preferredNoteController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -209,6 +214,15 @@ class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
 
   Future<void> _submitReferral() async {
     if (!_formKey.currentState!.validate() || _selectedVet == null) return;
+    if (_requestPreferredAppointment && _preferredAppointmentAt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('vet_appointment_select_datetime'.tr()),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+      return;
+    }
 
     setState(() => _sending = true);
 
@@ -219,6 +233,11 @@ class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
             vetName: _selectedVet!.name,
             clientMemo: _memoController.text.trim(),
             clientName: widget.clientName,
+            ownerPreferredAt:
+                _requestPreferredAppointment ? _preferredAppointmentAt : null,
+            ownerPreferredNote: _requestPreferredAppointment
+                ? _preferredNoteController.text.trim()
+                : null,
           );
 
       if (!mounted) return;
@@ -498,6 +517,69 @@ class _VetReferralSheetState extends ConsumerState<_VetReferralSheet> {
                                               return null;
                                             },
                                           ),
+                                          SwitchListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            value: _requestPreferredAppointment,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _requestPreferredAppointment =
+                                                    value;
+                                                if (!value) {
+                                                  _preferredAppointmentAt = null;
+                                                  _preferredNoteController
+                                                      .clear();
+                                                }
+                                              });
+                                            },
+                                            title: Text(
+                                              'vet_appointment_request_preferred'
+                                                  .tr(),
+                                            ),
+                                          ),
+                                          if (_requestPreferredAppointment) ...[
+                                            OutlinedButton.icon(
+                                              onPressed: () async {
+                                                final picked =
+                                                    await VetAppointmentFormatter
+                                                        .pickDateTime(context);
+                                                if (picked != null) {
+                                                  setState(() =>
+                                                      _preferredAppointmentAt =
+                                                          picked);
+                                                }
+                                              },
+                                              icon: const Icon(
+                                                Icons.calendar_month_rounded,
+                                              ),
+                                              label: Text(
+                                                _preferredAppointmentAt == null
+                                                    ? 'vet_appointment_select_datetime'
+                                                        .tr()
+                                                    : VetAppointmentFormatter
+                                                        .formatDateTime(
+                                                        context,
+                                                        _preferredAppointmentAt!,
+                                                      ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            TextFormField(
+                                              controller:
+                                                  _preferredNoteController,
+                                              maxLines: 2,
+                                              decoration: InputDecoration(
+                                                labelText:
+                                                    'vet_appointment_preferred_note'
+                                                        .tr(),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                ),
+                                                filled: true,
+                                                fillColor: Colors.blue[50],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ],
                                     ),

@@ -4,6 +4,7 @@ enum ForumCategory {
   fieldCrops,
   livestock,
   mechanization,
+  other,
 }
 
 extension ForumCategoryX on ForumCategory {
@@ -19,6 +20,8 @@ extension ForumCategoryX on ForumCategory {
         return 'livestock';
       case ForumCategory.mechanization:
         return 'mechanization';
+      case ForumCategory.other:
+        return 'other';
     }
   }
 
@@ -34,13 +37,15 @@ extension ForumCategoryX on ForumCategory {
         return 'forum_cat_livestock';
       case ForumCategory.mechanization:
         return 'forum_cat_machinery';
+      case ForumCategory.other:
+        return 'forum_cat_other';
     }
   }
 
   static ForumCategory fromFirestore(String? value) {
     return ForumCategory.values.firstWhere(
       (category) => category.firestoreValue == value,
-      orElse: () => ForumCategory.fieldCrops,
+      orElse: () => ForumCategory.other,
     );
   }
 }

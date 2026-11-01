@@ -95,6 +95,10 @@ String? firestoreErrorCode(Object error) {
   return null;
 }
 
+String firestoreErrorLogoutLabel() {
+  return 'firestore_error_logout_retry'.tr();
+}
+
 void rethrowIfSignedOut() {
   if (_currentFirebaseUserOrNull() == null) {
     throw const FirestoreNotSignedInException();

@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,19 +9,13 @@ import '../config/weather_config.dart';
 import '../models/farm_weather.dart';
 import '../models/farmer_shop_settings.dart';
 import 'delivery_service.dart';
-import 'notification_service.dart';
 
 class WeatherService {
   WeatherService({
     FirebaseFirestore? firestore,
-    NotificationService? notificationService,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _notifications = notificationService ?? NotificationService();
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
-  final NotificationService _notifications;
-
-  final Set<String> _sentAlertKeys = {};
 
   Future<({double lat, double lng})?> _resolveFarmLocation(String uid) async {
     final doc = await _firestore.collection('users').doc(uid).get();
@@ -138,51 +131,6 @@ class WeatherService {
     }
 
     return _simulatedWeather(lat: lat, lng: lng);
-  }
-
-  Future<void> checkPremiumAlerts({
-    required FarmWeatherSnapshot weather,
-    required bool isPremium,
-  }) async {
-    if (!isPremium || !weather.requiresPremiumAlert) return;
-
-    final alerts = <String>[];
-
-    if (weather.hasHighWind) {
-      alerts.add('weather_alert_high_wind');
-    }
-    if (weather.hasExtremeHeat) {
-      alerts.add('weather_alert_extreme_heat');
-    }
-    if (weather.hailRisk) {
-      alerts.add('weather_alert_hail');
-    }
-    if (weather.frostRisk) {
-      alerts.add('weather_alert_frost');
-    }
-    if (weather.hasStormAlert) {
-      alerts.add('weather_alert_storm');
-    }
-    if (weather.hasHeavyRainAlert) {
-      alerts.add('weather_alert_heavy_rain');
-    }
-
-    for (final alertKey in alerts) {
-      if (_sentAlertKeys.contains(alertKey)) continue;
-      _sentAlertKeys.add(alertKey);
-
-      await _notifications.showWeatherAlert(
-        title: 'weather_alert_title'.tr(),
-        body: alertKey.tr(
-          namedArgs: {
-            'temp': weather.temperatureC.toStringAsFixed(0),
-            'wind': weather.windSpeedKmh.toStringAsFixed(0),
-            'rain': '${weather.precipitationChance}',
-          },
-        ),
-        payload: 'weather_alert|$alertKey',
-      );
-    }
   }
 
   Future<FarmWeatherSnapshot?> _fetchOpenWeather({

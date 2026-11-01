@@ -14,13 +14,19 @@ class CompanyCatalogCsvParser {
 
   static const skuHeaderAliases = {'sku', 'barkod'};
 
-  static const templateCsv = 'barkod,naziv,cijena,zaliha,jedinica\n'
-      '4012345678901,NPK 15-15-15,45.99,120,kg\n'
-      '87654321,Herbicid XYZ,29.50,45,l\n';
+  static const optionalCategoryHeaders = {'kategorija', 'category', 'kategorie', 'kat'};
 
-  static const templateCsvSemicolon = 'barkod;naziv;cijena;zaliha;jedinica\n'
-      '4012345678901;NPK 15-15-15;45.99;120;kg\n'
-      '87654321;Herbicid XYZ;29.50;45;l\n';
+  static const templateCsv =
+      'barkod,naziv,cijena,zaliha,jedinica,kategorija\n'
+      '4012345678901,NPK 15-15-15,45.99,120,kg,fertilizers_stimulants\n'
+      '87654321,Herbicid XYZ,29.50,45,l,plant_protection\n'
+      '99887766,Filter ulja traktora,12.00,30,kom,farm_machinery\n';
+
+  static const templateCsvSemicolon =
+      'barkod;naziv;cijena;zaliha;jedinica;kategorija\n'
+      '4012345678901;NPK 15-15-15;45.99;120;kg;fertilizers_stimulants\n'
+      '87654321;Herbicid XYZ;29.50;45;l;plant_protection\n'
+      '99887766;Filter ulja traktora;12.00;30;kom;farm_machinery\n';
 
   /// Uklanja UTF-8 BOM s početka datoteke prije parsiranja.
   static String stripBom(String raw) {
@@ -87,6 +93,9 @@ class CompanyCatalogCsvParser {
       final priceRaw = _cell(cells, columnIndex['cijena']!);
       final stockRaw = _cell(cells, columnIndex['zaliha']!);
       final unit = _cell(cells, columnIndex['jedinica']!);
+      final category = columnIndex.containsKey('kategorija')
+          ? _cell(cells, columnIndex['kategorija']!)
+          : '';
 
       if (sku.isEmpty && name.isEmpty) continue;
 
@@ -121,6 +130,7 @@ class CompanyCatalogCsvParser {
           price: price,
           stock: stock,
           unit: unit.isNotEmpty ? unit : 'kom',
+          category: category,
         ),
       );
     }
@@ -169,6 +179,9 @@ class CompanyCatalogCsvParser {
       }
       if (requiredHeaders.contains(h) && !map.containsKey(h)) {
         map[h] = i;
+      }
+      if (optionalCategoryHeaders.contains(h) && !map.containsKey('kategorija')) {
+        map['kategorija'] = i;
       }
     }
 
@@ -260,6 +273,7 @@ class ParsedCatalogRow {
   final double price;
   final double stock;
   final String unit;
+  final String category;
 
   const ParsedCatalogRow({
     required this.skuCode,
@@ -267,5 +281,6 @@ class ParsedCatalogRow {
     required this.price,
     required this.stock,
     this.unit = 'kom',
+    this.category = '',
   });
 }

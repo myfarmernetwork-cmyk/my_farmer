@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/agro_accent_colors.dart';
 import '../../../widgets/firestore_error_panel.dart';
 import '../../../widgets/shimmer_box.dart';
 import '../storefront_layout.dart';
@@ -40,7 +41,7 @@ class StorefrontProfileLoadingView extends StatelessWidget {
         final padding = StorefrontLayout.horizontalPadding(constraints.maxWidth);
 
         return ColoredBox(
-          color: Colors.white,
+          color: AgroAccentColors.marketplaceUnifiedGreen,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -84,7 +85,7 @@ class _HeaderSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final green = Colors.green.shade700;
+    final green = AgroAccentColors.marketplaceUnifiedGreen;
 
     return Material(
       color: green,
@@ -201,7 +202,7 @@ class StorefrontCatalogLoadingView extends StatelessWidget {
         final imageSize = StorefrontLayout.productImageSize(constraints.maxWidth);
 
         return ColoredBox(
-          color: Colors.white,
+          color: AgroAccentColors.marketplaceUnifiedGreen,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 24),
@@ -286,18 +287,15 @@ class StorefrontGalleryLoadingView extends StatelessWidget {
       builder: (context, constraints) {
         final layoutWidth = width ??
             (constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0);
-        final crossAxisCount = StorefrontLayout.galleryCrossAxisCount(layoutWidth);
+        final gridDelegate =
+            StorefrontLayout.galleryGridDelegate(layoutWidth);
         const spacing = 6.0;
         const itemCount = 9;
 
         final tiles = SliverPadding(
           padding: const EdgeInsets.all(spacing),
           sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-            ),
+            gridDelegate: gridDelegate,
             delegate: SliverChildBuilderDelegate(
               (_, __) => ShimmerBox(
                 height: 120,

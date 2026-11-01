@@ -7,6 +7,8 @@ import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/login_screen.dart';
 import '../services/account_deletion_service.dart';
+import '../theme/agro_accent_colors.dart';
+import 'agro_glass_chrome.dart';
 
 class ProfileDeleteAccountTile extends ConsumerStatefulWidget {
   const ProfileDeleteAccountTile({super.key});
@@ -101,12 +103,13 @@ class _ProfileDeleteAccountTileState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isPending) ...[
-          Container(
+          ProfileCreamCard(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AgroAccentColors.marketplaceCornerRadius),
               border: Border.all(color: Colors.orange.shade200),
+              boxShadow: AgroAccentColors.marketplaceCardShadow,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,8 +130,7 @@ class _ProfileDeleteAccountTileState
           ),
           const SizedBox(height: 12),
         ],
-        ListTile(
-          enabled: !_isDeleting && !isPending,
+        ProfileCreamListTile(
           leading: Icon(
             Icons.delete_forever_outlined,
             color: isPending ? Colors.grey : Colors.red.shade700,
@@ -137,6 +139,7 @@ class _ProfileDeleteAccountTileState
             'account_deletion_tile_title'.tr(),
             style: TextStyle(
               color: isPending ? Colors.grey : Colors.red.shade700,
+              fontWeight: FontWeight.w600,
             ),
           ),
           subtitle: Text(
@@ -151,7 +154,7 @@ class _ProfileDeleteAccountTileState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : null,
-          onTap: isPending ? null : () => _confirmAndDelete(user),
+          onTap: isPending || _isDeleting ? null : () => _confirmAndDelete(user),
         ),
       ],
     );

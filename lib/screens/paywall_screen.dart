@@ -331,6 +331,17 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         paymentCountryCode: paymentCountry,
       );
     }
+
+    if (RevenueCatConfig.isLivePlayBilling) {
+      final storePrice = _storePriceForProduct(productId);
+      if (storePrice != null && storePrice.isNotEmpty) {
+        return PaymentService.formatPlayStorePriceLine(
+          storePrice,
+          languageCode: context.locale.languageCode,
+        );
+      }
+    }
+
     final regionalPrice = PaymentService.subscriptionPriceLineForProduct(
       productId: productId,
       languageCode: context.locale.languageCode,
@@ -349,6 +360,24 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
       );
     }
     return _storePriceForProduct(productId);
+  }
+
+  String _priceFallbackLabel(String priceKey, String productId) {
+    final billingCountry = _billingCountry();
+    final user = ref.read(userDocProvider).valueOrNull;
+    final paymentCountry = user?.paymentCountryCode ??
+        PaymentService.cachedPaymentCountryCode;
+    final regional = PaymentService.subscriptionPriceLineForProduct(
+      productId: productId,
+      languageCode: context.locale.languageCode,
+      countryCode: billingCountry,
+      currencyRegion: _effectiveCurrencyRegion(),
+      paymentCountryCode: paymentCountry,
+    );
+    if (regional != null && regional.isNotEmpty) {
+      return priceKey.tr(namedArgs: {'price': regional});
+    }
+    return priceKey.tr();
   }
 
   @override
@@ -706,13 +735,30 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
 
   String _featuresTextForProduct(String? featuresKey) {
     if (featuresKey == null) return '';
+    final user = ref.read(userDocProvider).valueOrNull ??
+        ref.read(authStateProvider).valueOrNull;
+    final region = ref.read(currencyRegionProvider) ?? user?.currencyRegion;
+    final paymentCountry = user?.paymentCountryCode;
+
     if (featuresKey == 'paywall_pharmacy_features') {
-      final user = ref.read(userDocProvider).valueOrNull ??
-          ref.read(authStateProvider).valueOrNull;
       return companyPharmacyFeaturesForContext(
         context,
-        currencyRegion: ref.read(currencyRegionProvider) ?? user?.currencyRegion,
-        paymentCountryCode: user?.paymentCountryCode,
+        currencyRegion: region,
+        paymentCountryCode: paymentCountry,
+      );
+    }
+    if (featuresKey == 'paywall_buyer_features') {
+      return buyerFeaturesForContext(
+        context,
+        currencyRegion: region,
+        paymentCountryCode: paymentCountry,
+      );
+    }
+    if (featuresKey == 'paywall_hobby_features') {
+      return hobbyFeaturesForContext(
+        context,
+        currencyRegion: region,
+        paymentCountryCode: paymentCountry,
       );
     }
     return featuresKey.tr();
@@ -768,7 +814,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 if (priceKey != null) ...[
                   const SizedBox(height: 4),
                   Text(
-                    storePrice ?? priceKey.tr(),
+                    storePrice ?? _priceFallbackLabel(priceKey, productId),
                     style: TextStyle(
                       color: Colors.green[800],
                       fontWeight: FontWeight.w600,

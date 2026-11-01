@@ -49,6 +49,10 @@ class FollowerRepository {
       final existing = await tx.get(followerRef);
       if (existing.exists) return;
 
+      final farmerSnap = await tx.get(farmerRef);
+      final current =
+          (farmerSnap.data()?['followerCount'] as num?)?.toInt() ?? 0;
+
       tx.set(
         followerRef,
         Follower(
@@ -58,9 +62,6 @@ class FollowerRepository {
         ).toMap(),
       );
 
-      final farmerSnap = await tx.get(farmerRef);
-      final current =
-          (farmerSnap.data()?['followerCount'] as num?)?.toInt() ?? 0;
       tx.set(
         farmerRef,
         {'followerCount': current + 1},
@@ -82,11 +83,11 @@ class FollowerRepository {
       final existing = await tx.get(followerRef);
       if (!existing.exists) return;
 
-      tx.delete(followerRef);
-
       final farmerSnap = await tx.get(farmerRef);
       final current =
           (farmerSnap.data()?['followerCount'] as num?)?.toInt() ?? 0;
+
+      tx.delete(followerRef);
       tx.set(
         farmerRef,
         {'followerCount': current > 0 ? current - 1 : 0},

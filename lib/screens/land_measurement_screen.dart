@@ -550,10 +550,18 @@ class _LandMeasurementScreenState extends ConsumerState<LandMeasurementScreen> {
     );
   }
 
+  Future<void> _openPremiumPaywallFromLand() async {
+    await NirsMonitoringFlow.openPremiumPaywall(context, ref);
+    if (!mounted) return;
+    await _refreshNirsQuota();
+  }
+
   Future<void> _openNirsMonitoring() async {
     final access = ref.read(premiumAccessProvider);
     if (!access.canUseNirsMonitoring) {
       await NirsMonitoringFlow.showPremiumRequiredDialog(context, ref);
+      if (!mounted) return;
+      await _refreshNirsQuota();
       return;
     }
 
@@ -600,89 +608,128 @@ class _LandMeasurementScreenState extends ConsumerState<LandMeasurementScreen> {
     );
   }
 
-  Widget _buildNirsQuotaBanner(NirsQuotaStatus quota) {
+  Widget _buildNirsQuotaBanner(
+    NirsQuotaStatus quota, {
+    bool embedded = false,
+  }) {
     final subscriptionLocked =
         quota.blockReasonKey == 'land_nirs_subscription_required';
 
     if (!quota.canLoad) {
-      return Container(
+      final message = subscriptionLocked
+          ? _nirsLabelArgs(
+              'land_nirs_locked_quota',
+              hr:
+                  'NIRS/NDVI nadzor zaključan — aktivirajte Premium za {limit} učitavanja mjesečno.',
+              de:
+                  'NIRS/NDVI-Überwachung gesperrt — Premium aktivieren für {limit} Abrufe pro Monat.',
+              en:
+                  'NIRS/NDVI monitoring locked — activate Premium for {limit} loads per month.',
+              args: {'limit': '${quota.limit}'},
+            )
+          : _nirsLabel(
+              'land_nirs_limit_monthly',
+              hr:
+                  'Iskoristili ste sve NIRS satelitske nadzore za ovaj mjesec.',
+              de:
+                  'Sie haben alle NIRS-Satellitenüberwachungen für diesen Monat verbraucht.',
+              en: 'You have used all NIRS satellite scans for this month.',
+            );
+
+      return _nirsQuotaMessageRow(
         key: _guideNirsQuotaKey,
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: subscriptionLocked
-              ? Colors.amber.shade50
-              : Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: subscriptionLocked
-                ? Colors.amber.shade200
-                : Colors.orange.shade200,
+        embedded: embedded,
+        icon: subscriptionLocked
+            ? Icons.lock_outline
+            : Icons.warning_amber_rounded,
+        iconColor: subscriptionLocked
+            ? Colors.amber.shade900
+            : Colors.orange.shade800,
+        backgroundColor: subscriptionLocked
+            ? Colors.amber.shade50
+            : Colors.orange.shade50,
+        borderColor: subscriptionLocked
+            ? Colors.amber.shade200
+            : Colors.orange.shade200,
+        textColor: subscriptionLocked
+            ? Colors.amber.shade900
+            : Colors.orange.shade900,
+        message: message,
+      );
+    }
+
+    return _nirsQuotaMessageRow(
+      key: _guideNirsQuotaKey,
+      embedded: embedded,
+      icon: Icons.satellite_alt,
+      iconColor: Colors.green.shade800,
+      backgroundColor: Colors.green.shade50,
+      borderColor: Colors.green.shade200,
+      textColor: Colors.green.shade900,
+      message: _nirsLabelArgs(
+        'land_nirs_quota_remaining',
+        hr:
+            'Dostupnih NIRS satelitskih nadzora za ovaj mjesec: {remaining} / {limit}',
+        de:
+            'Verfügbare NIRS-Satellitenüberwachungen in diesem Monat: {remaining} / {limit}',
+        en:
+            'Available NIRS satellite monitoring sessions this month: {remaining} / {limit}',
+        args: {
+          'remaining': '${quota.remaining}',
+          'limit': '${quota.limit}',
+        },
+      ),
+    );
+  }
+
+  Widget _nirsQuotaMessageRow({
+    required Key? key,
+    required bool embedded,
+    required IconData icon,
+    required Color iconColor,
+    required Color backgroundColor,
+    required Color borderColor,
+    required Color textColor,
+    required String message,
+  }) {
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 13,
+              height: 1.35,
+            ),
           ),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              subscriptionLocked ? Icons.lock_outline : Icons.warning_amber_rounded,
-              color: subscriptionLocked
-                  ? Colors.amber.shade900
-                  : Colors.orange.shade800,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                subscriptionLocked
-                    ? 'land_nirs_locked_quota'.tr(namedArgs: {
-                        'limit': '${quota.limit}',
-                      })
-                    : 'land_nirs_limit_monthly'.tr(),
-                style: TextStyle(
-                  color: subscriptionLocked
-                      ? Colors.amber.shade900
-                      : Colors.orange.shade900,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-              ),
-            ),
-          ],
+      ],
+    );
+
+    if (embedded) {
+      return KeyedSubtree(
+        key: key,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: content,
         ),
       );
     }
 
     return Container(
-      key: _guideNirsQuotaKey,
+      key: key,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: borderColor),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.satellite_alt, color: Colors.green.shade800, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _nirsLabel(
-                'land_nirs_quota_remaining',
-                hr:
-                    'Dostupnih NIRS satelitskih nadzora za ovaj mjesec: {remaining} / {limit}',
-                de:
-                    'Verfügbare NIRS-Satellitenüberwachungen in diesem Monat: {remaining} / {limit}',
-                en:
-                    'Available NIRS satellite monitoring sessions this month: {remaining} / {limit}',
-              ).replaceAll('{remaining}', '${quota.remaining}').replaceAll(
-                    '{limit}',
-                    '${quota.limit}',
-                  ),
-              style: TextStyle(color: Colors.green.shade900, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
+      child: content,
     );
   }
 
@@ -698,6 +745,172 @@ class _LandMeasurementScreenState extends ConsumerState<LandMeasurementScreen> {
     if (language == 'de') return de;
     if (language == 'en') return en;
     return hr;
+  }
+
+  String _nirsLabelArgs(
+    String key, {
+    required String hr,
+    required String de,
+    required String en,
+    required Map<String, String> args,
+  }) {
+    var text = _nirsLabel(key, hr: hr, de: de, en: en);
+    for (final entry in args.entries) {
+      text = text.replaceAll('{${entry.key}}', entry.value);
+    }
+    return text;
+  }
+
+  Widget _buildNirsControlsPanel({
+    required bool canUseNirs,
+    required NirsQuotaStatus? quota,
+    required bool loadingQuota,
+  }) {
+    final showQuota = !loadingQuota && quota != null;
+    final quotaLocked = quota != null &&
+        !quota.canLoad &&
+        quota.blockReasonKey == 'land_nirs_subscription_required';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Material(
+        color: Colors.grey.shade50,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed:
+                          _points.length >= 3 && !_isParcelClosed
+                              ? _closeParcel
+                              : null,
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: Text('land_close_parcel'.tr()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: _guideNirsButtonKey,
+                      child: OutlinedButton.icon(
+                        onPressed: _openNirsMonitoring,
+                        icon: Icon(
+                          canUseNirs
+                              ? Icons.grass_outlined
+                              : Icons.lock_outline,
+                          size: 18,
+                          color: canUseNirs
+                              ? Colors.teal.shade800
+                              : Colors.grey.shade700,
+                        ),
+                        label: Text(
+                          canUseNirs
+                              ? _nirsLabel(
+                                  'land_nirs_button',
+                                  hr: 'Multispektralni NIRS/NDVI nadzor',
+                                  de: 'Multispektraler NIRS/NDVI-Monitor',
+                                  en: 'Multispectral NIRS/NDVI monitoring',
+                                )
+                              : _nirsLabel(
+                                  'land_nirs_button_locked',
+                                  hr: 'NIRS/NDVI — Premium',
+                                  de: 'NIRS/NDVI — Premium',
+                                  en: 'NIRS/NDVI — Premium',
+                                ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: canUseNirs
+                                ? Colors.teal.shade800
+                                : Colors.grey.shade800,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: canUseNirs
+                              ? Colors.teal.shade800
+                              : Colors.grey.shade800,
+                          side: BorderSide(
+                            color: canUseNirs
+                                ? Colors.teal.shade300
+                                : Colors.grey.shade400,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (loadingQuota)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: LinearProgressIndicator(
+                  color: Colors.green.shade700,
+                  backgroundColor: Colors.green.shade100,
+                ),
+              )
+            else if (showQuota) ...[
+              Divider(height: 1, color: Colors.grey.shade300),
+              Material(
+                color: quotaLocked
+                    ? Colors.amber.shade50
+                    : (!quota.canLoad
+                        ? Colors.orange.shade50
+                        : Colors.green.shade50),
+                child: InkWell(
+                  onTap: quotaLocked ? _openPremiumPaywallFromLand : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildNirsQuotaBanner(quota, embedded: true),
+                      if (quotaLocked)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(42, 0, 12, 12),
+                          child: Text(
+                            _nirsLabel(
+                              'land_premium_activate',
+                              hr: 'Aktiviraj Premium Pro',
+                              de: 'Premium Pro aktivieren',
+                              en: 'Activate Premium Pro',
+                            ),
+                            style: TextStyle(
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildGoogleMapView() {
@@ -1018,98 +1231,10 @@ class _LandMeasurementScreenState extends ConsumerState<LandMeasurementScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed:
-                                      _points.length >= 3 && !_isParcelClosed
-                                          ? _closeParcel
-                                          : null,
-                                  icon: const Icon(Icons.check_circle_outline),
-                                  label: Text('land_close_parcel'.tr()),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green.shade700,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: KeyedSubtree(
-                                  key: _guideNirsButtonKey,
-                                  child: OutlinedButton.icon(
-                                    onPressed: _openNirsMonitoring,
-                                    icon: Icon(
-                                      canUseNirs
-                                          ? Icons.grass_outlined
-                                          : Icons.lock_outline,
-                                      size: 18,
-                                      color: canUseNirs
-                                          ? Colors.teal.shade800
-                                          : Colors.grey.shade600,
-                                    ),
-                                    label: Text(
-                                      canUseNirs
-                                          ? _nirsLabel(
-                                              'land_nirs_button',
-                                              hr:
-                                                  'Multispektralni NIRS/NDVI nadzor',
-                                              de:
-                                                  'Multispektraler NIRS/NDVI-Monitor',
-                                              en:
-                                                  'Multispectral NIRS/NDVI monitoring',
-                                            )
-                                          : 'land_nirs_button_locked'.tr(),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: canUseNirs
-                                            ? Colors.teal.shade800
-                                            : Colors.grey.shade700,
-                                      ),
-                                    ),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: canUseNirs
-                                          ? Colors.teal.shade800
-                                          : Colors.grey.shade700,
-                                      side: BorderSide(
-                                        color: canUseNirs
-                                            ? Colors.teal.shade300
-                                            : Colors.grey.shade400,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                          child: _loadingNirsQuota
-                              ? Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  child: LinearProgressIndicator(
-                                    color: Colors.green.shade700,
-                                    backgroundColor: Colors.green.shade100,
-                                  ),
-                                )
-                              : _nirsQuota != null
-                                  ? _buildNirsQuotaBanner(_nirsQuota!)
-                                  : const SizedBox.shrink(),
+                        _buildNirsControlsPanel(
+                          canUseNirs: canUseNirs,
+                          quota: _nirsQuota,
+                          loadingQuota: _loadingNirsQuota,
                         ),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),

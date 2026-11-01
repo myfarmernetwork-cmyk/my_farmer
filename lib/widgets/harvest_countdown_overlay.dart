@@ -10,6 +10,8 @@ class HarvestCountdownOverlay extends StatefulWidget {
     required this.harvestDateTime,
     required this.child,
     this.showBadge = true,
+    this.showBottomCountdown = true,
+    this.dimPhoto = true,
     this.isDelivery = false,
     this.upcomingMode,
   });
@@ -17,6 +19,8 @@ class HarvestCountdownOverlay extends StatefulWidget {
   final DateTime harvestDateTime;
   final Widget child;
   final bool showBadge;
+  final bool showBottomCountdown;
+  final bool dimPhoto;
   final bool isDelivery;
   final String? upcomingMode;
 
@@ -58,20 +62,21 @@ class _HarvestCountdownOverlayState extends State<HarvestCountdownOverlay> {
       fit: StackFit.passthrough,
       children: [
         widget.child,
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.05),
-                  Colors.black.withValues(alpha: 0.55),
-                ],
+        if (widget.dimPhoto)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.05),
+                    Colors.black.withValues(alpha: 0.55),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
         if (widget.showBadge)
           Positioned(
             top: 8,
@@ -92,28 +97,29 @@ class _HarvestCountdownOverlayState extends State<HarvestCountdownOverlay> {
               ),
             ),
           ),
-        Positioned(
-          left: 8,
-          right: 8,
-          bottom: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.65),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade300),
-            ),
-            child: Text(
-              _countdownText,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+        if (widget.showBottomCountdown)
+          Positioned(
+            left: 8,
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300),
+              ),
+              child: Text(
+                _countdownText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

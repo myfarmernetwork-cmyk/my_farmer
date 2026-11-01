@@ -22,11 +22,19 @@ class StorefrontLayout {
     return 13;
   }
 
-  static int galleryCrossAxisCount(double width) {
-    if (width >= 720) return 4;
-    if (width >= 520) return 3;
-    return 2;
+  static const double galleryMaxCrossAxisExtent = 180;
+
+  /// Keeps gallery tiles a consistent size on phones and tablets.
+  static SliverGridDelegate galleryGridDelegate(double width) {
+    return SliverGridDelegateWithMaxCrossAxisExtent(
+      maxCrossAxisExtent: galleryMaxCrossAxisExtent,
+      crossAxisSpacing: 6,
+      mainAxisSpacing: 6,
+      childAspectRatio: 1,
+    );
   }
+
+  static const double communityFeedImageAspectRatio = 4 / 3;
 
   static BoxConstraints contentConstraints(BoxConstraints parent) {
     final width = parent.maxWidth.isFinite

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,12 +39,16 @@ class _SubscriptionBootstrapState extends ConsumerState<SubscriptionBootstrap> {
   }
 
   Future<void> _syncSubscription() async {
-    final service = ref.read(subscriptionServiceProvider);
-    await service.configure();
-    await service.logIn(widget.userId);
-    final paymentCountry =
-        await service.syncPaymentStoreCountry(userId: widget.userId);
-    await _refreshCurrencyRegionAfterStoreSync(paymentCountry);
+    try {
+      final service = ref.read(subscriptionServiceProvider);
+      await service.configure();
+      await service.logIn(widget.userId);
+      final paymentCountry =
+          await service.syncPaymentStoreCountry(userId: widget.userId);
+      await _refreshCurrencyRegionAfterStoreSync(paymentCountry);
+    } catch (e, stack) {
+      debugPrint('Subscription bootstrap skipped: $e\n$stack');
+    }
   }
 
   /// Kad GPS nije dostupan, Play/App Store država određuje cijenu — osvježi profil.

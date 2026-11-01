@@ -7,8 +7,11 @@ import '../models/app_user.dart';
 import '../providers/auth_provider.dart';
 import '../providers/locale_settings_provider.dart';
 import '../providers/subscription_provider.dart';
+import '../providers/app_config_provider.dart';
 import '../screens/paywall_screen.dart';
 import '../services/payment_service.dart';
+import '../theme/agro_accent_colors.dart';
+import 'agro_glass_chrome.dart';
 import 'farmer_help_widgets.dart';
 
 /// Kartica pretplate na profilu — pretplati se / otkaži pretplatu za sve uloge.
@@ -26,26 +29,23 @@ class ProfileSubscriptionCard extends ConsumerWidget {
     final user = ref.watch(userDocProvider).valueOrNull ??
         ref.watch(authStateProvider).valueOrNull;
     final role = user?.role ?? UserRole.buyer;
+    final closedTestingFreeVetIntake =
+        ref.watch(closedTestingFreeVetIntakeProvider);
+
+    if (role == UserRole.veterinarian && closedTestingFreeVetIntake) {
+      return const SizedBox.shrink();
+    }
+
     final storePremium = ref.watch(isPremiumProvider).value ?? false;
 
-    final isSubscribed = userAlreadySubscribed(
-      user: user,
-      storePremium: storePremium,
-    );
+    final isSubscribed = readUserAlreadySubscribed(ref);
     final isPending = user?.isPremiumPending ?? false;
     final inLicensePromo = _inLicensePromo(user, role);
     final awaitingLicenseApproval = _awaitingLicenseApproval(user, role);
 
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.green.shade200),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-        child: Column(
+    return ProfileCreamCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
@@ -157,11 +157,13 @@ class ProfileSubscriptionCard extends ConsumerWidget {
                     textAlign: TextAlign.center,
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green.shade800,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AgroAccentColors.marketplaceChipGreen,
+                    foregroundColor: const Color(0xFFFFEB3B),
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(
+                        AgroAccentColors.marketplaceCornerRadius,
+                      ),
                     ),
                   ),
                 ),
@@ -187,7 +189,6 @@ class ProfileSubscriptionCard extends ConsumerWidget {
               ),
           ],
         ),
-      ),
     );
   }
 

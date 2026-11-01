@@ -7,9 +7,14 @@ class SubscriptionLimits {
 
   static const int introAiScansTotal = 1;
 
+  /// Referenca za Balkan (pola capa), Srbiju (proporcionalno) i developed tržišta.
   static const int buyerPremiumMonthlyScans = 15;
   static const int hobbyPremiumMonthlyScans = 30;
   static const int proPremiumMonthlyScans = 60;
+
+  /// EU + CH — niži cap radi marže (API 0,10 €/scan).
+  static const int buyerEuPremiumMonthlyScans = 10;
+  static const int hobbyEuPremiumMonthlyScans = 20;
 
   static const int hobbyMaxActiveProducts = 5;
   static const int proMaxActiveProducts = 9999;
@@ -24,6 +29,7 @@ class SubscriptionLimits {
   static const int hobbyPremiumMaxAnimals = 20;
   static const int proFreeMaxAnimals = 20;
   static const int proPremiumMaxAnimals = 500;
+  static const int vetFreeMaxPrivatePets = 10;
   static const int vetPremiumMaxPrivatePets = 10;
 
   static const int farmerFreeMaxParcels = 1;
@@ -61,6 +67,18 @@ class SubscriptionLimits {
         return 50;
       case SubscriptionTier.pharmacyLicense:
         return 100;
+    }
+  }
+
+  /// Mjesečni AI skenovi u EU / Švicarskoj (GPS zona eu).
+  static int monthlyScansForTierInEuMarket(SubscriptionTier tier) {
+    switch (tier) {
+      case SubscriptionTier.buyerPremium:
+        return buyerEuPremiumMonthlyScans;
+      case SubscriptionTier.hobbyFarmerPremium:
+        return hobbyEuPremiumMonthlyScans;
+      default:
+        return monthlyScansForTier(tier);
     }
   }
 
@@ -117,7 +135,7 @@ class SubscriptionLimits {
         if (hasPaidPremium && tier == SubscriptionTier.veterinarianLicense) {
           return vetPremiumMaxPrivatePets;
         }
-        return 0;
+        return vetFreeMaxPrivatePets;
       default:
         return 0;
     }
@@ -203,7 +221,9 @@ class SubscriptionLimits {
       role == UserRole.pharmacy;
 
   static bool buyerCanPurchaseWithoutPremium(UserRole role) =>
-      role == UserRole.buyer || role == UserRole.pharmacy;
+      role == UserRole.buyer ||
+      role == UserRole.pharmacy ||
+      role == UserRole.veterinarian;
 
   static bool isPremiumVeterinarian(SubscriptionTier? tier) =>
       tier == SubscriptionTier.veterinarianLicense;

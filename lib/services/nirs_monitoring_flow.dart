@@ -6,12 +6,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../features/land/repositories/land_parcel_repository.dart';
 import '../models/nirs_scan_result.dart';
-import '../models/premium_access.dart';
 import '../providers/subscription_provider.dart';
 import '../services/nirs/nirs_monitoring_service.dart';
 import '../services/nirs_limit_service.dart';
+import '../screens/paywall_screen.dart';
+import '../services/payment_service.dart';
 import '../widgets/farmer_help_widgets.dart';
-import '../widgets/premium_gate.dart';
 
 class NirsMonitoringFlow {
   NirsMonitoringFlow._();
@@ -141,7 +141,6 @@ class NirsMonitoringFlow {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final isPremium = ref.read(isPremiumProvider).value ?? false;
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -172,25 +171,47 @@ class NirsMonitoringFlow {
             onPressed: () => Navigator.pop(ctx),
             child: Text('ok'.tr()),
           ),
-          if (!isPremium)
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                PremiumGate.run(
-                  context,
-                  ref,
-                  feature: PremiumFeature.landMeasurement,
-                  onUnlocked: () {},
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green.shade800,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(farmerGuideTr(context, 'land_premium_activate')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await Future<void>.delayed(Duration.zero);
+              if (!context.mounted) return;
+              await openPremiumPaywall(context, ref);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade800,
+              foregroundColor: Colors.white,
             ),
+            child: Text(farmerGuideTr(context, 'land_premium_activate')),
+          ),
         ],
       ),
     );
+  }
+
+  /// Isti ekran pretplate kao na profilu — bez [PremiumGate.landMeasurement].
+  static Future<void> openPremiumPaywall(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    if (!PaymentService.hasGpsVerifiedLocation) {
+      final device = await PaymentService.resolveDeviceCountryForPricing();
+      if (device == null) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('location_install_gps_required_pay'.tr())),
+        );
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
+
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const PaywallScreen()),
+    );
+
+    await ref.read(subscriptionServiceProvider).refreshPremiumStatus();
   }
 }

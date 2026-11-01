@@ -1,10 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+import '../../repositories/admin_repository.dart';
 import '../community/models/community_post.dart';
 import '../community/repositories/community_post_repository.dart';
 import '../community/services/community_author_service.dart';
 import '../community/utils/community_formatters.dart';
+import '../../utils/scroll_bottom_padding.dart';
 
 class AdminReportedPostsScreen extends StatefulWidget {
   const AdminReportedPostsScreen({super.key});
@@ -16,6 +18,7 @@ class AdminReportedPostsScreen extends StatefulWidget {
 
 class _AdminReportedPostsScreenState extends State<AdminReportedPostsScreen> {
   final _repository = CommunityPostRepository();
+  final _adminRepo = AdminRepository();
   final _authorService = CommunityAuthorService();
   final Set<String> _processing = {};
 
@@ -28,6 +31,52 @@ class _AdminReportedPostsScreenState extends State<AdminReportedPostsScreen> {
         SnackBar(
           content: Text('admin_report_dismissed'.tr()),
           backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('common_error'.tr(namedArgs: {'error': '$e'})),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _processing.remove(post.id));
+    }
+  }
+
+  Future<void> _removeImageOnly(CommunityPost post) async {
+    if (post.imageUrl.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('admin_remove_post_image_title'.tr()),
+        content: Text('admin_remove_post_image_body'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('cart_cancel'.tr()),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+            child: Text('admin_remove_post_image_confirm'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _processing.add(post.id));
+    try {
+      await _adminRepo.clearCommunityPostImage(postId: post.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('admin_remove_post_image_success'.tr()),
+          backgroundColor: Colors.orange.shade800,
         ),
       );
     } catch (e) {
@@ -132,7 +181,7 @@ class _AdminReportedPostsScreenState extends State<AdminReportedPostsScreen> {
           }
 
           return ListView.builder(
-            padding: const EdgeInsets.all(12),
+            padding: ScrollBottomPadding.list(context),
             itemCount: posts.length,
             itemBuilder: (context, index) {
               final post = posts[index];
@@ -211,6 +260,19 @@ class _AdminReportedPostsScreenState extends State<AdminReportedPostsScreen> {
                             ),
                           ],
                           const SizedBox(height: 14),
+                          if (post.imageUrl.isNotEmpty) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: isBusy
+                                    ? null
+                                    : () => _removeImageOnly(post),
+                                icon: const Icon(Icons.image_not_supported_outlined),
+                                label: Text('admin_remove_post_image'.tr()),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           Row(
                             children: [
                               Expanded(

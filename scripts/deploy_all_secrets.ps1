@@ -33,6 +33,7 @@ $clientSecret = [string]$secrets.SENTINEL_HUB_CLIENT_SECRET
 if ($clientSecret.Trim().Length -eq 0) { $clientSecret = [string]$secrets.SENTINEL2_API_SECRET }
 
 $plantIdKey = [string]$secrets.PLANT_ID_API_KEY
+$plantNetKey = [string]$secrets.PLANTNET_API_KEY
 
 Push-Location (Join-Path $root "functions")
 try {
@@ -41,6 +42,7 @@ try {
   Set-FirebaseSecret -Name "NIRS_API_KEY" -Value $nirsApiKey
   Set-FirebaseSecret -Name "SENTINEL_HUB_CLIENT_ID" -Value $clientId
   Set-FirebaseSecret -Name "SENTINEL_HUB_CLIENT_SECRET" -Value $clientSecret
+  Set-FirebaseSecret -Name "PLANTNET_API_KEY" -Value $plantNetKey
   Set-FirebaseSecret -Name "PLANT_ID_API_KEY" -Value $plantIdKey
   Set-FirebaseSecret -Name "STRIPE_SECRET_KEY" -Value ([string]$secrets.STRIPE_SECRET_KEY)
   Set-FirebaseSecret -Name "PAYPAL_CLIENT_ID" -Value ([string]$secrets.PAYPAL_CLIENT_ID)

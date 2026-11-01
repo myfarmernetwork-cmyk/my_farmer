@@ -1,5 +1,6 @@
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { writeInboxNotification } = require("./inbox_notifications");
 
 const FARMER_ROLES = new Set([
   "hobby_farmer",
@@ -14,7 +15,14 @@ const PREMIUM_FARMER_TIERS = new Set([
   "professional_farmer_premium",
 ]);
 
-const ALERT_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const ALL_ALERT_KEYS = [
+  "weather_alert_high_wind",
+  "weather_alert_extreme_heat",
+  "weather_alert_hail",
+  "weather_alert_frost",
+  "weather_alert_storm",
+  "weather_alert_heavy_rain",
+];
 
 const ALERT_MESSAGES = {
   hr: {
@@ -86,6 +94,28 @@ function isPremiumFarmer(data) {
     (data.premiumApprovalStatus || "").toString().toUpperCase() === "APPROVED";
   const tier = (data.subscriptionTier || "").toString();
   return approved && PREMIUM_FARMER_TIERS.has(tier);
+}
+
+function isFarmerForClosedTestingAlerts(data) {
+  if ((data.status || "").toString().toUpperCase() === "PENDING_DELETION") {
+    return false;
+  }
+  if (data.weatherAlertsEnabled === false) return false;
+  return isFarmerRole(data.role);
+}
+
+async function isClosedTestingFreeWeatherAlerts(db) {
+  try {
+    const doc = await db.doc("config/app").get();
+    const data = doc.data() || {};
+    return (
+      data.closedTestingFreeWeatherAlerts === true ||
+      data.closedTestingFreePremium === true
+    );
+  } catch (error) {
+    console.warn("config/app read failed:", error.message);
+    return false;
+  }
 }
 
 function resolveLanguage(data) {
@@ -208,42 +238,82 @@ function formatAlertBody(template, snapshot) {
     .replace("{rain}", String(snapshot.precipitationChance));
 }
 
-async function shouldSendAlert(db, uid, alertKey) {
+async function readEpisodeActive(db, uid, alertKey) {
   const doc = await db
     .collection("users")
     .doc(uid)
     .collection("weather_alert_state")
     .doc(alertKey)
     .get();
-
-  if (!doc.exists) return true;
-
-  const lastSent = doc.data()?.lastSentAt;
-  if (!lastSent || typeof lastSent.toMillis !== "function") return true;
-
-  return Date.now() - lastSent.toMillis() >= ALERT_COOLDOWN_MS;
+  return doc.exists && doc.data()?.active === true;
 }
 
-async function markAlertSent(db, uid, alertKey) {
+async function setEpisodeActive(db, uid, alertKey, active, sentNow = false) {
+  const payload = { active };
+  if (sentNow) {
+    payload.lastSentAt = FieldValue.serverTimestamp();
+  }
   await db
     .collection("users")
     .doc(uid)
     .collection("weather_alert_state")
     .doc(alertKey)
-    .set({ lastSentAt: FieldValue.serverTimestamp() }, { merge: true });
+    .set(payload, { merge: true });
 }
 
-async function sendWeatherAlert({ token, lang, alertKey, snapshot }) {
+async function syncWeatherAlertEpisodes({
+  db,
+  uid,
+  token,
+  lang,
+  snapshot,
+  activeKeys,
+}) {
+  let sent = 0;
+
+  for (const alertKey of ALL_ALERT_KEYS) {
+    const currentlyActive = activeKeys.includes(alertKey);
+    const wasActive = await readEpisodeActive(db, uid, alertKey);
+
+    if (currentlyActive && !wasActive) {
+      try {
+        await sendWeatherAlert({
+          uid,
+          token,
+          lang,
+          alertKey,
+          snapshot,
+        });
+        await setEpisodeActive(db, uid, alertKey, true, true);
+        sent += 1;
+      } catch (error) {
+        console.warn(
+          `Weather alert failed for ${uid} (${alertKey}):`,
+          error.message,
+        );
+      }
+    } else if (currentlyActive && wasActive) {
+      continue;
+    } else if (!currentlyActive && wasActive) {
+      await setEpisodeActive(db, uid, alertKey, false);
+    }
+  }
+
+  return sent;
+}
+
+async function sendWeatherAlert({ uid, token, lang, alertKey, snapshot }) {
   const messages = ALERT_MESSAGES[lang] || ALERT_MESSAGES.en;
   const template = messages[alertKey] || ALERT_MESSAGES.en[alertKey];
   if (!template) return;
 
   const body = formatAlertBody(template, snapshot);
+  const title = messages.title;
 
   await getMessaging().send({
     token,
     notification: {
-      title: messages.title,
+      title,
       body,
     },
     data: {
@@ -257,10 +327,22 @@ async function sendWeatherAlert({ token, lang, alertKey, snapshot }) {
       },
     },
   });
+
+  if (uid) {
+    await writeInboxNotification(uid, {
+      type: "weather_alert",
+      title,
+      body,
+      alertKey,
+    });
+  }
 }
 
-async function processPremiumFarmer(db, uid, data) {
-  if (!isPremiumFarmer(data)) return { skipped: true };
+async function processPremiumFarmer(db, uid, data, closedTestingFreePremium = false) {
+  const eligible = closedTestingFreePremium
+    ? isFarmerForClosedTestingAlerts(data)
+    : isPremiumFarmer(data);
+  if (!eligible) return { skipped: true };
 
   const fcmToken = data.fcmToken;
   if (!fcmToken) return { skipped: true, reason: "no_token" };
@@ -272,42 +354,58 @@ async function processPremiumFarmer(db, uid, data) {
   if (!snapshot) return { skipped: true, reason: "weather_fetch_failed" };
 
   const alertKeys = evaluateWeatherAlerts(snapshot);
-  if (alertKeys.length === 0) return { skipped: true, reason: "no_alerts" };
-
   const lang = resolveLanguage(data);
-  let sent = 0;
 
-  for (const alertKey of alertKeys) {
-    const ok = await shouldSendAlert(db, uid, alertKey);
-    if (!ok) continue;
-
-    try {
-      await sendWeatherAlert({
-        token: fcmToken,
-        lang,
-        alertKey,
-        snapshot,
-      });
-      await markAlertSent(db, uid, alertKey);
-      sent += 1;
-    } catch (error) {
-      console.warn(`Weather alert failed for ${uid} (${alertKey}):`, error.message);
-    }
-  }
+  const sent = await syncWeatherAlertEpisodes({
+    db,
+    uid,
+    token: fcmToken,
+    lang,
+    snapshot,
+    activeKeys: alertKeys,
+  });
 
   return { sent, alertKeys };
 }
 
 async function runPremiumWeatherAlerts() {
   const db = getFirestore();
-  const usersSnap = await db.collection("users").where("premiumActive", "==", true).get();
+  const closedTestingFreePremium = await isClosedTestingFreeWeatherAlerts(db);
 
   let processed = 0;
   let notified = 0;
 
+  if (closedTestingFreePremium) {
+    const farmerRoles = ["hobby_farmer", "professional_farmer", "farmer"];
+    const seen = new Set();
+
+    for (const role of farmerRoles) {
+      const snap = await db.collection("users").where("role", "==", role).get();
+      for (const doc of snap.docs) {
+        if (seen.has(doc.id)) continue;
+        seen.add(doc.id);
+        processed += 1;
+        const result = await processPremiumFarmer(
+          db,
+          doc.id,
+          doc.data(),
+          true,
+        );
+        if (result.sent) notified += result.sent;
+      }
+    }
+
+    console.log(
+      `Closed-testing weather alerts done. Users processed: ${processed}, notifications sent: ${notified}.`,
+    );
+    return { processed, notified, closedTestingFreePremium: true };
+  }
+
+  const usersSnap = await db.collection("users").where("premiumActive", "==", true).get();
+
   for (const doc of usersSnap.docs) {
     processed += 1;
-    const result = await processPremiumFarmer(db, doc.id, doc.data());
+    const result = await processPremiumFarmer(db, doc.id, doc.data(), false);
     if (result.sent) notified += result.sent;
   }
 
@@ -322,7 +420,7 @@ async function runPremiumWeatherAlerts() {
     if (!PREMIUM_FARMER_TIERS.has((data.subscriptionTier || "").toString())) continue;
 
     processed += 1;
-    const result = await processPremiumFarmer(db, doc.id, data);
+    const result = await processPremiumFarmer(db, doc.id, data, false);
     if (result.sent) notified += result.sent;
   }
 

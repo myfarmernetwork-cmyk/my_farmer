@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/subscription_limits.dart';
 import '../models/premium_access.dart';
+import '../models/subscription_tier.dart';
 import '../providers/locale_settings_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../services/payment_service.dart';
@@ -236,10 +237,13 @@ class HobbyPremiumBenefitsList extends ConsumerWidget {
       );
     }
     if (key == 'paywall_hobby_benefit_nirs') {
-      return farmerGuideTr(context, key).replaceAll(
-        '{count}',
-        '${SubscriptionLimits.hobbyPremiumNirsMonthlyLoads}',
+      final count = PaymentService.resolveSubscriptionMonthlyNirsCap(
+        tier: SubscriptionTier.hobbyFarmerPremium,
+        currencyRegion: currencyRegion,
+        languageCode: context.locale.languageCode,
+        countryCode: billingCountry,
       );
+      return farmerGuideTr(context, key).replaceAll('{count}', '$count');
     }
     if (key == 'paywall_hobby_benefit_parcels') {
       return farmerGuideTr(context, key).replaceAll(
@@ -367,10 +371,13 @@ class ProPremiumBenefitsList extends ConsumerWidget {
       );
     }
     if (key == 'paywall_pro_benefit_nirs') {
-      return farmerGuideTr(context, key).replaceAll(
-        '{count}',
-        '${SubscriptionLimits.proPremiumNirsMonthlyLoads}',
+      final count = PaymentService.resolveSubscriptionMonthlyNirsCap(
+        tier: SubscriptionTier.professionalFarmerPremium,
+        currencyRegion: currencyRegion,
+        languageCode: context.locale.languageCode,
+        countryCode: billingCountry,
       );
+      return farmerGuideTr(context, key).replaceAll('{count}', '$count');
     }
     if (key == 'paywall_pro_benefit_parcels') {
       return farmerGuideTr(context, key).replaceAll(
@@ -530,7 +537,7 @@ class PremiumGateDialog extends ConsumerWidget {
 
     final user = ref.read(userDocProvider).valueOrNull;
     final storePremium = ref.read(isPremiumProvider).value ?? false;
-    if (userAlreadySubscribed(user: user, storePremium: storePremium)) {
+    if (readUserAlreadySubscribed(ref)) {
       if (context.mounted) {
         if (user?.isPremiumPending == true) {
           showSubscriptionPendingNotice(context);
@@ -665,7 +672,7 @@ class CompanyPremiumGateDialog extends ConsumerWidget {
 
     final user = ref.read(userDocProvider).valueOrNull;
     final storePremium = ref.read(isPremiumProvider).value ?? false;
-    if (userAlreadySubscribed(user: user, storePremium: storePremium)) {
+    if (readUserAlreadySubscribed(ref)) {
       if (context.mounted) {
         if (user?.isPremiumPending == true) {
           showSubscriptionPendingNotice(context);

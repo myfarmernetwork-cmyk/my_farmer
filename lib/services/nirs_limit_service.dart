@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/nirs_quota.dart';
 import '../models/premium_access.dart';
-import '../models/app_user.dart';
-import '../config/subscription_limits.dart';
 
 class NirsLimitService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -23,9 +21,7 @@ class NirsLimitService {
     }
 
     if (!access.canUseNirsMonitoring) {
-      final previewLimit = access.role == UserRole.hobbyFarmer
-          ? SubscriptionLimits.hobbyPremiumNirsMonthlyLoads
-          : SubscriptionLimits.proPremiumNirsMonthlyLoads;
+      final previewLimit = access.regionalMonthlyNirsCapPreview;
       return NirsQuotaStatus.blocked(
         used: 0,
         limit: previewLimit,

@@ -2,28 +2,39 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
 import '../models/farmer_shop_settings.dart';
+import '../theme/agro_accent_colors.dart';
 import '../utils/farmer_shop_localization.dart';
 
 class FarmerShopInfoCard extends StatelessWidget {
   final FarmerShopSettings settings;
   final bool compact;
+  final bool marketplaceStyle;
 
   const FarmerShopInfoCard({
     super.key,
     required this.settings,
     this.compact = false,
+    this.marketplaceStyle = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final radius = AgroAccentColors.marketplaceCornerRadius;
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(compact ? 12 : 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(compact ? 12 : 16),
-        border: Border.all(color: Colors.green[200]!),
-        boxShadow: compact
+        color: marketplaceStyle
+            ? AgroAccentColors.marketplaceChipGreen
+            : Colors.white,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(
+          color: marketplaceStyle
+              ? Colors.white.withValues(alpha: 0.20)
+              : Colors.green[200]!,
+        ),
+        boxShadow: compact || marketplaceStyle
             ? null
             : [
                 BoxShadow(
@@ -38,14 +49,22 @@ class FarmerShopInfoCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.storefront, color: Colors.green[800], size: 20),
+              Icon(
+                Icons.storefront,
+                color: marketplaceStyle
+                    ? Colors.white.withValues(alpha: 0.96)
+                    : Colors.green[800],
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   compact ? 'shop_farmer_info'.tr() : 'profile_shop_section'.tr(),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.green[900],
+                    color: marketplaceStyle
+                        ? Colors.white
+                        : Colors.green[900],
                     fontSize: compact ? 14 : 16,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -58,7 +77,9 @@ class FarmerShopInfoCard extends StatelessWidget {
             Icons.circle,
             'shop_status'.tr(),
             FarmerShopLocalization.availability(settings.isAvailable),
-            valueColor: settings.isAvailable ? Colors.green[700] : Colors.red,
+            valueColor: settings.isAvailable
+                ? (marketplaceStyle ? Colors.white : Colors.green[700])
+                : (marketplaceStyle ? Colors.red.shade300 : Colors.red),
             leadingColor: settings.isAvailable ? Colors.green : Colors.red,
           ),
           if (settings.offersPickup) ...[
@@ -117,10 +138,17 @@ class FarmerShopInfoCard extends StatelessWidget {
     Color? valueColor,
     Color? leadingColor,
   }) {
+    final mutedWhite = Colors.white.withValues(alpha: 0.82);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: leadingColor ?? Colors.green[700]),
+        Icon(
+          icon,
+          size: 18,
+          color: marketplaceStyle
+              ? (leadingColor ?? Colors.white.withValues(alpha: 0.96))
+              : (leadingColor ?? Colors.green[700]),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -128,14 +156,19 @@ class FarmerShopInfoCard extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: marketplaceStyle ? mutedWhite : Colors.grey[600],
+                ),
               ),
               Text(
                 value,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: valueColor ?? Colors.black87,
+                  color: marketplaceStyle
+                      ? (valueColor ?? Colors.white)
+                      : (valueColor ?? Colors.black87),
                 ),
               ),
             ],

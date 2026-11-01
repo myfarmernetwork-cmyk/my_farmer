@@ -77,6 +77,10 @@ class Order {
   final String status;
   final Timestamp? createdAt;
   final Timestamp? completedAt;
+  final Timestamp? rejectedAt;
+  final Timestamp? sellerAcceptedAt;
+  final String? sellerMessage;
+  final bool? stockReserved;
 
   const Order({
     required this.id,
@@ -93,6 +97,10 @@ class Order {
     required this.status,
     this.createdAt,
     this.completedAt,
+    this.rejectedAt,
+    this.sellerAcceptedAt,
+    this.sellerMessage,
+    this.stockReserved,
   });
 
   /// Canonical status code for queries, filters and translations.
@@ -149,6 +157,10 @@ class Order {
       status: _normalizeStatus(data['status']),
       createdAt: data['createdAt'] as Timestamp?,
       completedAt: data['completedAt'] as Timestamp?,
+      rejectedAt: data['rejectedAt'] as Timestamp?,
+      sellerAcceptedAt: data['sellerAcceptedAt'] as Timestamp?,
+      sellerMessage: data['sellerMessage']?.toString(),
+      stockReserved: data['stockReserved'] as bool?,
     );
   }
 
@@ -168,6 +180,11 @@ class Order {
       'status': status,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       if (completedAt != null) 'completedAt': completedAt,
+      if (rejectedAt != null) 'rejectedAt': rejectedAt,
+      if (sellerAcceptedAt != null) 'sellerAcceptedAt': sellerAcceptedAt,
+      if (sellerMessage != null && sellerMessage!.trim().isNotEmpty)
+        'sellerMessage': sellerMessage!.trim(),
+      if (stockReserved != null) 'stockReserved': stockReserved,
     };
   }
 

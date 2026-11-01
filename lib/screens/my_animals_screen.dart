@@ -11,6 +11,7 @@ import '../models/animal_record.dart';
 import '../models/medical_history_entry.dart';
 import '../models/screen_guide_step.dart';
 import '../features/vet/veterinar_field_reports_tab.dart';
+import '../features/vet/vet_sent_messages_tab.dart';
 import '../models/veterinary_request.dart';
 import '../models/vet_conversation_message.dart';
 import '../providers/subscription_provider.dart';
@@ -19,6 +20,8 @@ import '../repositories/veterinary_request_repository.dart';
 import '../widgets/farmer_helper_button.dart';
 import '../widgets/farmer_help_widgets.dart';
 import '../widgets/medical_attachment_viewer.dart';
+import '../widgets/vet_appointment_cards.dart';
+import '../utils/vet_appointment_formatter.dart';
 import '../widgets/vet_first_aid_dialog.dart';
 
 const _animalsListPageSize = 25;
@@ -421,8 +424,8 @@ class AnimalDetailScreen extends ConsumerWidget {
       (a) => a.id == animal.id,
       orElse: () => animal,
     );
-    final vetResponseAsync = ref.watch(animalVetResponseProvider(current.id));
-    final answeredRequest = vetResponseAsync.valueOrNull;
+    final vetRequestAsync = ref.watch(animalVetRequestProvider(current.id));
+    final vetRequest = vetRequestAsync.valueOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -485,7 +488,11 @@ class AnimalDetailScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-          if (answeredRequest != null) ...[
+          if (vetRequest != null) ...[
+            VetAppointmentOwnerCard(request: vetRequest),
+            const SizedBox(height: 16),
+          ],
+          if (vetRequest != null && vetRequest.hasVetResponse) ...[
             Card(
               elevation: 2,
               color: Colors.blue.shade50,
@@ -523,11 +530,11 @@ class AnimalDetailScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    if (answeredRequest.vetName.isNotEmpty &&
-                        answeredRequest.sortedConversationMessages.length <= 1) ...[
+                    if (vetRequest.vetName.isNotEmpty &&
+                        vetRequest.sortedConversationMessages.length <= 1) ...[
                       const SizedBox(height: 6),
                       Text(
-                        answeredRequest.vetName,
+                        vetRequest.vetName,
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.blue.shade700,
@@ -536,8 +543,8 @@ class AnimalDetailScreen extends ConsumerWidget {
                       ),
                     ],
                     const SizedBox(height: 10),
-                    if (answeredRequest.sortedConversationMessages.length > 1)
-                      ...answeredRequest.sortedConversationMessages.map(
+                    if (vetRequest.sortedConversationMessages.length > 1)
+                      ...vetRequest.sortedConversationMessages.map(
                         (message) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Column(
@@ -575,7 +582,7 @@ class AnimalDetailScreen extends ConsumerWidget {
                       )
                     else
                       Text(
-                        answeredRequest.vetResponse,
+                        vetRequest.vetResponse,
                         style: const TextStyle(fontSize: 15, height: 1.45),
                       ),
                   ],
@@ -1581,7 +1588,7 @@ class _AnimalEditorScreenState extends ConsumerState<AnimalEditorScreen> {
   }
 }
 
-enum VeterinarianAnimalsTab { digitalIntake, fieldFindings }
+enum VeterinarianAnimalsTab { digitalIntake, sentMessages, fieldFindings }
 
 /// Izbornik veterinara — digitalni prijem i terenski nalazi (bez kupčevog paketa 1,99 €).
 class VeterinarianAnimalsHubScreen extends ConsumerStatefulWidget {
@@ -1606,11 +1613,13 @@ class _VeterinarianAnimalsHubScreenState
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 2,
+      length: 3,
       vsync: this,
-      initialIndex: widget.initialTab == VeterinarianAnimalsTab.fieldFindings
-          ? 1
-          : 0,
+      initialIndex: switch (widget.initialTab) {
+        VeterinarianAnimalsTab.fieldFindings => 2,
+        VeterinarianAnimalsTab.sentMessages => 1,
+        VeterinarianAnimalsTab.digitalIntake => 0,
+      },
     );
     _tabController.addListener(() {
       if (mounted) setState(() {});
@@ -1629,7 +1638,7 @@ class _VeterinarianAnimalsHubScreenState
 
   @override
   Widget build(BuildContext context) {
-    final onFieldFindingsTab = _tabController.index == 1;
+    final onFieldFindingsTab = _tabController.index == 2;
     final showFab = onFieldFindingsTab && _canManageFieldReports();
 
     return Scaffold(
@@ -1666,6 +1675,21 @@ class _VeterinarianAnimalsHubScreenState
             ),
             Tab(
               child: Text(
+                farmerGuideTr(
+                  context,
+                  'vet_sent_messages_title',
+                  fallbacks: const {
+                    'hr': 'Poslane poruke',
+                    'de': 'Gesendete Nachrichten',
+                    'en': 'Sent messages',
+                  },
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+              ),
+            ),
+            Tab(
+              child: Text(
                 farmerGuideTr(context, 'vet_animals_field_findings'),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -1689,6 +1713,19 @@ class _VeterinarianAnimalsHubScreenState
           controller: _tabController,
           children: [
             _VetDigitalIntakePanel(),
+            VetSentMessagesTab(
+              onOpenPatientMessages: (request) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => VetPatientRequestDetailScreen(
+                      request: request,
+                      initialDetailTabIndex: 1,
+                    ),
+                  ),
+                );
+              },
+            ),
             const VeterinarFieldReportsTab(),
           ],
         ),
@@ -2318,9 +2355,14 @@ class _VetDigitalIntakePanelState extends ConsumerState<_VetDigitalIntakePanel> 
 }
 
 class VetPatientRequestDetailScreen extends ConsumerStatefulWidget {
-  const VetPatientRequestDetailScreen({super.key, required this.request});
+  const VetPatientRequestDetailScreen({
+    super.key,
+    required this.request,
+    this.initialDetailTabIndex = 0,
+  });
 
   final VeterinaryRequest request;
+  final int initialDetailTabIndex;
 
   @override
   ConsumerState<VetPatientRequestDetailScreen> createState() =>
@@ -2333,12 +2375,18 @@ class _VetPatientRequestDetailScreenState
   final _responseController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
+  bool _proposeAppointment = false;
+  DateTime? _proposedAppointmentAt;
   late TabController _detailTabController;
 
   @override
   void initState() {
     super.initState();
-    _detailTabController = TabController(length: 2, vsync: this);
+    _detailTabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialDetailTabIndex.clamp(0, 1),
+    );
     _detailTabController.addListener(_handleDetailTabChange);
   }
 
@@ -2372,6 +2420,15 @@ class _VetPatientRequestDetailScreenState
 
   Future<void> _submitResponse(VeterinaryRequest request) async {
     if (!_formKey.currentState!.validate()) return;
+    if (_proposeAppointment && _proposedAppointmentAt == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('vet_appointment_select_datetime'.tr()),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -2380,10 +2437,16 @@ class _VetPatientRequestDetailScreenState
             requestId: request.id,
             vetResponse: _responseController.text.trim(),
             vetName: user?.displayName,
+            proposedAppointmentAt:
+                _proposeAppointment ? _proposedAppointmentAt : null,
           );
       if (!mounted) return;
       _responseController.clear();
       _formKey.currentState?.reset();
+      setState(() {
+        _proposeAppointment = false;
+        _proposedAppointmentAt = null;
+      });
       await _markConversationRead();
       if (!mounted) return;
       _detailTabController.animateTo(1);
@@ -2509,6 +2572,7 @@ class _VetPatientRequestDetailScreenState
     VeterinaryRequest request,
   ) {
     return [
+            VetAppointmentVetPanel(request: request),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -2742,6 +2806,26 @@ class _VetPatientRequestDetailScreenState
               },
             ),
             const SizedBox(height: 16),
+            if (!request.hasOwnerCounter && !request.isAppointmentConfirmed) ...[
+              VetAppointmentVetProposalFields(
+                enabled: _proposeAppointment,
+                selectedDateTime: _proposedAppointmentAt,
+                onEnabledChanged: (value) {
+                  setState(() {
+                    _proposeAppointment = value;
+                    if (!value) _proposedAppointmentAt = null;
+                  });
+                },
+                onPickDateTime: () async {
+                  final picked =
+                      await VetAppointmentFormatter.pickDateTime(context);
+                  if (picked != null) {
+                    setState(() => _proposedAppointmentAt = picked);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
             SizedBox(
               width: double.infinity,
               height: 52,

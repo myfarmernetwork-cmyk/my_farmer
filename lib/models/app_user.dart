@@ -37,6 +37,7 @@ class AppUser {
   final bool isAdminAccount;
   final bool premiumActive;
   final bool weatherAlertsEnabled;
+  final bool quietWhenBackground;
   final String? status;
   final Timestamp? subscriptionExpiresAt;
   final Timestamp? accountDeletionRequestedAt;
@@ -66,6 +67,7 @@ class AppUser {
     this.isAdminAccount = false,
     this.premiumActive = false,
     this.weatherAlertsEnabled = true,
+    this.quietWhenBackground = false,
     this.status,
     this.subscriptionExpiresAt,
     this.accountDeletionRequestedAt,
@@ -104,6 +106,7 @@ class AppUser {
       isAdminAccount: data['isAdmin'] as bool? ?? false,
       premiumActive: data['premiumActive'] as bool? ?? false,
       weatherAlertsEnabled: data['weatherAlertsEnabled'] as bool? ?? true,
+      quietWhenBackground: data['quietWhenBackground'] as bool? ?? false,
       status: data['status'] as String?,
       subscriptionExpiresAt: data['subscriptionExpiresAt'] as Timestamp?,
       accountDeletionRequestedAt:
@@ -197,12 +200,12 @@ class AppUser {
     return null;
   }
 
-  /// Stvarna uloga — ignorira pogrešno spremljeni buyer ako profil kaže drugačije.
+  /// Stvarna uloga — [role] iz Firestorea (admin) uvijek pobjeđuje inferenciju iz starih polja.
   static String? readRoleField(Map<String, dynamic> data) {
     final explicit = _readExplicitRoleField(data);
     final explicitCanonical = normalizeRoleAlias(explicit);
 
-    if (explicitCanonical.isNotEmpty && explicitCanonical != 'buyer') {
+    if (explicitCanonical.isNotEmpty) {
       return explicit;
     }
 

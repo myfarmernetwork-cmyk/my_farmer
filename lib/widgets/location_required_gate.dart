@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/locale_settings_provider.dart';
 import '../services/location_install_prefs.dart';
 import '../services/payment_service.dart';
@@ -22,6 +23,9 @@ class LocationRequiredGate extends ConsumerStatefulWidget {
 
 class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
     with WidgetsBindingObserver {
+  /// Spriječi GPS splash pri svakom rebuildu AuthGate-a (tablet flicker).
+  static String? _sessionGrantedUid;
+
   bool _checking = true;
   bool _granted = false;
   bool _working = false;
@@ -51,6 +55,17 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
   }
 
   Future<void> _bootstrap() async {
+    final uid = ref.read(currentAuthUidProvider);
+    if (uid != null && _sessionGrantedUid == uid) {
+      if (mounted) {
+        setState(() {
+          _checking = false;
+          _granted = true;
+        });
+      }
+      return;
+    }
+
     if (await LocationInstallPrefs.isCompleted()) {
       final savedCountry = await LocationInstallPrefs.loadGpsCountry();
       if (savedCountry != null) {
@@ -63,21 +78,13 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
           paymentCountryCode: PaymentService.cachedPaymentCountryCode,
         );
         ref.read(currencyRegionProvider.notifier).state = region;
-        setState(() {
-          _checking = false;
-          _granted = true;
-        });
+        _markGranted(uid);
         return;
       }
     }
 
     if (PaymentService.hasGpsVerifiedLocation) {
-      if (mounted) {
-        setState(() {
-          _checking = false;
-          _granted = true;
-        });
-      }
+      _markGranted(uid);
       return;
     }
 
@@ -86,6 +93,18 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
       setState(() => _checking = false);
     }
     unawaited(_ensureGps(showErrors: false));
+  }
+
+  void _markGranted(String? uid) {
+    if (uid != null && uid.isNotEmpty) {
+      _sessionGrantedUid = uid;
+    }
+    if (!mounted) return;
+    setState(() {
+      _checking = false;
+      _granted = true;
+      _error = null;
+    });
   }
 
   void _showFeedback(String message, {bool isError = true}) {
@@ -170,14 +189,9 @@ class _LocationRequiredGateState extends ConsumerState<LocationRequiredGate>
       await LocationInstallPrefs.markCompleted();
       await LocationInstallPrefs.saveGpsCountry(device.countryCode);
 
-      if (mounted) {
-        setState(() {
-          _granted = true;
-          _error = null;
-        });
-        if (showErrors) {
-          _showFeedback('location_install_success'.tr(), isError: false);
-        }
+      _markGranted(ref.read(currentAuthUidProvider));
+      if (showErrors && mounted) {
+        _showFeedback('location_install_success'.tr(), isError: false);
       }
     } catch (_) {
       const messageKey = 'location_install_gps_failed';

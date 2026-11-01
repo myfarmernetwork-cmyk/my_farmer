@@ -6,6 +6,7 @@ import '../models/farm_weather.dart';
 import '../providers/auth_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/paywall_screen.dart';
+import '../theme/agro_accent_colors.dart';
 import 'farmer_help_widgets.dart';
 
 class FarmerWeatherWidget extends ConsumerWidget {
@@ -17,6 +18,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
     this.usingDeviceGps = false,
     this.onRefresh,
     this.onActionTap,
+    this.marketplaceSurface = false,
   });
 
   final FarmWeatherSnapshot? weather;
@@ -25,6 +27,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
   final bool usingDeviceGps;
   final VoidCallback? onRefresh;
   final VoidCallback? onActionTap;
+  final bool marketplaceSurface;
 
   IconData _iconFor(WeatherCondition condition) {
     switch (condition) {
@@ -82,6 +85,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
         buttonLabel: farmerGuideTr(context, 'weather_action_gps_button'),
         isLoading: isLoading,
         onAction: onActionTap,
+        marketplaceSurface: marketplaceSurface,
       );
     }
 
@@ -94,6 +98,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
         buttonLabel: farmerGuideTr(context, 'weather_action_gps_button'),
         isLoading: true,
         onAction: null,
+        marketplaceSurface: marketplaceSurface,
       );
     }
 
@@ -107,22 +112,33 @@ class FarmerWeatherWidget extends ConsumerWidget {
         buttonLabel: farmerGuideTr(context, 'weather_action_retry_button'),
         isLoading: isLoading,
         onAction: onActionTap,
+        marketplaceSurface: marketplaceSurface,
       );
     }
 
     final accent = _accentFor(snapshot.condition);
+    final titleColor = marketplaceSurface
+        ? AgroAccentColors.cardTextLight
+        : Colors.green.shade900;
+    final subtitleColor = marketplaceSurface
+        ? AgroAccentColors.cardTextLight.withValues(alpha: 0.78)
+        : Colors.teal.shade700;
+    final refreshColor = marketplaceSurface
+        ? AgroAccentColors.cardTextLight.withValues(alpha: 0.9)
+        : Colors.green.shade700;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _WeatherShell(
+          marketplaceSurface: marketplaceSurface,
           child: Row(
             children: [
               Container(
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.15),
+                  color: accent.withValues(alpha: marketplaceSurface ? 0.22 : 0.15),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
@@ -141,7 +157,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: Colors.green.shade900,
+                        color: titleColor,
                       ),
                     ),
                     if (usingDeviceGps) ...[
@@ -150,7 +166,7 @@ class FarmerWeatherWidget extends ConsumerWidget {
                         farmerGuideTr(context, 'weather_using_device_gps'),
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.teal.shade700,
+                          color: subtitleColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -184,17 +200,20 @@ class FarmerWeatherWidget extends ConsumerWidget {
                           icon: Icons.thermostat,
                           label:
                               '${snapshot.temperatureC.toStringAsFixed(0)}°C',
+                          marketplaceSurface: marketplaceSurface,
                         ),
                         const SizedBox(width: 8),
                         _MetricChip(
                           icon: Icons.air,
                           label:
                               '${snapshot.windSpeedKmh.toStringAsFixed(0)} km/h',
+                          marketplaceSurface: marketplaceSurface,
                         ),
                         const SizedBox(width: 8),
                         _MetricChip(
                           icon: Icons.water_drop_outlined,
                           label: '${snapshot.humidityPercent}%',
+                          marketplaceSurface: marketplaceSurface,
                         ),
                       ],
                     ),
@@ -210,10 +229,10 @@ class FarmerWeatherWidget extends ConsumerWidget {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.green.shade700,
+                            color: refreshColor,
                           ),
                         )
-                      : const Icon(Icons.refresh),
+                      : Icon(Icons.refresh, color: refreshColor),
                   tooltip: 'weather_refresh'.tr(),
                 ),
             ],
@@ -236,30 +255,42 @@ class FarmerWeatherWidget extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
-        ] else if (hasWeatherAccess && snapshot.requiresPremiumAlert) ...[
+        ] else if (hasWeatherAccess && snapshot.activeAlertKeys.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.red.shade200),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'weather_premium_active_alerts'.tr(),
-                    style: TextStyle(
-                      color: Colors.red.shade800,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
+          ...snapshot.activeAlertKeys.map(
+            (alertKey) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.shade200),
                 ),
-              ],
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red.shade700,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        alertKey.tr(namedArgs: snapshot.alertMessageArgs),
+                        style: TextStyle(
+                          color: Colors.red.shade800,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -277,6 +308,7 @@ class _WeatherActionCard extends StatelessWidget {
     required this.buttonLabel,
     required this.isLoading,
     this.onAction,
+    this.marketplaceSurface = false,
   });
 
   final IconData icon;
@@ -286,11 +318,20 @@ class _WeatherActionCard extends StatelessWidget {
   final String buttonLabel;
   final bool isLoading;
   final VoidCallback? onAction;
+  final bool marketplaceSurface;
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = marketplaceSurface
+        ? AgroAccentColors.cardTextLight
+        : Colors.grey.shade900;
+    final subtitleColor = marketplaceSurface
+        ? AgroAccentColors.cardTextLight.withValues(alpha: 0.78)
+        : Colors.grey.shade700;
+
     return _WeatherShell(
       emphasized: onAction != null,
+      marketplaceSurface: marketplaceSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -314,7 +355,7 @@ class _WeatherActionCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        color: Colors.grey.shade900,
+                        color: titleColor,
                         fontWeight: FontWeight.w700,
                         fontSize: 14,
                       ),
@@ -325,7 +366,7 @@ class _WeatherActionCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         height: 1.35,
-                        color: Colors.grey.shade700,
+                        color: subtitleColor,
                       ),
                     ),
                   ],
@@ -355,9 +396,13 @@ class _WeatherActionCard extends StatelessWidget {
                       : buttonLabel,
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
+                  backgroundColor: marketplaceSurface
+                      ? AgroAccentColors.marketplaceChipGreen
+                      : Colors.green.shade700,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.green.shade600,
+                  disabledBackgroundColor: marketplaceSurface
+                      ? AgroAccentColors.marketplaceChipGreen.withValues(alpha: 0.7)
+                      : Colors.green.shade600,
                   disabledForegroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
@@ -377,13 +422,40 @@ class _WeatherShell extends StatelessWidget {
   const _WeatherShell({
     required this.child,
     this.emphasized = false,
+    this.marketplaceSurface = false,
   });
 
   final Widget child;
   final bool emphasized;
+  final bool marketplaceSurface;
 
   @override
   Widget build(BuildContext context) {
+    if (marketplaceSurface) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AgroAccentColors.filterZoneGlassFill,
+          borderRadius: BorderRadius.circular(
+            AgroAccentColors.marketplaceCornerRadius,
+          ),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: emphasized ? 0.28 : 0.18),
+            width: emphasized ? 1.2 : 0.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: child,
+      );
+    }
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -413,24 +485,33 @@ class _WeatherShell extends StatelessWidget {
 }
 
 class _MetricChip extends StatelessWidget {
-  const _MetricChip({required this.icon, required this.label});
+  const _MetricChip({
+    required this.icon,
+    required this.label,
+    this.marketplaceSurface = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool marketplaceSurface;
 
   @override
   Widget build(BuildContext context) {
+    final color = marketplaceSurface
+        ? AgroAccentColors.cardTextLight.withValues(alpha: 0.88)
+        : Colors.grey.shade800;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.grey.shade700),
+        Icon(icon, size: 14, color: color.withValues(alpha: 0.9)),
         const SizedBox(width: 2),
         Text(
           label,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Colors.grey.shade800,
+            color: color,
           ),
         ),
       ],

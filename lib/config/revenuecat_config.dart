@@ -89,6 +89,9 @@ class RevenueCatConfig {
     licensePharmacyMonthly: 1999,
   };
 
+  /// Jednokratni dokup skenova — mora odgovarati Play Console (scan_topup_pack).
+  static const int scanTopUpPackPriceCentsEur = 750;
+
   static int? monthlyPriceCentsForProductId(String productId) =>
       monthlyPriceCentsEurByProductId[productId];
 

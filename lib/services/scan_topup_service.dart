@@ -62,13 +62,12 @@ class ScanTopUpService {
     required int packSize,
     required String languageCode,
   }) async {
-    final eur = PaymentService.scanTopUpPackPriceEur(packSize);
+    final eur = PaymentService.scanTopUpPackPriceEur;
 
     if (RevenueCatConfig.simulationMode) {
       debugPrint(
         'Scan top-up simulation: +$packSize scans charged at '
-        '${eur.toStringAsFixed(2)} EUR '
-        '(profit ${(packSize * PaymentService.scanTopUpProfitEur).toStringAsFixed(2)} EUR)',
+        '${eur.toStringAsFixed(2)} EUR',
       );
       return true;
     }

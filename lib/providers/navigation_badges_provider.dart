@@ -1,13 +1,13 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/chat_repository.dart';
 import '../repositories/order_repository.dart';
 import '../repositories/veterinary_request_repository.dart';
 import '../utils/order_status.dart';
+import 'auth_provider.dart';
 
 final newSellerOrdersCountProvider = StreamProvider.autoDispose<int>((ref) {
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+  final uid = ref.watch(currentAuthUidProvider);
   if (uid == null) return Stream.value(0);
 
   return ref.watch(orderRepositoryProvider).watchSellerOrders(uid).map(
@@ -49,4 +49,10 @@ class NavigationBadges {
   int get sellerTabBadge => newOrders + unreadMessages;
 
   int get profileTabBadge => unreadMessages + pendingVetIntakes;
+}
+
+/// Očisti badge providere nakon odjave ili promjene računa.
+void invalidateNavigationSessionCache(WidgetRef ref) {
+  ref.invalidate(newSellerOrdersCountProvider);
+  ref.invalidate(navigationBadgesProvider);
 }

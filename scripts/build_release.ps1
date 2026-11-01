@@ -1,4 +1,5 @@
 # Play Store release build - loads secrets from secrets.local.json (not in git).
+# Prije builda: scripts/RELEASE_CHECKLIST.md
 # 1. Copy secrets.local.json.example -> secrets.local.json
 # 2. Fill in keys
 # 3. .\scripts\build_release.ps1
@@ -14,6 +15,7 @@ $serverOnlyKeys = @(
   "SENTINEL2_API_SECRET",
   "NIRS_API_KEY",
   "PLANT_ID_API_KEY",
+  "PLANTNET_API_KEY",
   "STRIPE_SECRET_KEY",
   "PAYPAL_CLIENT_SECRET",
   "PAYPAL_ENV"
@@ -59,6 +61,14 @@ foreach ($prop in $secrets.PSObject.Properties) {
 $rcKey = [string]$secrets.REVENUECAT_ANDROID_KEY
 if ($rcKey.Trim().Length -eq 0) {
   Write-Error "REVENUECAT_ANDROID_KEY is required in secrets.local.json."
+}
+
+$privacyUrl = [string]$secrets.PRIVACY_POLICY_URL
+if ($privacyUrl.Trim().Length -eq 0) {
+  Write-Error "PRIVACY_POLICY_URL is required for Play Store (Datenschutz link in app)."
+}
+if ($privacyUrl -notmatch '^https://') {
+  Write-Error "PRIVACY_POLICY_URL must be a public https URL."
 }
 
 $nirsUrl = [string]$secrets.SENTINEL2_API_BASE_URL
